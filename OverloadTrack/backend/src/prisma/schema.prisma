@@ -49,10 +49,11 @@ model Routine {
 }
 
 model Exercise {
-  id        String    @id @default(cuid())
-  wgerId    Int       @unique
+  id        String        @id @default(cuid())
+  wgerId    Int           @unique
   name      String
   routines  Routine[]
+  logs      ExerciseLog[]
 }
 
 model ExerciseLog {
@@ -72,7 +73,3 @@ model SetLog {
   weight        Float
   completed     Boolean
 }
-
-
-
-
