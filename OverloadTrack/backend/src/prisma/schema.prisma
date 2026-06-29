@@ -1,0 +1,74 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id          String    @id @default(cuid())
+  email       String    @unique
+  password    String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  profile     Profile?
+  sessions    WorkoutSession[]
+}
+
+model Profile {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id])
+  dateOfBirth DateTime
+  height      Int
+  weight      Float
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model WorkoutSession {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id])
+  routineId String
+  routine   Routine     @relation(fields: [routineId], references: [id])
+  rpe       Int
+  startedAt DateTime    @default(now())
+  endedAt   DateTime?
+  exercises ExerciseLog[]
+}
+
+model Routine {
+  id        String      @id @default(cuid())
+  name      String
+  userId    String
+  sessions  WorkoutSession[]
+  exercises Exercise[]
+}
+
+model Exercise {
+  id        String    @id @default(cuid())
+  wgerId    Int       @unique
+  name      String
+  routines  Routine[]
+}
+
+model ExerciseLog {
+  id        String      @id @default(cuid())
+  sessionId String
+  session   WorkoutSession @relation(fields: [sessionId], references: [id])
+  exerciseId String
+  exercise  Exercise    @relation(fields: [exerciseId], references: [id])
+  sets      SetLog[]
+}
+
+model SetLog {
+  id            String      @id @default(cuid())
+  exerciseLogId String
+  exerciseLog   ExerciseLog @relation(fields: [exerciseLogId], references: [id])
+  reps          Int
+  weight        Float
+  completed     Boolean
+}
