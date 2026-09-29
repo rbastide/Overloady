@@ -1,0 +1,31 @@
+{
+  "short_name": "Overloady",
+  "name": "Overloady — Surcharge Progressive & Coach IA",
+  "description": "Application athlétique de musculation, suivi de surcharge progressive, programmes personnalisés et coaching IA.",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/apple-touch-icon.png",
+      "type": "image/png",
+      "sizes": "180x180",
+      "purpose": "any"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#060709",
+  "theme_color": "#060709",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/"
+}

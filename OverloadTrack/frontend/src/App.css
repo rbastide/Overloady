@@ -1830,4 +1830,88 @@
   margin-bottom: 1.25rem;
 }
 
+/* ==========================================================================
+   MOBILE NATIVE BOTTOM NAVIGATION & SAFE AREAS (iOS / Android PWA)
+   ========================================================================== */
+.mobile-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 999;
+  background: rgba(10, 14, 22, 0.94);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.5rem 0.5rem max(0.6rem, env(safe-area-inset-bottom, 0.6rem)) 0.5rem;
+  justify-content: space-around;
+  align-items: center;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.6);
+}
+
+.mobile-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--radius-sm);
+  transition: all 0.18s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-nav-item.active {
+  color: var(--accent-volt);
+  transform: translateY(-2px);
+}
+
+.mobile-nav-item.active span:first-child {
+  filter: drop-shadow(0 0 8px rgba(204, 255, 0, 0.6));
+}
+
+@media (max-width: 900px) {
+  .nav-island {
+    display: none !important;
+  }
+  
+  .mobile-nav {
+    display: flex;
+  }
+
+  .top-navbar-wrapper {
+    padding: max(0.6rem, env(safe-area-inset-top, 0.6rem)) 1rem 0.5rem 1rem;
+  }
+
+  .top-navbar {
+    padding: 0.5rem 0.85rem;
+  }
+
+  .brand-title {
+    font-size: 1.15rem;
+  }
+
+  .main-content {
+    padding: 1rem 1rem 6.5rem 1rem;
+  }
+
+  .bento-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .bento-hero, .bento-ai-rec, .bento-stat-card {
+    grid-column: span 1 !important;
+  }
+
+  .test-week-steps-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+
 
