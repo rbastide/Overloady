@@ -527,4 +527,196 @@ export class WorkoutService {
       achievements,
     };
   }
+
+  async getNextRecommendedWorkout(userId: string) {
+    const profile = await this.prisma.profile.findUnique({
+      where: { userId },
+    });
+    const goal = ((profile as any)?.goal || 'BODYBUILDING').toUpperCase();
+
+    // Last session to detect muscle fatigue & rotation
+    const lastSession = await this.prisma.workoutSession.findFirst({
+      where: { userId, endedAt: { not: null } },
+      orderBy: { startedAt: 'desc' },
+      include: {
+        exercises: {
+          include: { exercise: true, sets: true },
+        },
+      },
+    });
+
+    const allExercises = await this.prisma.exercise.findMany();
+
+    // Detect which muscle was worked last
+    const lastCategories: string[] = [];
+    if (lastSession) {
+      for (const exLog of lastSession.exercises) {
+        const cat = (exLog.exercise as any).category;
+        if (cat && !lastCategories.includes(cat)) {
+          lastCategories.push(cat);
+        }
+      }
+    }
+
+    // Determine next split: Push -> Pull -> Legs -> Push
+    let targetFocus = 'Pectoraux & Triceps';
+    let targetCategories = ['Pectoraux', 'Épaules', 'Bras'];
+
+    if (lastCategories.some(c => c === 'Pectoraux' || c === 'Épaules')) {
+      targetFocus = 'Dos & Biceps';
+      targetCategories = ['Dos', 'Bras'];
+    } else if (lastCategories.some(c => c === 'Dos')) {
+      targetFocus = 'Jambes & Abdominaux';
+      targetCategories = ['Jambes', 'Abdominaux'];
+    } else if (lastCategories.some(c => c === 'Jambes')) {
+      targetFocus = 'Pectoraux & Épaules';
+      targetCategories = ['Pectoraux', 'Épaules', 'Bras'];
+    }
+
+    const candidateExercises = allExercises.filter(ex => targetCategories.includes((ex as any).category));
+    const selectedExercises = candidateExercises.slice(0, 4);
+    const finalExercises = selectedExercises.length > 0 ? selectedExercises : allExercises.slice(0, 3);
+
+    const recommendedExercises = [];
+
+    for (const ex of finalExercises) {
+      const lastLog = await this.prisma.exerciseLog.findFirst({
+        where: {
+          exerciseId: ex.id,
+          session: { userId, endedAt: { not: null } },
+        },
+        orderBy: { session: { startedAt: 'desc' } },
+        include: { sets: true },
+      });
+
+      let baseWeight = 20;
+      if (lastLog && lastLog.sets.length > 0) {
+        const completedSets = lastLog.sets.filter(s => s.completed && s.weight > 0);
+        if (completedSets.length > 0) {
+          baseWeight = Math.max(...completedSets.map(s => s.weight));
+        }
+      }
+
+      let setsCount = 4;
+      let targetReps = 8;
+      let targetWeight = baseWeight;
+      let targetAdvice = '';
+
+      if (goal === 'FORCE') {
+        setsCount = 4;
+        targetReps = 5;
+        targetWeight = baseWeight > 20 ? baseWeight + 2.5 : 40;
+        targetAdvice = 'Charge lourde • Repos 3-4 min • Intensité 85% 1RM';
+      } else if (goal === 'ENDURANCE') {
+        setsCount = 3;
+        targetReps = 15;
+        targetWeight = Math.max(10, Math.round((baseWeight * 0.7) / 2.5) * 2.5);
+        targetAdvice = 'Cadence continue • Repos 45s • Densité musculaire';
+      } else {
+        setsCount = 4;
+        targetReps = 10;
+        targetWeight = baseWeight > 20 ? baseWeight : 30;
+        targetAdvice = 'Tension continue • Repos 75-90s • Focus congestion';
+      }
+
+      const sets = [];
+      for (let i = 0; i < setsCount; i++) {
+        sets.push({
+          setNumber: i + 1,
+          weight: targetWeight,
+          reps: targetReps,
+          completed: false,
+        });
+      }
+
+      recommendedExercises.push({
+        exerciseId: ex.id,
+        name: ex.name,
+        category: (ex as any).category || 'Général',
+        targetAdvice,
+        sets,
+      });
+    }
+
+    const goalMetadata: Record<string, { label: string; icon: string; description: string; repRange: string; restTime: string }> = {
+      FORCE: {
+        label: 'Force Maximale',
+        icon: '🔴',
+        description: 'Développement de la force pure et de la puissance. Séries courtes et lourdes pour maximiser le recrutement des unités motrices.',
+        repRange: '3 - 5 reps',
+        restTime: '3 - 4 min',
+      },
+      BODYBUILDING: {
+        label: 'Bodybuilding / Hypertrophie',
+        icon: '🟣',
+        description: 'Construction de volume musculaire et esthétique. Séries moyennes avec surcharge progressive et temps sous tension.',
+        repRange: '8 - 12 reps',
+        restTime: '75 - 90s',
+      },
+      ENDURANCE: {
+        label: 'Endurance Musculaire',
+        icon: '🟢',
+        description: 'Résistance à la fatigue, tonicité et capacité cardiovasculaire. Séries longues avec repos minimaux pour congestion dense.',
+        repRange: '15 - 20 reps',
+        restTime: '30 - 45s',
+      },
+    };
+
+    const currentMeta = goalMetadata[goal] || goalMetadata.BODYBUILDING;
+
+    return {
+      title: `Séance ${currentMeta.label} — ${targetFocus}`,
+      goal,
+      goalDetails: currentMeta,
+      focusMuscle: targetFocus,
+      rationale: lastSession
+        ? `Généré intelligemment après votre dernière séance. Alternance musculaire respectée pour une récupération optimale et progression ciblée en ${currentMeta.label.toLowerCase()}.`
+        : `Première séance d'initiation optimisée pour votre objectif de ${currentMeta.label.toLowerCase()}.`,
+      exercises: recommendedExercises,
+    };
+  }
+
+  async startRecommendedWorkout(userId: string) {
+    const recommendation = await this.getNextRecommendedWorkout(userId);
+
+    const newSession = await this.prisma.workoutSession.create({
+      data: {
+        userId,
+        rpe: 0,
+        notes: `Séance Recommandée : ${recommendation.title}`,
+      },
+    });
+
+    for (const exRec of recommendation.exercises) {
+      const exLog = await this.prisma.exerciseLog.create({
+        data: {
+          sessionId: newSession.id,
+          exerciseId: exRec.exerciseId,
+        },
+      });
+
+      for (const setRec of exRec.sets) {
+        await this.prisma.setLog.create({
+          data: {
+            exerciseLogId: exLog.id,
+            reps: setRec.reps,
+            weight: setRec.weight,
+            completed: false,
+          },
+        });
+      }
+    }
+
+    return this.prisma.workoutSession.findUnique({
+      where: { id: newSession.id },
+      include: {
+        exercises: {
+          include: {
+            exercise: true,
+            sets: true,
+          },
+        },
+      },
+    });
+  }
 }

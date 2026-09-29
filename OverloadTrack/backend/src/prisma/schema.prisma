@@ -25,6 +25,7 @@ model Profile {
   dateOfBirth DateTime
   height      Int
   weight      Float
+  goal        String   @default("BODYBUILDING")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

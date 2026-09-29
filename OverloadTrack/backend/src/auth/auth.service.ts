@@ -25,6 +25,11 @@ export class AuthService {
       throw new ConflictException('Un compte existe déjà avec cette adresse email.');
     }
 
+    const validGoals = ['FORCE', 'BODYBUILDING', 'ENDURANCE'];
+    const goal = (data.goal && validGoals.includes(data.goal.toUpperCase()))
+      ? data.goal.toUpperCase()
+      : 'BODYBUILDING';
+
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
     try {
@@ -36,8 +41,9 @@ export class AuthService {
             create: {
               dateOfBirth: new Date(),
               height: 175,
-              weight: 70
-            }
+              weight: 70,
+              goal,
+            } as any
           }
         }
       });

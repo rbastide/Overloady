@@ -17,11 +17,12 @@ export class UserService {
     return profile;
   }
 
-  async updateProfile(userId: string, data: { height?: number; weight?: number; dateOfBirth?: string }) {
+  async updateProfile(userId: string, data: { height?: number; weight?: number; dateOfBirth?: string; goal?: string }) {
     const updateData: any = {};
     if (data.height) updateData.height = data.height;
     if (data.weight) updateData.weight = data.weight;
     if (data.dateOfBirth) updateData.dateOfBirth = new Date(data.dateOfBirth);
+    if (data.goal) updateData.goal = data.goal.toUpperCase();
 
     return this.prisma.profile.update({
       where: { userId },
