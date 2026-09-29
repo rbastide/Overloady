@@ -224,9 +224,18 @@ Ouvrez un nouveau terminal :
   - Création de programmes d'entraînement personnalisés (ex: Push, Pull, Legs, Full Body).
   - Sélecteur multiple d'exercices avec recherche intégrée.
   - Lancement en 1 clic : pré-remplissage automatique des exercices et des charges progressives calculées.
-- 🧮 **Calculatrices Gym Intégrées** :
+- 🧮 **Calculatrices Gym & Échauffement Intégrés** :
   - **Estimation 1RM (One Rep Max)** : Calcul selon la formule Epley et tableau complet des charges de travail (100%, 95%, 90%, 85%, 80%, 75%, 70%).
   - **Calculateur de Disques (Plate Calculator)** : Décomposition visuelle optimale des disques olympiques (25, 20, 15, 10, 5, 2.5, 1.25 kg) à charger de chaque côté de la barre.
+  - **Protocole d'Échauffement (Warm-up Sets)** : Calculateur de montée en gamme (barre à vide, 50%, 70%, 85%) avec bouton pour injecter automatiquement l'échauffement dans la séance !
+- 📈 **Analytique Avancée & Mur des Records (PR Hall of Fame)** :
+  - **Équilibre Musculaire** : Répartition visuelle du volume (Pectoraux, Dos, Jambes, Épaules, Bras, Abdominaux) en % et en kg.
+  - **Graphique SVG Hebdomadaire** : Visualisation des tendances de volume sur les dernières semaines.
+  - **Mur des Records (PRs)** : Liste de vos charges maximales historiques et 1RM pour chaque exercice.
+  - **Trophées & Badges** : Système d'accomplissements déblocables (Club des 100kg, Guerrier Régulier, Colosse du Volume...).
+- 📤 **Partage de Séance & Export CSV** :
+  - **Partage en 1 clic** : Génération d'un résumé textuel esthétique (charges, répétitions, volume total, RPE) copié dans le presse-papier pour WhatsApp, Discord ou SMS.
+  - **Export CSV** : Téléchargement complet de l'historique d'entraînement au format CSV.
 - 💪 **Bibliothèque d'Exercices Complète & Personnalisable** :
   - Recherche textuelle instantanée et filtre par groupe musculaire (Pectoraux, Dos, Jambes, Épaules, Bras, Abdominaux...).
   - Création d'exercices personnalisés.

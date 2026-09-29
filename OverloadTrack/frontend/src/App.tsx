@@ -7,6 +7,8 @@ import { ExerciseDetailModal } from './components/ExerciseDetailModal';
 import { AddExerciseModal } from './components/AddExerciseModal';
 import { RoutineModal } from './components/RoutineModal';
 import { ToastContainer, type ToastMessage } from './components/Toast';
+import { WarmupModal } from './components/WarmupModal';
+import { AnalyticsView } from './components/AnalyticsView';
 
 interface ActiveSet {
   reps: number;
@@ -30,7 +32,7 @@ function App() {
   const [authError, setAuthError] = useState('');
 
   // Navigation
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'logger' | 'routines' | 'history' | 'exercises' | 'profile'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'logger' | 'analytics' | 'routines' | 'history' | 'exercises' | 'profile'>('dashboard');
 
   // Core Data
   const [profile, setProfile] = useState<any>({});
@@ -59,6 +61,19 @@ function App() {
   const [selectedExerciseIdForModal, setSelectedExerciseIdForModal] = useState<string | null>(null);
   const [isAddExerciseOpen, setIsAddExerciseOpen] = useState(false);
   const [isRoutineModalOpen, setIsRoutineModalOpen] = useState(false);
+
+  // Warmup Modal state
+  const [warmupModalData, setWarmupModalData] = useState<{
+    isOpen: boolean;
+    exerciseIndex: number;
+    exerciseName: string;
+    targetWeight: number;
+  }>({
+    isOpen: false,
+    exerciseIndex: -1,
+    exerciseName: '',
+    targetWeight: 80,
+  });
 
   // Exercise Library Filters
   const [exerciseSearch, setExerciseSearch] = useState('');
@@ -338,6 +353,111 @@ function App() {
     }
   };
 
+  // Open Warmup Modal for an exercise in active workout
+  const openWarmupForExercise = (eIndex: number) => {
+    const ex = workout[eIndex];
+    const targetWeight = ex.sets[0]?.weight || 80;
+    setWarmupModalData({
+      isOpen: true,
+      exerciseIndex: eIndex,
+      exerciseName: ex.name,
+      targetWeight,
+    });
+  };
+
+  const handleApplyWarmupSets = (warmupSets: Array<{ weight: number; reps: number; completed: boolean }>) => {
+    if (warmupModalData.exerciseIndex < 0) return;
+    const updated = [...workout];
+    const currentSets = updated[warmupModalData.exerciseIndex].sets;
+    updated[warmupModalData.exerciseIndex].sets = [...warmupSets, ...currentSets];
+    setWorkout(updated);
+    showToast("Séries d'échauffement ajoutées à la séance ! 🔥", 'success');
+  };
+
+  // Export workout history to CSV
+  const exportHistoryCSV = () => {
+    if (history.length === 0) {
+      showToast('Aucun historique à exporter', 'info');
+      return;
+    }
+
+    const headers = ['Date', 'Programme', 'RPE', 'Notes', 'Exercice', 'Categorie', 'Serie', 'Poids_kg', 'Reps', 'Valide'];
+    const rows: string[] = [headers.join(';')];
+
+    history.forEach((session) => {
+      const dateStr = new Date(session.startedAt).toISOString().split('T')[0];
+      const routineName = (session.routine?.name || 'Séance libre').replace(/;/g, ',');
+      const notes = (session.notes || '').replace(/;/g, ',').replace(/\n/g, ' ');
+
+      (session.exercises || []).forEach((exLog: any) => {
+        const exName = (exLog.exercise?.name || 'Exercice').replace(/;/g, ',');
+        const cat = (exLog.exercise?.category || 'Général').replace(/;/g, ',');
+
+        (exLog.sets || []).forEach((st: any, idx: number) => {
+          rows.push([
+            dateStr,
+            routineName,
+            session.rpe,
+            `"${notes}"`,
+            exName,
+            cat,
+            idx + 1,
+            st.weight,
+            st.reps,
+            st.completed ? 'Oui' : 'Non',
+          ].join(';'));
+        });
+      });
+    });
+
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + encodeURIComponent(rows.join('\n'));
+    const link = document.createElement('a');
+    link.setAttribute('href', csvContent);
+    link.setAttribute('download', `overloady_historique_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Historique exporté en CSV ! 📥');
+  };
+
+  // Share session summary to clipboard
+  const shareSession = (session: any) => {
+    const dateStr = new Date(session.startedAt).toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+    const routineName = session.routine?.name || 'Séance Libre';
+    let totalVol = 0;
+    const lines: string[] = [
+      `🏋️ Overloady — ${routineName} (${dateStr})`,
+      `⏱️ RPE : ${session.rpe}/10`,
+    ];
+
+    if (session.notes) {
+      lines.push(`📝 Notes : "${session.notes}"`);
+    }
+
+    lines.push('\n💪 Exercices & Performances :');
+
+    (session.exercises || []).forEach((exLog: any) => {
+      const setsStr = (exLog.sets || []).map((s: any) => {
+        if (s.completed) totalVol += (s.weight || 0) * (s.reps || 0);
+        return `${s.weight}kg × ${s.reps}${s.completed ? ' ✓' : ''}`;
+      }).join(', ');
+      lines.push(`• ${exLog.exercise?.name || 'Exercice'} : ${setsStr}`);
+    });
+
+    lines.push(`\n📊 Volume Total Soulevé : ${totalVol.toLocaleString()} kg`);
+    lines.push('⚡ Suivi avec Overloady');
+
+    navigator.clipboard.writeText(lines.join('\n')).then(() => {
+      showToast('Résumé de la séance copié dans le presse-papier ! 📋');
+    }).catch(() => {
+      showToast('Impossible de copier le résumé', 'error');
+    });
+  };
+
   // Open Plate Calculator for specific weight
   const openPlateCalculatorWithWeight = (weight: number) => {
     setPlateCalcDefaultWeight(weight || 80);
@@ -433,6 +553,7 @@ function App() {
     const items = [
       { id: 'dashboard', label: 'Tableau de bord', icon: '📊' },
       { id: 'logger', label: 'Séance en direct', icon: '🏋️', badge: activeSessionId ? 'En cours' : undefined },
+      { id: 'analytics', label: 'Analytique & PRs', icon: '📈' },
       { id: 'routines', label: 'Programmes', icon: '📋' },
       { id: 'history', label: 'Historique', icon: '📅' },
       { id: 'exercises', label: 'Exercices', icon: '💪' },
@@ -680,7 +801,15 @@ function App() {
                           {exercise.category || 'Général'}
                         </span>
                       </div>
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <button
+                          className="btn-small"
+                          title="Générer l'échauffement"
+                          style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', color: '#ffaa00' }}
+                          onClick={() => openWarmupForExercise(eIndex)}
+                        >
+                          🔥 Échauffement
+                        </button>
                         <button
                           className="btn-icon"
                           title="Calculer les disques"
@@ -862,6 +991,9 @@ function App() {
           </div>
         )}
 
+        {/* ================= TAB: ANALYTICS & PRS ================= */}
+        {activeTab === 'analytics' && <AnalyticsView />}
+
         {/* ================= TAB 3: ROUTINES ================= */}
         {activeTab === 'routines' && (
           <div>
@@ -945,9 +1077,16 @@ function App() {
         {/* ================= TAB 4: HISTORY ================= */}
         {activeTab === 'history' && (
           <div>
-            <div className="header">
-              <h1>Historique des Entraînements</h1>
-              <p>Consultez vos séances passées, le volume soulevé et vos séries validées.</p>
+            <div className="header flex-between">
+              <div>
+                <h1>Historique des Entraînements</h1>
+                <p>Consultez vos séances passées, le volume soulevé et vos séries validées.</p>
+              </div>
+              {history.length > 0 && (
+                <button className="btn-secondary" onClick={exportHistoryCSV} title="Exporter l'historique au format CSV">
+                  📥 Exporter en CSV
+                </button>
+              )}
             </div>
 
             {history.map((session) => {
@@ -978,7 +1117,14 @@ function App() {
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <button
+                        className="btn-small"
+                        onClick={() => shareSession(session)}
+                        title="Copier le résumé de la séance"
+                      >
+                        📤 Partager
+                      </button>
                       <button
                         className="btn-small"
                         onClick={() => setExpandedHistoryId(isExpanded ? null : session.id)}
@@ -1239,6 +1385,14 @@ function App() {
           setRoutines([...routines, newRoutine]);
           showToast(`Programme "${newRoutine.name}" enregistré !`);
         }}
+      />
+
+      <WarmupModal
+        isOpen={warmupModalData.isOpen}
+        onClose={() => setWarmupModalData({ ...warmupModalData, isOpen: false })}
+        exerciseName={warmupModalData.exerciseName}
+        targetWeight={warmupModalData.targetWeight}
+        onApplyWarmup={handleApplyWarmupSets}
       />
     </div>
   );
