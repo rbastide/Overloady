@@ -73,6 +73,8 @@ function App() {
   const [dashboardStats, setDashboardStats] = useState<any>({});
   const [nextRecommendation, setNextRecommendation] = useState<any>(null);
   const [isStartingRec, setIsStartingRec] = useState<boolean>(false);
+  const [isRegeneratingAi, setIsRegeneratingAi] = useState<boolean>(false);
+  const [showAiExercisesPreview, setShowAiExercisesPreview] = useState<boolean>(true);
 
   // Active Workout Session
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -244,29 +246,55 @@ function App() {
     }
   };
 
+  // Regenerate with AI Coach
+  const regenerateAiRecommendation = async () => {
+    setIsRegeneratingAi(true);
+    try {
+      showToast('⚡ Le Coach IA conçoit une nouvelle séance optimisée...', 'info');
+      const res = await api.post('/workout/regenerate-recommendation');
+      setNextRecommendation(res.data);
+      if (res.data?.aiGenerated) {
+        showToast(`✨ Séance "${res.data.title}" générée par le Coach IA !`, 'success');
+      } else {
+        showToast(`Séance réajustée selon votre surcharge progressive !`, 'success');
+      }
+    } catch (err: any) {
+      showToast(err.response?.data?.message || 'Erreur lors de la consultation du Coach IA', 'error');
+    } finally {
+      setIsRegeneratingAi(false);
+    }
+  };
+
   // Start Adaptive Recommended Workout
   const startRecommendedWorkout = async () => {
     if (!nextRecommendation) return;
     setIsStartingRec(true);
     try {
-      const res = await api.post('/workout/start-recommended');
+      const res = await api.post('/workout/start-recommended', { customRec: nextRecommendation });
       setActiveSessionId(res.data.id);
       setActiveRoutineName(nextRecommendation.title);
       setSessionNotes(res.data.notes || `Séance Recommandée : ${nextRecommendation.title}`);
       setSessionRpe(7);
       setWorkoutStartTime(new Date());
 
-      const prefilledExercises: ActiveExercise[] = (res.data.exercises || []).map((exLog: any) => ({
-        exerciseId: exLog.exerciseId,
-        name: exLog.exercise?.name || 'Exercice',
-        category: exLog.exercise?.category,
-        progressiveTarget: `${nextRecommendation.goalDetails?.label || ''} : ${nextRecommendation.goalDetails?.repTarget || ''}`,
-        sets: (exLog.sets || []).map((s: any) => ({
-          weight: s.weight,
-          reps: s.reps,
-          completed: false,
-        })),
-      }));
+      const prefilledExercises: ActiveExercise[] = (res.data.exercises || []).map((exLog: any, idx: number) => {
+        const matchingRecEx =
+          nextRecommendation.exercises?.[idx] ||
+          nextRecommendation.exercises?.find((re: any) => re.exerciseId === exLog.exerciseId);
+        return {
+          exerciseId: exLog.exerciseId,
+          name: exLog.exercise?.name || matchingRecEx?.name || 'Exercice',
+          category: exLog.exercise?.category || matchingRecEx?.category,
+          progressiveTarget:
+            matchingRecEx?.targetAdvice ||
+            `${nextRecommendation.goalDetails?.label || ''} : ${nextRecommendation.goalDetails?.repTarget || ''}`,
+          sets: (exLog.sets || []).map((s: any) => ({
+            weight: s.weight,
+            reps: s.reps,
+            completed: false,
+          })),
+        };
+      });
 
       setWorkout(prefilledExercises);
       setActiveTab('logger');
@@ -788,10 +816,18 @@ function App() {
               {nextRecommendation ? (
                 <div className={`bento-ai-rec goal-${nextRecommendation.goal?.toLowerCase()}`}>
                   <div>
-                    <div className="bento-badge" style={{ color: 'var(--accent-volt)', borderColor: 'rgba(204, 255, 0, 0.35)' }}>
-                      <span>{nextRecommendation.goalDetails?.icon || '🎯'}</span>
-                      <span>Coach IA • {nextRecommendation.goalDetails?.label || nextRecommendation.goal}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.85rem' }}>
+                      <div className="bento-badge" style={{ color: 'var(--accent-volt)', borderColor: 'rgba(204, 255, 0, 0.35)', margin: 0 }}>
+                        <span className="ai-dot-pulse"></span>
+                        <span>{nextRecommendation.aiGenerated ? '⚡ Coach IA Connecté' : '🎯 Surcharge Calculée'} • {nextRecommendation.goalDetails?.label || nextRecommendation.goal}</span>
+                      </div>
+                      {nextRecommendation.aiModel && (
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                          {nextRecommendation.aiModel}
+                        </span>
+                      )}
                     </div>
+
                     <h2>{nextRecommendation.title}</h2>
                     <p className="rec-text">{nextRecommendation.rationale}</p>
 
@@ -806,31 +842,114 @@ function App() {
                         <strong>Repos :</strong> {nextRecommendation.goalDetails?.restTarget}
                       </div>
                     </div>
+
+                    {/* AI Coach Tips */}
+                    {nextRecommendation.coachingTips && nextRecommendation.coachingTips.length > 0 && (
+                      <div className="ai-tips-container">
+                        <div className="ai-tips-title">
+                          <span>💡</span>
+                          <span>Consignes Clés du Coach IA</span>
+                        </div>
+                        <ul className="ai-tips-list">
+                          {nextRecommendation.coachingTips.map((tip: string, idx: number) => (
+                            <li key={idx} className="ai-tip-item">{tip}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* AI Exercises Preview Toggle */}
+                    {nextRecommendation.exercises && nextRecommendation.exercises.length > 0 && (
+                      <div style={{ marginBottom: '1.25rem' }}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            cursor: 'pointer',
+                            fontSize: '0.8rem',
+                            color: 'var(--text-secondary)',
+                            fontWeight: 700,
+                            padding: '0.25rem 0',
+                          }}
+                          onClick={() => setShowAiExercisesPreview((prev) => !prev)}
+                        >
+                          <span>📋 {nextRecommendation.exercises.length} Exercices Prescrits {showAiExercisesPreview ? '▲' : '▼'}</span>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--accent-volt)' }}>
+                            {showAiExercisesPreview ? 'Masquer' : 'Voir le détail'}
+                          </span>
+                        </div>
+
+                        {showAiExercisesPreview && (
+                          <div className="ai-exercises-preview">
+                            {nextRecommendation.exercises.map((ex: any, idx: number) => (
+                              <div key={idx} className="ai-ex-preview-item">
+                                <div className="ai-ex-header">
+                                  <span className="ai-ex-name">{ex.name}</span>
+                                  <span className="ai-ex-badge">{ex.sets?.length || 3} séries</span>
+                                </div>
+                                {ex.reason && <div className="ai-ex-reason">"{ex.reason}"</div>}
+                                {ex.targetAdvice && <div className="ai-ex-advice">🎯 {ex.targetAdvice}</div>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
-                  <button
-                    className="btn-volt"
-                    style={{ width: '100%' }}
-                    onClick={startRecommendedWorkout}
-                    disabled={isStartingRec || !!activeSessionId}
-                  >
-                    {isStartingRec
-                      ? 'Lancement en cours...'
-                      : activeSessionId
-                      ? '⚠️ Séance déjà en cours'
-                      : '▶ Démarrer cette séance'}
-                  </button>
+                  <div style={{ display: 'flex', gap: '0.75rem', flexDirection: 'column' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.75rem' }}>
+                      <button
+                        className="btn-volt"
+                        style={{ width: '100%' }}
+                        onClick={startRecommendedWorkout}
+                        disabled={isStartingRec || !!activeSessionId || isRegeneratingAi}
+                      >
+                        {isStartingRec
+                          ? 'Lancement en cours...'
+                          : activeSessionId
+                          ? '⚠️ Séance déjà en cours'
+                          : '▶ Démarrer cette séance'}
+                      </button>
+                      <button
+                        className="btn-ai-regenerate"
+                        onClick={regenerateAiRecommendation}
+                        disabled={isRegeneratingAi || !!activeSessionId}
+                        title="Demander une autre séance générée par l'IA"
+                      >
+                        <span className={isRegeneratingAi ? 'spin-icon' : ''}>🔄</span>
+                        <span>{isRegeneratingAi ? 'Génération IA...' : 'Régénérer IA'}</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="bento-ai-rec">
                   <div>
-                    <div className="bento-badge">🎯 Recommandation IA</div>
+                    <div className="bento-badge">
+                      <span className="ai-dot-pulse"></span>
+                      <span>Coach IA • Prêt</span>
+                    </div>
                     <h2>Votre Coach IA s'active...</h2>
-                    <p className="rec-text">Démarrez une première séance pour calibrer votre moteur d'entraînement adaptatif.</p>
+                    <p className="rec-text">
+                      L'intelligence artificielle est prête à concevoir votre prochaine séance sur-mesure. Cliquez sur Régénérer pour solliciter le coach dès maintenant !
+                    </p>
                   </div>
-                  <button className="btn-volt" onClick={startNewWorkout}>
-                    + Démarrer une séance
-                  </button>
+                  <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
+                    <button
+                      className="btn-volt"
+                      style={{ flex: 1 }}
+                      onClick={regenerateAiRecommendation}
+                      disabled={isRegeneratingAi}
+                    >
+                      <span className={isRegeneratingAi ? 'spin-icon' : ''}>⚡</span>
+                      <span>{isRegeneratingAi ? 'Génération en cours...' : "Générer ma séance avec l'IA"}</span>
+                    </button>
+                    <button className="btn-glass" onClick={startNewWorkout}>
+                      + Séance libre
+                    </button>
+                  </div>
                 </div>
               )}
 

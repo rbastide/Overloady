@@ -349,7 +349,7 @@
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.25rem;
 }
 
 .bento-chip {
@@ -359,6 +359,162 @@
   border-radius: var(--radius-sm);
   font-size: 0.775rem;
   color: var(--text-secondary);
+}
+
+/* AI Coach Specific Additions */
+.ai-dot-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-volt);
+  box-shadow: 0 0 10px var(--accent-volt);
+  animation: aiPulse 1.5s infinite;
+  display: inline-block;
+}
+
+@keyframes aiPulse {
+  0% { transform: scale(0.9); opacity: 0.8; }
+  50% { transform: scale(1.3); opacity: 1; box-shadow: 0 0 14px var(--accent-volt); }
+  100% { transform: scale(0.9); opacity: 0.8; }
+}
+
+.ai-tips-container {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+  margin-top: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.ai-tips-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--accent-cyan);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.4rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.ai-tips-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.ai-tip-item {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  line-height: 1.35;
+}
+
+.ai-tip-item::before {
+  content: '▸';
+  color: var(--accent-volt);
+  font-weight: bold;
+}
+
+.ai-exercises-preview {
+  margin-top: 0.75rem;
+  margin-bottom: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ai-ex-preview-item {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-md);
+  padding: 0.6rem 0.85rem;
+  transition: all 0.2s ease;
+}
+
+.ai-ex-preview-item:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(204, 255, 0, 0.25);
+}
+
+.ai-ex-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.25rem;
+}
+
+.ai-ex-name {
+  font-weight: 700;
+  font-size: 0.875rem;
+  color: #fff;
+}
+
+.ai-ex-badge {
+  font-size: 0.725rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-pill);
+  background: rgba(204, 255, 0, 0.12);
+  color: var(--accent-volt);
+  font-weight: 700;
+}
+
+.ai-ex-reason {
+  font-size: 0.775rem;
+  color: var(--text-muted);
+  font-style: italic;
+  line-height: 1.3;
+  margin-bottom: 0.25rem;
+}
+
+.ai-ex-advice {
+  font-size: 0.75rem;
+  color: var(--accent-cyan);
+  font-weight: 600;
+}
+
+.btn-ai-regenerate {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text-main);
+  padding: 0.75rem 1.1rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.btn-ai-regenerate:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.btn-ai-regenerate:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.spin-icon {
+  display: inline-block;
+  animation: spinSlow 1s linear infinite;
+}
+
+@keyframes spinSlow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 /* Bento Stat Tiles (4 columns) */
