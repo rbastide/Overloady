@@ -157,8 +157,8 @@ export class WorkoutService {
       data: {
         endedAt: new Date(),
         rpe: data.rpe ?? 7,
-        notes: data.notes ?? null,
-      },
+        ...(data.notes ? { notes: data.notes } : {}),
+      } as any,
       include: {
         exercises: {
           include: {
@@ -340,6 +340,191 @@ export class WorkoutService {
       weekVolume: Math.round(weekVolume),
       totalVolumeAllTime: Math.round(totalVolumeAllTime),
       recentSessionsCount: allSessions.length,
+    };
+  }
+
+  async getWarmupSets(targetWeight: number, barWeight = 20) {
+    if (targetWeight <= barWeight) {
+      return [
+        { setNumber: 1, weight: barWeight, reps: 10, label: 'Barre à vide' }
+      ];
+    }
+
+    const roundToPlate = (w: number) => Math.max(barWeight, Math.round(w / 2.5) * 2.5);
+
+    const step1 = barWeight;
+    const step2 = roundToPlate(targetWeight * 0.5);
+    const step3 = roundToPlate(targetWeight * 0.7);
+    const step4 = roundToPlate(targetWeight * 0.85);
+
+    const sets = [
+      { setNumber: 1, weight: step1, reps: 10, label: 'Barre à vide (échauffement articulaire)' },
+    ];
+
+    if (step2 > step1 && step2 < targetWeight) {
+      sets.push({ setNumber: 2, weight: step2, reps: 5, label: '50% - Montée en gamme' });
+    }
+    if (step3 > step2 && step3 < targetWeight) {
+      sets.push({ setNumber: 3, weight: step3, reps: 3, label: '70% - Préparation nerveuse' });
+    }
+    if (step4 > step3 && step4 < targetWeight) {
+      sets.push({ setNumber: 4, weight: step4, reps: 1, label: '85% - Potentiation motrice' });
+    }
+
+    return sets;
+  }
+
+  async getAnalytics(userId: string) {
+    const sessions = await this.prisma.workoutSession.findMany({
+      where: {
+        userId,
+        endedAt: { not: null },
+      },
+      include: {
+        routine: true,
+        exercises: {
+          include: {
+            exercise: true,
+            sets: true,
+          },
+        },
+      },
+      orderBy: { startedAt: 'asc' },
+    });
+
+    const muscleMap: Record<string, { volume: number; sets: number }> = {};
+    let totalVolume = 0;
+
+    const prMap: Record<string, {
+      exerciseId: string;
+      exerciseName: string;
+      category: string;
+      maxWeight: number;
+      bestSet: { weight: number; reps: number };
+      max1RM: number;
+      date: string;
+    }> = {};
+
+    const weeksMap: Record<string, { volume: number; count: number }> = {};
+
+    for (const session of sessions) {
+      const sessionDate = new Date(session.startedAt);
+      const year = sessionDate.getFullYear();
+      const firstDayOfYear = new Date(year, 0, 1);
+      const pastDaysOfYear = (sessionDate.getTime() - firstDayOfYear.getTime()) / 86400000;
+      const weekNum = Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+      const weekKey = `Sem ${weekNum}`;
+
+      if (!weeksMap[weekKey]) {
+        weeksMap[weekKey] = { volume: 0, count: 0 };
+      }
+      weeksMap[weekKey].count += 1;
+
+      for (const exLog of session.exercises) {
+        const exerciseData = exLog.exercise as any;
+        const cat = exerciseData.category || 'Général';
+        if (!muscleMap[cat]) {
+          muscleMap[cat] = { volume: 0, sets: 0 };
+        }
+
+        const exId = exLog.exerciseId;
+        if (!prMap[exId]) {
+          prMap[exId] = {
+            exerciseId: exId,
+            exerciseName: exerciseData.name,
+            category: cat,
+            maxWeight: 0,
+            bestSet: { weight: 0, reps: 0 },
+            max1RM: 0,
+            date: session.startedAt.toISOString().split('T')[0],
+          };
+        }
+
+        for (const set of exLog.sets) {
+          if (set.completed && set.weight > 0 && set.reps > 0) {
+            const vol = set.weight * set.reps;
+            totalVolume += vol;
+            muscleMap[cat].volume += vol;
+            muscleMap[cat].sets += 1;
+            weeksMap[weekKey].volume += vol;
+
+            const est1RM = Math.round(set.weight * (1 + set.reps / 30) * 10) / 10;
+            if (set.weight > prMap[exId].maxWeight) {
+              prMap[exId].maxWeight = set.weight;
+              prMap[exId].bestSet = { weight: set.weight, reps: set.reps };
+              prMap[exId].date = session.startedAt.toISOString().split('T')[0];
+            }
+            if (est1RM > prMap[exId].max1RM) {
+              prMap[exId].max1RM = est1RM;
+            }
+          }
+        }
+      }
+    }
+
+    const muscleDistribution = Object.keys(muscleMap).map((cat) => ({
+      category: cat,
+      volume: Math.round(muscleMap[cat].volume),
+      sets: muscleMap[cat].sets,
+      percentage: totalVolume > 0 ? Math.round((muscleMap[cat].volume / totalVolume) * 100) : 0,
+    })).sort((a, b) => b.volume - a.volume);
+
+    const personalRecords = Object.values(prMap).filter(p => p.maxWeight > 0).sort((a, b) => b.maxWeight - a.maxWeight);
+
+    const weeklyTrends = Object.keys(weeksMap).slice(-8).map((k) => ({
+      label: k,
+      volume: Math.round(weeksMap[k].volume),
+      count: weeksMap[k].count,
+    }));
+
+    const has100kgLift = personalRecords.some(p => p.maxWeight >= 100);
+    const routinesCount = await this.prisma.routine.count({ where: { userId } });
+
+    const achievements = [
+      {
+        id: 'first_workout',
+        title: 'Premier Pas 🎯',
+        description: 'Enregistrer sa première séance d\'entraînement.',
+        unlocked: sessions.length >= 1,
+        progress: `${Math.min(1, sessions.length)}/1`,
+      },
+      {
+        id: 'consistency_warrior',
+        title: 'Guerrier Régulier 🔥',
+        description: 'Compléter au moins 5 séances.',
+        unlocked: sessions.length >= 5,
+        progress: `${Math.min(5, sessions.length)}/5`,
+      },
+      {
+        id: 'club_100kg',
+        title: 'Club des 100 kg 🏆',
+        description: 'Soulever 100 kg ou plus sur n\'importe quel exercice.',
+        unlocked: has100kgLift,
+        progress: has100kgLift ? 'Débloqué !' : 'À accomplir',
+      },
+      {
+        id: 'volume_colossus',
+        title: 'Colosse du Volume ⚡',
+        description: 'Soulever plus de 10 000 kg au total.',
+        unlocked: totalVolume >= 10000,
+        progress: `${Math.min(10000, Math.round(totalVolume)).toLocaleString()} / 10 000 kg`,
+      },
+      {
+        id: 'routine_master',
+        title: 'Maître des Routines 📋',
+        description: 'Créer au moins 1 programme d\'entraînement.',
+        unlocked: routinesCount >= 1,
+        progress: `${Math.min(1, routinesCount)}/1`,
+      },
+    ];
+
+    return {
+      totalVolume: Math.round(totalVolume),
+      totalSessions: sessions.length,
+      muscleDistribution,
+      personalRecords,
+      weeklyTrends,
+      achievements,
     };
   }
 }

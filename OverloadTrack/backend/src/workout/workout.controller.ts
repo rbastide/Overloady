@@ -17,6 +17,16 @@ export class WorkoutController {
     return this.workoutService.getDashboardStats(req.user.userId);
   }
 
+  @Get('analytics')
+  getAnalytics(@Request() req: any) {
+    return this.workoutService.getAnalytics(req.user.userId);
+  }
+
+  @Post('warmup')
+  getWarmupSets(@Body() body: { targetWeight: number; barWeight?: number }) {
+    return this.workoutService.getWarmupSets(Number(body.targetWeight) || 60, body.barWeight ? Number(body.barWeight) : 20);
+  }
+
   @Get('stats/:exerciseId')
   getExerciseStats(@Request() req: any, @Param('exerciseId') exerciseId: string) {
     return this.workoutService.getExerciseStats(req.user.userId, exerciseId);
