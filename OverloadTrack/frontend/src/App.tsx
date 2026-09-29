@@ -9,6 +9,7 @@ import { RoutineModal } from './components/RoutineModal';
 import { ToastContainer, type ToastMessage } from './components/Toast';
 import { WarmupModal } from './components/WarmupModal';
 import { AnalyticsView } from './components/AnalyticsView';
+import { TestWeekModal } from './components/TestWeekModal';
 
 interface ActiveSet {
   reps: number;
@@ -75,6 +76,11 @@ function App() {
   const [isStartingRec, setIsStartingRec] = useState<boolean>(false);
   const [isRegeneratingAi, setIsRegeneratingAi] = useState<boolean>(false);
   const [showAiExercisesPreview, setShowAiExercisesPreview] = useState<boolean>(true);
+
+  // Test Week Calibration State
+  const [testWeekStatus, setTestWeekStatus] = useState<any>(null);
+  const [isTestWeekModalOpen, setIsTestWeekModalOpen] = useState<boolean>(false);
+  const [isStartingTestStep, setIsStartingTestStep] = useState<boolean>(false);
 
   // Active Workout Session
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -153,13 +159,14 @@ function App() {
 
   const fetchData = async () => {
     try {
-      const [profileRes, exercisesRes, historyRes, routinesRes, statsRes, recRes] = await Promise.all([
+      const [profileRes, exercisesRes, historyRes, routinesRes, statsRes, recRes, testWeekRes] = await Promise.all([
         api.get('/profile').catch(() => ({ data: {} })),
         api.get('/exercises').catch(() => ({ data: [] })),
         api.get('/workout/history').catch(() => ({ data: [] })),
         api.get('/routines').catch(() => ({ data: [] })),
         api.get('/workout/dashboard-stats').catch(() => ({ data: {} })),
         api.get('/workout/next-recommendation').catch(() => ({ data: null })),
+        api.get('/workout/test-week').catch(() => ({ data: null })),
       ]);
       setProfile(profileRes.data);
       setExercises(exercisesRes.data);
@@ -167,6 +174,7 @@ function App() {
       setRoutines(routinesRes.data);
       setDashboardStats(statsRes.data);
       setNextRecommendation(recRes.data);
+      setTestWeekStatus(testWeekRes.data);
     } catch (err) {
       console.error(err);
       if ((err as any).response?.status === 401) {
@@ -303,6 +311,70 @@ function App() {
       showToast(err.response?.data?.message || "Impossible de démarrer la séance recommandée", 'error');
     } finally {
       setIsStartingRec(false);
+    }
+  };
+
+  // Start Test Week Calibration Session
+  const handleStartTestWeekSession = async (step: number) => {
+    if (activeSessionId) {
+      showToast('Une séance est déjà en cours ! Terminez-la avant d\'en lancer une nouvelle.', 'error');
+      return;
+    }
+    setIsStartingTestStep(true);
+    try {
+      const res = await api.post(`/workout/test-week/start/${step}`);
+      const session = res.data;
+      setActiveSessionId(session.id);
+      setActiveRoutineName(`Semaine Test (Étape ${step}/3)`);
+      setSessionNotes(session.notes || `[SEMAINE_TEST_${step}]`);
+      setSessionRpe(7);
+      setWorkoutStartTime(new Date());
+
+      const loadedWorkout: ActiveExercise[] = (session.exercises || []).map((exLog: any) => ({
+        exerciseId: exLog.exerciseId,
+        name: exLog.exercise?.name || 'Exercice Test',
+        category: exLog.exercise?.category,
+        progressiveTarget: '🎯 Série Test : Notez votre charge maximale propre (RPE 8-9)',
+        sets: (exLog.sets || []).map((s: any) => ({
+          reps: s.reps || 10,
+          weight: s.weight || 20,
+          completed: false,
+        })),
+      }));
+
+      setWorkout(loadedWorkout);
+      setIsTestWeekModalOpen(false);
+      setActiveTab('logger');
+      showToast(`Séance Test ${step}/3 lancée ! Donnez le maximum avec une technique propre.`, 'success');
+      fetchData();
+    } catch (err: any) {
+      showToast(err.response?.data?.message || 'Erreur lors du démarrage du test', 'error');
+    } finally {
+      setIsStartingTestStep(false);
+    }
+  };
+
+  const handleSkipTestWeek = async () => {
+    if (!window.confirm('Voulez-vous passer la semaine test et activer directement le Coach IA ?')) return;
+    try {
+      await api.post('/workout/test-week/skip');
+      showToast('Semaine de test validée ! Le Coach IA est activé.', 'success');
+      setIsTestWeekModalOpen(false);
+      fetchData();
+    } catch (err: any) {
+      showToast('Erreur lors de la validation', 'error');
+    }
+  };
+
+  const handleResetTestWeek = async () => {
+    if (!window.confirm('Voulez-vous réinitialiser votre semaine de test pour relancer une calibration ?')) return;
+    try {
+      await api.post('/workout/test-week/reset');
+      showToast('Semaine de test réinitialisée. Prêt pour une nouvelle calibration !', 'info');
+      setIsTestWeekModalOpen(false);
+      fetchData();
+    } catch (err: any) {
+      showToast('Erreur lors de la réinitialisation', 'error');
     }
   };
 
@@ -762,6 +834,26 @@ function App() {
           </nav>
 
           <div className="navbar-actions">
+            {testWeekStatus && (
+              <button
+                className="btn-gym-tools"
+                style={{
+                  borderColor: testWeekStatus.testWeekCompleted
+                    ? 'rgba(16, 185, 129, 0.45)'
+                    : 'rgba(0, 240, 255, 0.45)',
+                  color: testWeekStatus.testWeekCompleted
+                    ? 'var(--accent-emerald)'
+                    : 'var(--accent-cyan)',
+                  background: testWeekStatus.testWeekCompleted
+                    ? 'rgba(16, 185, 129, 0.08)'
+                    : 'rgba(0, 240, 255, 0.08)',
+                }}
+                onClick={() => setIsTestWeekModalOpen(true)}
+                title="Consulter le protocole d'évaluation et de calibration"
+              >
+                🧪 {testWeekStatus.testWeekCompleted ? 'Calibration IA ✓' : `Semaine Test (${testWeekStatus.testWeekProgress}/3)`}
+              </button>
+            )}
             <button className="btn-gym-tools" onClick={() => setIsPlateCalcOpen(true)}>
               🧮 Disques / 1RM
             </button>
@@ -786,14 +878,108 @@ function App() {
         {/* ================= TAB 1: BENTO DASHBOARD ================= */}
         {activeTab === 'dashboard' && (
           <div>
+            {/* Protocole Semaine Test Athlète */}
+            {testWeekStatus && !testWeekStatus.testWeekCompleted && (
+              <div className="test-week-banner">
+                <div className="test-week-banner-top">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <span style={{ fontSize: '1.3rem' }}>🧪</span>
+                    <span className="test-badge-glow">
+                      SEMAINE DE TEST ATHLÈTE • {testWeekStatus.testWeekProgress}/{testWeekStatus.totalSteps} COMPLÉTÉ
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <button
+                      className="btn-glass"
+                      style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem' }}
+                      onClick={() => setIsTestWeekModalOpen(true)}
+                    >
+                      📋 Voir le protocole des tests
+                    </button>
+                    <button
+                      className="btn-text-danger"
+                      onClick={handleSkipTestWeek}
+                      title="Passer directement au Coach IA"
+                    >
+                      Passer ⏩
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 900 }}>
+                    Phase d'Évaluation Initiale (1 Semaine)
+                  </h2>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                    Calibrez vos charges de travail de référence avant de lancer l'IA
+                  </span>
+                </div>
+
+                {/* 3 Step Cards */}
+                <div className="test-week-steps-row">
+                  {testWeekStatus.sessions?.map((sess: any) => {
+                    const isCompleted = sess.status === 'completed';
+                    const isCurrent = sess.status === 'current';
+                    return (
+                      <div
+                        key={sess.step}
+                        className={`test-step-mini-card ${sess.status}`}
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => setIsTestWeekModalOpen(true)}
+                      >
+                        <div className="step-card-header">
+                          <span style={{ color: isCompleted ? 'var(--accent-emerald)' : isCurrent ? 'var(--accent-cyan)' : 'var(--text-dim)' }}>
+                            {isCompleted ? '✓ VALIDÉ' : isCurrent ? '⚡ EN COURS' : '🔒 À VENIR'}
+                          </span>
+                          <span style={{ color: 'var(--text-muted)' }}>{sess.dayName}</span>
+                        </div>
+                        <div className="step-card-title">{sess.name}</div>
+                        <div className="step-card-focus">{sess.focus}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Action button */}
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+                  <button
+                    className="btn-volt"
+                    onClick={() => handleStartTestWeekSession(testWeekStatus.currentStep)}
+                    disabled={isStartingTestStep || !!activeSessionId}
+                  >
+                    {isStartingTestStep
+                      ? 'Lancement...'
+                      : activeSessionId
+                      ? '⚠️ Séance déjà en cours'
+                      : `▶ Lancer la Séance Test ${testWeekStatus.currentStep} (${testWeekStatus.sessions?.[testWeekStatus.currentStep - 1]?.name || 'Test'})`}
+                  </button>
+                  <button
+                    className="btn-glass"
+                    onClick={() => setIsTestWeekModalOpen(true)}
+                  >
+                    Détail des 3 séances
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="bento-grid">
               {/* Bento 1: Hero Welcome & Quick Launch */}
               <div className="bento-hero">
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.85rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.85rem', flexWrap: 'wrap' }}>
                     <span className="badge-pill">
                       ⚡ PROGRAMME {profile.goal || 'BODYBUILDING'}
                     </span>
+                    {testWeekStatus?.testWeekCompleted && (
+                      <span
+                        className="badge-pill"
+                        style={{ color: 'var(--accent-emerald)', borderColor: 'rgba(16, 185, 129, 0.4)', cursor: 'pointer' }}
+                        onClick={() => setIsTestWeekModalOpen(true)}
+                      >
+                        ✓ PROFIL CALIBRÉ
+                      </span>
+                    )}
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                       {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
                     </span>
@@ -822,9 +1008,26 @@ function App() {
                 <div className={`bento-ai-rec goal-${nextRecommendation.goal?.toLowerCase()}`}>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.85rem' }}>
-                      <div className="bento-badge" style={{ color: 'var(--accent-volt)', borderColor: 'rgba(204, 255, 0, 0.35)', margin: 0 }}>
-                        <span className="ai-dot-pulse"></span>
-                        <span>{nextRecommendation.aiGenerated ? '⚡ Coach IA Connecté' : '🎯 Surcharge Calculée'} • {nextRecommendation.goalDetails?.label || nextRecommendation.goal}</span>
+                      <div
+                        className="bento-badge"
+                        style={{
+                          color: nextRecommendation.isTestWeek ? 'var(--accent-cyan)' : 'var(--accent-volt)',
+                          borderColor: nextRecommendation.isTestWeek ? 'rgba(0, 240, 255, 0.4)' : 'rgba(204, 255, 0, 0.35)',
+                          margin: 0,
+                        }}
+                      >
+                        <span
+                          className="ai-dot-pulse"
+                          style={{ background: nextRecommendation.isTestWeek ? 'var(--accent-cyan)' : 'var(--accent-volt)' }}
+                        ></span>
+                        <span>
+                          {nextRecommendation.isTestWeek
+                            ? `🧪 SEMAINE TEST • Étape ${nextRecommendation.testStep}/${nextRecommendation.totalTestSteps}`
+                            : nextRecommendation.aiGenerated
+                            ? '⚡ Coach IA Connecté'
+                            : '🎯 Surcharge Calculée'}{' '}
+                          • {nextRecommendation.goalDetails?.label || nextRecommendation.goal}
+                        </span>
                       </div>
                       {nextRecommendation.aiModel && (
                         <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
@@ -915,17 +1118,29 @@ function App() {
                           ? 'Lancement en cours...'
                           : activeSessionId
                           ? '⚠️ Séance déjà en cours'
+                          : nextRecommendation.isTestWeek
+                          ? `▶ Démarrer le Test (Étape ${nextRecommendation.testStep}/${nextRecommendation.totalTestSteps})`
                           : '▶ Démarrer cette séance'}
                       </button>
-                      <button
-                        className="btn-ai-regenerate"
-                        onClick={regenerateAiRecommendation}
-                        disabled={isRegeneratingAi || !!activeSessionId}
-                        title="Demander une autre séance générée par l'IA"
-                      >
-                        <span className={isRegeneratingAi ? 'spin-icon' : ''}>🔄</span>
-                        <span>{isRegeneratingAi ? 'Génération IA...' : 'Régénérer IA'}</span>
-                      </button>
+                      {nextRecommendation.isTestWeek ? (
+                        <button
+                          className="btn-glass"
+                          onClick={() => setIsTestWeekModalOpen(true)}
+                          title="Consulter le protocole de la semaine de test"
+                        >
+                          📋 Détail tests
+                        </button>
+                      ) : (
+                        <button
+                          className="btn-ai-regenerate"
+                          onClick={regenerateAiRecommendation}
+                          disabled={isRegeneratingAi || !!activeSessionId}
+                          title="Demander une autre séance générée par l'IA"
+                        >
+                          <span className={isRegeneratingAi ? 'spin-icon' : ''}>🔄</span>
+                          <span>{isRegeneratingAi ? 'Génération IA...' : 'Régénérer IA'}</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1099,6 +1314,30 @@ function App() {
 
             {activeSessionId ? (
               <div className="workout-logger">
+                {/* Active Test Week Session Notice */}
+                {sessionNotes?.includes('[SEMAINE_TEST_') && (
+                  <div className="active-session-test-banner">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <span style={{ fontSize: '1.5rem' }}>🧪</span>
+                      <div>
+                        <strong style={{ color: 'var(--accent-cyan)', fontSize: '0.92rem', display: 'block' }}>
+                          SÉANCE DU PROTOCOLE DE CALIBRATION ATHLÈTE
+                        </strong>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                          Donnez le maximum avec une technique propre. Vos charges réelles et répétitions sont mesurées pour calibrer vos futurs cycles IA.
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      className="btn-glass"
+                      style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem', whiteSpace: 'nowrap' }}
+                      onClick={() => setIsTestWeekModalOpen(true)}
+                    >
+                      Protocole
+                    </button>
+                  </div>
+                )}
+
                 {/* Rest Timer */}
                 {showRestTimer && (
                   <RestTimer
@@ -1778,6 +2017,16 @@ function App() {
         exerciseName={warmupModalData.exerciseName}
         targetWeight={warmupModalData.targetWeight}
         onApplyWarmup={handleApplyWarmupSets}
+      />
+
+      <TestWeekModal
+        isOpen={isTestWeekModalOpen}
+        onClose={() => setIsTestWeekModalOpen(false)}
+        status={testWeekStatus}
+        onStartSession={handleStartTestWeekSession}
+        onSkipTestWeek={handleSkipTestWeek}
+        onResetTestWeek={handleResetTestWeek}
+        isStarting={isStartingTestStep}
       />
     </div>
   );

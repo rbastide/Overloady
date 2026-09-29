@@ -26,6 +26,8 @@ model Profile {
   height      Int
   weight      Float
   goal        String   @default("BODYBUILDING")
+  testWeekCompleted Boolean @default(false)
+  testWeekProgress  Int     @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

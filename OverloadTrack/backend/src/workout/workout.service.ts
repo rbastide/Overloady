@@ -169,6 +169,27 @@ export class WorkoutService {
 
     this.recommendationCache.delete(userId);
 
+    const sessionBefore = await this.prisma.workoutSession.findUnique({
+      where: { id: data.sessionId },
+    });
+    const checkNotes = data.notes || (sessionBefore as any)?.notes || '';
+    if (checkNotes.includes('[SEMAINE_TEST_1]')) {
+      await this.prisma.profile.update({
+        where: { userId },
+        data: { testWeekProgress: 1 } as any,
+      }).catch(() => null);
+    } else if (checkNotes.includes('[SEMAINE_TEST_2]')) {
+      await this.prisma.profile.update({
+        where: { userId },
+        data: { testWeekProgress: 2 } as any,
+      }).catch(() => null);
+    } else if (checkNotes.includes('[SEMAINE_TEST_3]')) {
+      await this.prisma.profile.update({
+        where: { userId },
+        data: { testWeekProgress: 3, testWeekCompleted: true } as any,
+      }).catch(() => null);
+    }
+
     return this.prisma.workoutSession.update({
       where: { id: data.sessionId },
       data: {
@@ -654,6 +675,16 @@ export class WorkoutService {
 
     const currentMeta = goalMetadata[goal] || goalMetadata.BODYBUILDING;
 
+    // Phase d'évaluation : Semaine Test de calibration pour l'athlète
+    const isTestWeekActive =
+      !Boolean((profile as any)?.testWeekCompleted) &&
+      Number((profile as any)?.testWeekProgress || 0) < 3;
+
+    if (isTestWeekActive) {
+      const nextStep = Math.min(3, Number((profile as any)?.testWeekProgress || 0) + 1);
+      return this.generateTestWeekRecommendation(userId, goal, nextStep, allExercises, currentMeta);
+    }
+
     // Try AI Generation with Pollinations Bodybuilding Coach
     let aiWorkout = null;
     try {
@@ -675,10 +706,13 @@ export class WorkoutService {
         };
       }
 
+      const testedBenchmarks = await this.getTestedBenchmarks(userId);
+
       aiWorkout = await this.aiService.generateWorkoutSession({
         goal,
         weight: (profile as any)?.weight || 75,
         height: (profile as any)?.height || 178,
+        benchmarks: testedBenchmarks,
         lastSession: lastSessionContext,
         availableExercises: allExercises.map((e) => ({
           id: e.id,
@@ -908,5 +942,662 @@ export class WorkoutService {
         },
       },
     });
+  }
+
+  getTestWeekTemplates(goal = 'BODYBUILDING') {
+    const upperGoal = (goal || 'BODYBUILDING').toUpperCase();
+
+    if (upperGoal === 'FORCE') {
+      return [
+        {
+          step: 1,
+          dayName: 'Jour 1 (Lundi)',
+          name: 'Test Poussée & 1RM Haut du Corps',
+          focus: 'Pectoraux, Épaules, Triceps',
+          badge: 'Benchmark 3-5RM • Force Poussée',
+          testingGoal: 'Tester votre charge maximale (3-5RM) sur le Développé Couché et la force des épaules.',
+          instructions: [
+            'Échauffez-vous méthodiquement avec la montée en gamme proposée.',
+            'Montez progressivement en charge pour trouver une série de 3 à 5 reps lourdes (RPE 8-9).',
+            'Prenez 3 minutes complètes de repos entre chaque série de test.',
+            'Stoppez la série dès que la technique commence à se dégrader.',
+          ],
+          exercises: [
+            {
+              name: 'Bench Press (Barbell)',
+              isKeyBenchmark: true,
+              benchmarkMetric: '1RM Estimé Développé Couché',
+              defaultWeight: 60,
+              sets: 4,
+              reps: 5,
+              targetAdvice: '🎯 Benchmark Principal : Visez une série de 3 à 5 reps propres à RPE 8.5. Repos 3 min.',
+              reason: 'Mesure de référence de la force de poussée horizontale.',
+            },
+            {
+              name: 'Overhead Press (Dumbbell)',
+              isKeyBenchmark: false,
+              benchmarkMetric: 'Force Poussée Verticale',
+              defaultWeight: 16,
+              sets: 3,
+              reps: 5,
+              targetAdvice: 'Séries lourdes et stables. Verrouillez les abdominaux. Repos 2-3 min.',
+              reason: 'Évaluation de la force deltoïdes et stabilité claviculaire.',
+            },
+            {
+              name: 'Incline Dumbbell Press',
+              isKeyBenchmark: false,
+              benchmarkMetric: 'Force Pectoraux Supérieurs',
+              defaultWeight: 22,
+              sets: 3,
+              reps: 5,
+              targetAdvice: 'Descente contrôlée 2s, poussée explosive. Repos 2-3 min.',
+              reason: 'Mesure de la tolérance sous charge en plan incliné.',
+            },
+            {
+              name: 'Tricep Extension (Cable)',
+              isKeyBenchmark: false,
+              benchmarkMetric: 'Force Extension Bras',
+              defaultWeight: 25,
+              sets: 3,
+              reps: 6,
+              targetAdvice: 'Coudes fixes au corps, extension totale. Repos 90s.',
+              reason: 'Évaluation du verrouillage triceps.',
+            },
+          ],
+        },
+        {
+          step: 2,
+          dayName: 'Jour 2 (Mercredi)',
+          name: 'Test Tirage & Chaîne Postérieure',
+          focus: 'Dos, Ischios, Biceps',
+          badge: 'Benchmark 3-5RM • Force Tirage & Dos',
+          testingGoal: 'Mesurer votre 1RM Soulevé de Terre et votre capacité de tirage lourd.',
+          instructions: [
+            'Maintenez impérativement le dos plat et gainé sur le soulevé de terre.',
+            'Ciblez une série de 3 à 5 reps avec une charge solide et maîtrisée.',
+            'Prenez 3 minutes de repos entre les séries de deadlift.',
+          ],
+          exercises: [
+            {
+              name: 'Deadlift (Barbell)',
+              isKeyBenchmark: true,
+              benchmarkMetric: '1RM Estimé Soulevé de Terre',
+              defaultWeight: 80,
+              sets: 4,
+              reps: 5,
+              targetAdvice: '🎯 Benchmark Principal : Tirage puissant, verrouillage des fessiers. Repos 3 min.',
+              reason: 'Mesure de la force brute de la chaîne postérieure.',
+            },
+            {
+              name: 'Barbell Row',
+              isKeyBenchmark: false,
+              benchmarkMetric: 'Force Tirage Horizontal',
+              defaultWeight: 50,
+              sets: 3,
+              reps: 5,
+              targetAdvice: 'Buste penché à 45°, tirez avec les coudes vers les hanches. Repos 2 min.',
+              reason: 'Évaluation de la puissance des dorsaux et trapèzes.',
+            },
+            {
+              name: 'Lat Pulldown (Cable)',
+              isKeyBenchmark: false,
+              benchmarkMetric: 'Force Tirage Vertical',
+              defaultWeight: 55,
+              sets: 3,
+              reps: 5,
+              targetAdvice: 'Poitrine sortie, tirage franc vers le haut des pectoraux. Repos 2 min.',
+              reason: 'Évaluation de la force du grand dorsal.',
+            },
+            {
+              name: 'Bicep Curl (Dumbbell)',
+              isKeyBenchmark: false,
+              benchmarkMetric: 'Force Flexion Biceps',
+              defaultWeight: 14,
+              sets: 3,
+              reps: 6,
+              targetAdvice: 'Contrôlez la phase négative. Repos 90s.',
+              reason: 'Mesure de la force des fléchisseurs du coude.',
+            },
+          ],
+        },
+        {
+          step: 3,
+          dayName: 'Jour 3 (Vendredi)',
+          name: 'Test Bas du Corps & Tronc',
+          focus: 'Quadriceps, Fessiers, Ischios, Tronc',
+          badge: 'Benchmark 3-5RM • Force Squat & Jambes',
+          testingGoal: 'Mesurer votre 1RM Squat et la solidité de votre gainage sous charge.',
+          instructions: [
+            'Descendez au moins au parallèle (cuisses horizontales).',
+            'Respirez en blocage abdominal (manœuvre de Valsalva) pendant la descente.',
+            'Prenez 3 minutes de récupération entre les séries lourdes.',
+          ],
+          exercises: [
+            {
+              name: 'Squat (Barbell)',
+              isKeyBenchmark: true,
+              benchmarkMetric: '1RM Estimé Squat',
+              defaultWeight: 70,
+              sets: 4,
+              reps: 5,
+              targetAdvice: '🎯 Benchmark Principal : Amplitude complète, poussée par les talons. Repos 3 min.',
+              reason: 'Mesure étalon de la puissance motrice des membres inférieurs.',
+            },
+            {
+              name: 'Leg Press',
+              isKeyBenchmark: false,
+              benchmarkMetric: 'Capacité Poussée Machine',
+              defaultWeight: 120,
+              sets: 3,
+              reps: 5,
+              targetAdvice: 'Pieds écartement épaules, descente profonde sans décoller le bassin. Repos 2 min.',
+              reason: 'Mesure de la force maximale sans contrainte rachidienne.',
+            },
+            {
+              name: 'Romanian Deadlift',
+              isKeyBenchmark: false,
+              benchmarkMetric: 'Force Ischios & Charnière',
+              defaultWeight: 60,
+              sets: 3,
+              reps: 5,
+              targetAdvice: 'Poussez les hanches en arrière, étirement maximal des ischios. Repos 2 min.',
+              reason: 'Évaluation de la force excentrique des ischio-jambiers.',
+            },
+            {
+              name: 'Cable Crunch / Abs',
+              isKeyBenchmark: false,
+              benchmarkMetric: 'Résistance Abdominale',
+              defaultWeight: 30,
+              sets: 3,
+              reps: 8,
+              targetAdvice: 'Enroulement vertébral contrôlé, contraction intense. Repos 60s.',
+              reason: 'Mesure de la force du caisson abdominal.',
+            },
+          ],
+        },
+      ];
+    }
+
+    if (upperGoal === 'ENDURANCE') {
+      return [
+        {
+          step: 1,
+          dayName: 'Jour 1 (Lundi)',
+          name: 'Test Capacité & Seuil Poussée',
+          focus: 'Pectoraux, Épaules, Triceps',
+          badge: 'Benchmark 15-20 reps • Seuil Lactique',
+          testingGoal: 'Évaluer votre endurance musculaire sur les mouvements de poussée avec repos courts.',
+          instructions: [
+            'Séries de 15 à 20 répétitions à cadence régulière.',
+            'Repos court de 45 secondes chrono.',
+            'L objectif est de repousser la brûlure musculaire sans bloquer la respiration.',
+          ],
+          exercises: [
+            {
+              name: 'Bench Press (Barbell)',
+              isKeyBenchmark: true,
+              benchmarkMetric: 'Endurance Développé Couché',
+              defaultWeight: 40,
+              sets: 3,
+              reps: 18,
+              targetAdvice: '🎯 Benchmark : 15 à 20 reps fluides, charge modérée, tempo 2-0-1. Repos 45s.',
+              reason: 'Évaluation de l endurance sous tension des pectoraux.',
+            },
+            {
+              name: 'Incline Dumbbell Press',
+              isKeyBenchmark: false,
+              benchmarkMetric: 'Endurance Haut Pectoraux',
+              defaultWeight: 14,
+              sets: 3,
+              reps: 15,
+              targetAdvice: 'Mouvement fluide continu sans pause en bas. Repos 45s.',
+              reason: 'Résistance à la fatigue claviculaire.',
+            },
+            {
+              name: 'Lateral Raise (Dumbbell)',
+              isKeyBenchmark: false,
+              benchmarkMetric: 'Endurance Deltoïdes',
+              defaultWeight: 8,
+              sets: 3,
+              reps: 20,
+              targetAdvice: 'Montée contrôlée, brûlure intense recherchée. Repos 30s.',
+              reason: 'Capacité métabolique des épaules.',
+            },
+            {
+              name: 'Tricep Extension (Cable)',
+              isKeyBenchmark: false,
+              benchmarkMetric: 'Endurance Triceps',
+              defaultWeight: 18,
+              sets: 3,
+              reps: 20,
+              targetAdvice: 'Extension complète et continue. Repos 30s.',
+              reason: 'Seuil lactique des extenseurs du bras.',
+            },
+          ],
+        },
+        {
+          step: 2,
+          dayName: 'Jour 2 (Mercredi)',
+          name: 'Test Capacité & Seuil Tirage',
+          focus: 'Dos, Biceps, Arrière d épaules',
+          badge: 'Benchmark 15-20 reps • Capacité Dorsale',
+          testingGoal: 'Mesurer la résistance à la fatigue des muscles du dos et de la préhension.',
+          instructions: [
+            'Tirages amples avec amplitude complète.',
+            'Gérez le rythme cardiaque et respectez les 45 secondes de repos.',
+          ],
+          exercises: [
+            {
+              name: 'Lat Pulldown (Cable)',
+              isKeyBenchmark: true,
+              benchmarkMetric: 'Endurance Grand Dorsal',
+              defaultWeight: 40,
+              sets: 3,
+              reps: 18,
+              targetAdvice: '🎯 Benchmark : 15 à 20 reps continues sans à-coups. Repos 45s.',
+              reason: 'Capacité aérobie-anaérobie du dos.',
+            },
+            {
+              name: 'Barbell Row',
+              isKeyBenchmark: false,
+              benchmarkMetric: 'Endurance Tirage Horizontal',
+              defaultWeight: 35,
+              sets: 3,
+              reps: 15,
+              targetAdvice: 'Dos bien fixe, rythme constant. Repos 45s.',
+              reason: 'Résistance posturale sous fatigue.',
+            },
+            {
+              name: 'Romanian Deadlift',
+              isKeyBenchmark: false,
+              benchmarkMetric: 'Endurance Ischios & Lombaires',
+              defaultWeight: 40,
+              sets: 3,
+              reps: 15,
+              targetAdvice: 'Charge légère, tempo continu, étirement actif. Repos 45s.',
+              reason: 'Capacité de travail de la chaîne postérieure.',
+            },
+            {
+              name: 'Bicep Curl (Dumbbell)',
+              isKeyBenchmark: false,
+              benchmarkMetric: 'Endurance Fléchisseurs',
+              defaultWeight: 10,
+              sets: 3,
+              reps: 18,
+              targetAdvice: 'Contraction sans élan. Repos 30s.',
+              reason: 'Endurance des biceps.',
+            },
+          ],
+        },
+        {
+          step: 3,
+          dayName: 'Jour 3 (Vendredi)',
+          name: 'Test Capacité Bas du Corps & Cardio-Musculaire',
+          focus: 'Quadriceps, Fessiers, Abdos',
+          badge: 'Benchmark 15-20 reps • Résistance Cuisses',
+          testingGoal: 'Tester le volume de travail et la résistance lactique des membres inférieurs.',
+          instructions: [
+            'Séries longues et intenses sur les jambes.',
+            'Hydratez-vous bien et gardez une cadence régulière.',
+          ],
+          exercises: [
+            {
+              name: 'Squat (Barbell)',
+              isKeyBenchmark: true,
+              benchmarkMetric: 'Endurance Squat',
+              defaultWeight: 45,
+              sets: 3,
+              reps: 18,
+              targetAdvice: '🎯 Benchmark : 15 à 20 flexions profondes et dynamiques. Repos 45-60s.',
+              reason: 'Endurance musculaire et capacité cardiaque sur squat.',
+            },
+            {
+              name: 'Leg Press',
+              isKeyBenchmark: false,
+              benchmarkMetric: 'Endurance Poussée Presse',
+              defaultWeight: 80,
+              sets: 3,
+              reps: 20,
+              targetAdvice: 'Poussée fluide continue, pas de blocage des genoux en haut. Repos 45s.',
+              reason: 'Tolérance au lactate quadriceps/fessiers.',
+            },
+            {
+              name: 'Cable Crunch / Abs',
+              isKeyBenchmark: false,
+              benchmarkMetric: 'Endurance Tronc & Abdos',
+              defaultWeight: 25,
+              sets: 3,
+              reps: 20,
+              targetAdvice: 'Enroulement constant, brûlure abdominale. Repos 30s.',
+              reason: 'Capacité d endurance du gainage.',
+            },
+          ],
+        },
+      ];
+    }
+
+    // Default: BODYBUILDING
+    return [
+      {
+        step: 1,
+        dayName: 'Jour 1 (Lundi)',
+        name: 'Test Hypertrophie Poussée (Push Calibration)',
+        focus: 'Pectoraux, Épaules, Triceps',
+        badge: 'Benchmark 8-10 reps • Hypertrophie Push',
+        testingGoal: 'Trouver votre charge de travail optimale (8-10RM, RPE 8) pour stimuler la croissance musculaire.',
+        instructions: [
+          'Adoptez un tempo maîtrisé : 2 à 3 secondes de descente contrôlée.',
+          'La 10ème répétition doit être stimulante tout en laissant 1-2 reps en réserve (RPE 8).',
+          'Prenez 90 secondes de repos entre les séries.',
+          'Notez vos charges effectives pour calibrer les futurs volumes de travail.',
+        ],
+        exercises: [
+          {
+            name: 'Bench Press (Barbell)',
+            isKeyBenchmark: true,
+            benchmarkMetric: '10RM Référence Développé Couché',
+            defaultWeight: 50,
+            sets: 4,
+            reps: 10,
+            targetAdvice: '🎯 Benchmark Principal : 8 à 10 reps avec tempo 2-0-1. RPE 8. Repos 90s.',
+            reason: 'Calibrage de la charge de travail optimale pour la masse pectorale.',
+          },
+          {
+            name: 'Incline Dumbbell Press',
+            isKeyBenchmark: false,
+            benchmarkMetric: 'Volume Pectoraux Claviculaires',
+            defaultWeight: 18,
+            sets: 3,
+            reps: 10,
+            targetAdvice: 'Descendez les coudes à 45°, étirement ressenti sur le haut de la poitrine. Repos 90s.',
+            reason: 'Évaluation du recrutement faisceau haut.',
+          },
+          {
+            name: 'Overhead Press (Dumbbell)',
+            isKeyBenchmark: false,
+            benchmarkMetric: 'Charge Travail Épaules',
+            defaultWeight: 14,
+            sets: 3,
+            reps: 10,
+            targetAdvice: 'Poussée verticale nette sans cambrure lombaire. Repos 90s.',
+            reason: 'Calibration du volume deltoïdes antérieurs et latéraux.',
+          },
+          {
+            name: 'Tricep Extension (Cable)',
+            isKeyBenchmark: false,
+            benchmarkMetric: 'Isolation & Congestion Triceps',
+            defaultWeight: 22,
+            sets: 3,
+            reps: 12,
+            targetAdvice: 'Verrouillage en bas, 1s de contraction volontaire. Repos 60-75s.',
+            reason: 'Mesure de la réponse hypertrophique des triceps.',
+          },
+        ],
+      },
+      {
+        step: 2,
+        dayName: 'Jour 2 (Mercredi)',
+        name: 'Test Hypertrophie Tirage (Pull Calibration)',
+        focus: 'Dos, Arrière d épaules, Biceps',
+        badge: 'Benchmark 8-10 reps • Hypertrophie Pull',
+        testingGoal: 'Déterminer votre capacité de travail pour la largeur et l épaisseur du dos.',
+        instructions: [
+          'Ressentez l activation des dorsaux avant de tirer avec les bras.',
+          'Maintenez une contraction d une seconde en position finale.',
+          'Repos prescrit : 90 secondes.',
+        ],
+        exercises: [
+          {
+            name: 'Barbell Row',
+            isKeyBenchmark: true,
+            benchmarkMetric: 'Charge Référence Épaisseur Dos',
+            defaultWeight: 45,
+            sets: 4,
+            reps: 10,
+            targetAdvice: '🎯 Benchmark Principal : Tirage vers le nombril, contraction omoplates. Repos 90s.',
+            reason: 'Mesure de travail clé pour la masse du haut et milieu du dos.',
+          },
+          {
+            name: 'Lat Pulldown (Cable)',
+            isKeyBenchmark: false,
+            benchmarkMetric: 'Charge Référence Largeur Dos',
+            defaultWeight: 45,
+            sets: 3,
+            reps: 10,
+            targetAdvice: 'Poitrine fière, tirez la barre sous le menton. Repos 90s.',
+            reason: 'Calibration de l étirement du grand dorsal.',
+          },
+          {
+            name: 'Romanian Deadlift',
+            isKeyBenchmark: false,
+            benchmarkMetric: 'Tension Mécanique Ischios',
+            defaultWeight: 50,
+            sets: 3,
+            reps: 10,
+            targetAdvice: 'Charnière de hanche parfaite, contrôle lent de la descente. Repos 90s.',
+            reason: 'Évaluation de la capacité sous tension de la chaîne postérieure.',
+          },
+          {
+            name: 'Bicep Curl (Dumbbell)',
+            isKeyBenchmark: false,
+            benchmarkMetric: 'Charge Travail Biceps',
+            defaultWeight: 12,
+            sets: 3,
+            reps: 10,
+            targetAdvice: 'Supination en haut, descente 2s sans balancer le buste. Repos 60s.',
+            reason: 'Calibration de l isolation des bras.',
+          },
+        ],
+      },
+      {
+        step: 3,
+        dayName: 'Jour 3 (Vendredi)',
+        name: 'Test Hypertrophie Jambes & Tronc (Legs Calibration)',
+        focus: 'Quadriceps, Fessiers, Mollets, Abdos',
+        badge: 'Benchmark 8-10 reps • Hypertrophie Jambes',
+        testingGoal: 'Établir vos charges de référence pour développer le volume des quadriceps et ischios.',
+        instructions: [
+          'Contrôlez parfaitement la phase excentrique pour maximiser les micro-lésions musculaires.',
+          'Assurez une amplitude complète au squat pour stimuler les fessiers et quadriceps.',
+          'Repos prescrit : 90 secondes.',
+        ],
+        exercises: [
+          {
+            name: 'Squat (Barbell)',
+            isKeyBenchmark: true,
+            benchmarkMetric: '10RM Référence Squat',
+            defaultWeight: 60,
+            sets: 4,
+            reps: 10,
+            targetAdvice: '🎯 Benchmark Principal : Cuisses au moins au niveau horizontal. RPE 8. Repos 90s.',
+            reason: 'Fondation du volume musculaire des cuisses.',
+          },
+          {
+            name: 'Leg Press',
+            isKeyBenchmark: false,
+            benchmarkMetric: 'Charge Travail Poussée Cuisses',
+            defaultWeight: 100,
+            sets: 3,
+            reps: 12,
+            targetAdvice: 'Tension continue sur les quadriceps. Repos 90s.',
+            reason: 'Volume d hypertrophie complémentaire sans fatigue rachidienne.',
+          },
+          {
+            name: 'Cable Crunch / Abs',
+            isKeyBenchmark: false,
+            benchmarkMetric: 'Résistance Hypertrophie Abdos',
+            defaultWeight: 30,
+            sets: 3,
+            reps: 15,
+            targetAdvice: 'Enroulez le buste, expirez tout l air en fin de contraction. Repos 60s.',
+            reason: 'Mesure de la force et épaisseur de la sangle abdominale.',
+          },
+        ],
+      },
+    ];
+  }
+
+  async generateTestWeekRecommendation(
+    userId: string,
+    goal: string,
+    step: number,
+    allExercises: any[],
+    currentMeta: any,
+  ) {
+    const templates = this.getTestWeekTemplates(goal);
+    const template = templates.find((t) => t.step === step) || templates[0];
+
+    const mappedExercises: any[] = [];
+    for (const exPlan of template.exercises) {
+      const dbEx = this.findMatchingExercise(exPlan.name, '', allExercises);
+      if (dbEx) {
+        const sets = [];
+        for (let i = 0; i < exPlan.sets; i++) {
+          sets.push({
+            setNumber: i + 1,
+            weight: exPlan.defaultWeight,
+            reps: exPlan.reps,
+            completed: false,
+          });
+        }
+        mappedExercises.push({
+          exerciseId: dbEx.id,
+          name: dbEx.name,
+          category: (dbEx as any).category || 'Général',
+          targetAdvice: exPlan.targetAdvice,
+          reason: exPlan.reason,
+          isKeyBenchmark: exPlan.isKeyBenchmark,
+          benchmarkMetric: exPlan.benchmarkMetric,
+          sets,
+        });
+      }
+    }
+
+    const result = {
+      isTestWeek: true,
+      testStep: step,
+      totalTestSteps: 3,
+      aiGenerated: false,
+      aiModel: 'Protocole de Calibration Overloady',
+      title: `[SEMAINE_TEST_${step}] Semaine Test (Séance ${step}/3) — ${template.name}`,
+      goal,
+      goalDetails: currentMeta,
+      focusMuscle: template.focus,
+      rationale: `🧪 Phase de Test & Calibration (Séance ${step}/3) : ${template.testingGoal} Effectuez cette séance d'évaluation en notant vos charges réelles avec technique propre pour calibrer votre profil neuromusculaire avant le lancement complet du Coach IA.`,
+      coachingTips: template.instructions,
+      exercises: mappedExercises,
+    };
+
+    this.recommendationCache.set(userId, { data: result, timestamp: Date.now() });
+    return result;
+  }
+
+  async getTestWeekStatus(userId: string) {
+    const profile = await this.prisma.profile.findUnique({
+      where: { userId },
+    });
+    const goal = ((profile as any)?.goal || 'BODYBUILDING').toUpperCase();
+    const testWeekCompleted = Boolean((profile as any)?.testWeekCompleted);
+    const testWeekProgress = Number((profile as any)?.testWeekProgress) || 0;
+    const currentStep = Math.min(3, testWeekProgress + 1);
+
+    const templates = this.getTestWeekTemplates(goal);
+    const sessions = templates.map((t) => {
+      let status: 'completed' | 'current' | 'upcoming' = 'upcoming';
+      if (t.step <= testWeekProgress) {
+        status = 'completed';
+      } else if (t.step === currentStep) {
+        status = 'current';
+      }
+
+      return {
+        ...t,
+        status,
+      };
+    });
+
+    const benchmarks = await this.getTestedBenchmarks(userId);
+
+    return {
+      testWeekCompleted,
+      testWeekProgress,
+      currentStep,
+      totalSteps: 3,
+      goal,
+      sessions,
+      benchmarks,
+      canUnlockAi: testWeekCompleted,
+    };
+  }
+
+  async getTestedBenchmarks(userId: string) {
+    const sessions = await this.prisma.workoutSession.findMany({
+      where: {
+        userId,
+        endedAt: { not: null },
+      },
+      include: {
+        exercises: {
+          include: {
+            exercise: true,
+            sets: true,
+          },
+        },
+      },
+      orderBy: { startedAt: 'desc' },
+    });
+
+    const keyExercises = ['Bench Press (Barbell)', 'Squat (Barbell)', 'Deadlift (Barbell)', 'Overhead Press (Dumbbell)'];
+    const benchmarks: Record<string, { maxWeight: number; bestReps: number; estimated1RM: number; sessionDate: string }> = {};
+
+    for (const session of sessions) {
+      for (const exLog of session.exercises) {
+        const exName = exLog.exercise.name;
+        if (keyExercises.some((k) => exName.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(exName.toLowerCase()))) {
+          for (const s of exLog.sets) {
+            if (s.completed && s.weight > 0 && s.reps > 0) {
+              const e1RM = Math.round(s.weight * (1 + s.reps / 30) * 10) / 10;
+              if (!benchmarks[exName] || e1RM > benchmarks[exName].estimated1RM) {
+                benchmarks[exName] = {
+                  maxWeight: s.weight,
+                  bestReps: s.reps,
+                  estimated1RM: e1RM,
+                  sessionDate: session.startedAt.toISOString().split('T')[0],
+                };
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return benchmarks;
+  }
+
+  async startTestWeekSession(userId: string, step: number) {
+    const profile = await this.prisma.profile.findUnique({ where: { userId } });
+    const goal = ((profile as any)?.goal || 'BODYBUILDING').toUpperCase();
+    const allExercises = await this.prisma.exercise.findMany();
+    const goalMeta = { label: goal };
+    const rec = await this.generateTestWeekRecommendation(userId, goal, step, allExercises, goalMeta);
+    return this.startRecommendedWorkout(userId, rec);
+  }
+
+  async skipTestWeek(userId: string) {
+    await this.prisma.profile.update({
+      where: { userId },
+      data: { testWeekCompleted: true, testWeekProgress: 3 } as any,
+    });
+    this.recommendationCache.delete(userId);
+    return { success: true, message: 'Semaine de test validée. Le Coach IA est activé !' };
+  }
+
+  async resetTestWeek(userId: string) {
+    await this.prisma.profile.update({
+      where: { userId },
+      data: { testWeekCompleted: false, testWeekProgress: 0 } as any,
+    });
+    this.recommendationCache.delete(userId);
+    return { success: true, message: 'Semaine de test réinitialisée. Prêt pour une nouvelle calibration.' };
   }
 }

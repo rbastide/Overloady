@@ -1445,3 +1445,389 @@
   to { transform: rotate(360deg); }
 }
 
+/* ==========================================================================
+   SEMAINE TEST & PROTOCOLE DE CALIBRATION ATHLÈTE
+   ========================================================================== */
+.test-week-banner {
+  background: linear-gradient(135deg, rgba(0, 240, 255, 0.08) 0%, rgba(204, 255, 0, 0.06) 100%), var(--bg-card);
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  border-radius: var(--radius-xl);
+  padding: 1.5rem 1.75rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 16px 36px -12px rgba(0, 240, 255, 0.15);
+  position: relative;
+  overflow: hidden;
+}
+
+.test-week-banner::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 5px;
+  height: 100%;
+  background: linear-gradient(180deg, var(--accent-cyan) 0%, var(--accent-volt) 100%);
+}
+
+.test-week-banner-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.test-badge-glow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: rgba(0, 240, 255, 0.12);
+  border: 1px solid rgba(0, 240, 255, 0.4);
+  color: var(--accent-cyan);
+  padding: 0.35rem 0.85rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.test-week-steps-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.85rem;
+  margin: 1.25rem 0;
+}
+
+@media (max-width: 768px) {
+  .test-week-steps-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.test-step-mini-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.test-step-mini-card.completed {
+  border-color: rgba(16, 185, 129, 0.4);
+  background: rgba(16, 185, 129, 0.05);
+}
+
+.test-step-mini-card.current {
+  border-color: rgba(0, 240, 255, 0.5);
+  background: rgba(0, 240, 255, 0.08);
+  box-shadow: 0 0 18px rgba(0, 240, 255, 0.15);
+}
+
+.test-step-mini-card.upcoming {
+  opacity: 0.65;
+}
+
+.step-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 800;
+  margin-bottom: 0.35rem;
+}
+
+.step-card-title {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #fff;
+  margin-bottom: 0.25rem;
+}
+
+.step-card-focus {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+/* Test Week Modal */
+.test-week-modal {
+  max-height: 88vh;
+  overflow-y: auto;
+}
+
+.test-progress-bar-container {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-md);
+  padding: 1rem 1.25rem;
+  margin: 1.25rem 0;
+}
+
+.test-benchmarks-summary {
+  background: rgba(204, 255, 0, 0.04);
+  border: 1px solid rgba(204, 255, 0, 0.25);
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.benchmarks-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 800;
+  font-size: 0.88rem;
+  color: var(--accent-volt);
+  margin-bottom: 0.85rem;
+}
+
+.benchmarks-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+.benchmark-card {
+  background: rgba(14, 18, 27, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+}
+
+.bench-name {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+.bench-1rm {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-size: 1.35rem;
+  font-weight: 900;
+  color: #fff;
+}
+
+.bench-sub {
+  font-size: 0.75rem;
+  color: var(--accent-volt);
+  font-weight: 700;
+}
+
+.bench-raw {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  margin-top: 0.25rem;
+}
+
+/* Test Sessions List */
+.test-sessions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin: 1.25rem 0;
+}
+
+.test-session-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.5rem;
+  transition: all 0.25s ease;
+}
+
+.test-session-card.is-current {
+  border-color: rgba(0, 240, 255, 0.4);
+  background: linear-gradient(135deg, rgba(0, 240, 255, 0.06) 0%, rgba(204, 255, 0, 0.03) 100%), rgba(16, 20, 29, 0.8);
+  box-shadow: 0 12px 30px -8px rgba(0, 240, 255, 0.12);
+}
+
+.test-session-card.is-completed {
+  border-color: rgba(16, 185, 129, 0.3);
+  background: rgba(16, 185, 129, 0.04);
+}
+
+.test-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.test-step-badge {
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent-cyan);
+}
+
+.test-card-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.25rem 0.65rem;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-secondary);
+}
+
+.test-card-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.45rem;
+}
+
+.test-session-title {
+  font-size: 1.2rem;
+  font-weight: 900;
+  margin: 0;
+  color: #fff;
+}
+
+.test-focus-tag {
+  font-size: 0.8rem;
+  color: var(--accent-volt);
+  font-weight: 700;
+}
+
+.test-session-goal {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin: 0.45rem 0 1rem;
+}
+
+.test-exercises-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+}
+
+.test-exercise-pill {
+  background: rgba(14, 18, 27, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 0.85rem;
+}
+
+.test-exercise-pill.key-benchmark {
+  border-color: rgba(204, 255, 0, 0.35);
+  background: rgba(204, 255, 0, 0.05);
+}
+
+.test-ex-title {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #fff;
+}
+
+.test-ex-details {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 0.2rem;
+}
+
+.test-metric-tag {
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: var(--accent-volt);
+  margin-top: 0.35rem;
+  text-transform: uppercase;
+}
+
+.test-instructions-box {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.inst-title {
+  font-weight: 700;
+  color: var(--text-muted);
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
+.test-instructions-box ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.test-instructions-box li {
+  margin-bottom: 0.25rem;
+}
+
+.btn-test-completed {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.65rem;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: var(--accent-emerald);
+  border-radius: var(--radius-md);
+  font-weight: 800;
+  font-size: 0.85rem;
+}
+
+.btn-text-danger {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s;
+}
+
+.btn-text-danger:hover {
+  color: var(--accent-coral);
+  background: rgba(255, 51, 102, 0.08);
+}
+
+.btn-text-warning {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s;
+}
+
+.btn-text-warning:hover {
+  color: var(--accent-volt);
+  background: rgba(204, 255, 0, 0.08);
+}
+
+.active-session-test-banner {
+  background: linear-gradient(90deg, rgba(0, 240, 255, 0.15) 0%, rgba(204, 255, 0, 0.15) 100%);
+  border: 1px solid rgba(0, 240, 255, 0.4);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+

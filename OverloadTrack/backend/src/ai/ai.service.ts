@@ -5,6 +5,7 @@ export interface AiWorkoutPromptContext {
   weight?: number;
   height?: number;
   age?: number;
+  benchmarks?: Record<string, any> | null;
   lastSession?: {
     title?: string;
     startedAt?: string;
@@ -93,8 +94,13 @@ Tu dois répondre STRICTEMENT avec un objet JSON valide (aucun markdown, aucun o
         ? JSON.stringify(context.lastSession)
         : 'Aucune séance récente enregistrée'
     }
+- Données de calibration issues de la Semaine Test : ${
+      context.benchmarks && Object.keys(context.benchmarks).length > 0
+        ? JSON.stringify(context.benchmarks)
+        : 'Non testé'
+    }
 
-Génère la prochaine séance d'entraînement idéale au format JSON.`;
+Génère la prochaine séance d'entraînement idéale au format JSON en calibrant les charges selon ces données.`;
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 28000);

@@ -32,6 +32,26 @@ export class WorkoutController {
     return this.workoutService.getNextRecommendedWorkout(req.user.userId, true);
   }
 
+  @Get('test-week')
+  getTestWeekStatus(@Request() req: any) {
+    return this.workoutService.getTestWeekStatus(req.user.userId);
+  }
+
+  @Post('test-week/start/:step')
+  startTestWeekSession(@Request() req: any, @Param('step') step: string) {
+    return this.workoutService.startTestWeekSession(req.user.userId, parseInt(step, 10) || 1);
+  }
+
+  @Post('test-week/skip')
+  skipTestWeek(@Request() req: any) {
+    return this.workoutService.skipTestWeek(req.user.userId);
+  }
+
+  @Post('test-week/reset')
+  resetTestWeek(@Request() req: any) {
+    return this.workoutService.resetTestWeek(req.user.userId);
+  }
+
   @Post('start-recommended')
   startRecommended(@Request() req: any, @Body() body?: { customRec?: any }) {
     return this.workoutService.startRecommendedWorkout(req.user.userId, body?.customRec);
