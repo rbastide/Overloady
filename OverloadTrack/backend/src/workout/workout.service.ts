@@ -638,27 +638,33 @@ export class WorkoutService {
       });
     }
 
-    const goalMetadata: Record<string, { label: string; icon: string; description: string; repRange: string; restTime: string }> = {
+    const goalMetadata: Record<string, { label: string; icon: string; description: string; repRange: string; restTime: string; repTarget: string; restTarget: string }> = {
       FORCE: {
         label: 'Force Maximale',
         icon: '🔴',
         description: 'Développement de la force pure et de la puissance. Séries courtes et lourdes pour maximiser le recrutement des unités motrices.',
         repRange: '3 - 5 reps',
+        repTarget: '3 - 5 reps lourdes',
         restTime: '3 - 4 min',
+        restTarget: '3 - 4 min',
       },
       BODYBUILDING: {
         label: 'Bodybuilding / Hypertrophie',
         icon: '🟣',
         description: 'Construction de volume musculaire et esthétique. Séries moyennes avec surcharge progressive et temps sous tension.',
         repRange: '8 - 12 reps',
+        repTarget: '8 - 12 reps',
         restTime: '75 - 90s',
+        restTarget: '75 - 90s',
       },
       ENDURANCE: {
         label: 'Endurance Musculaire',
         icon: '🟢',
         description: 'Résistance à la fatigue, tonicité et capacité cardiovasculaire. Séries longues avec repos minimaux pour congestion dense.',
         repRange: '15 - 20 reps',
+        repTarget: '15 - 20 reps',
         restTime: '30 - 45s',
+        restTarget: '30 - 45s',
       },
     };
 
