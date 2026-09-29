@@ -27,9 +27,14 @@ export class WorkoutController {
     return this.workoutService.getNextRecommendedWorkout(req.user.userId);
   }
 
+  @Post('regenerate-recommendation')
+  regenerateRecommendation(@Request() req: any) {
+    return this.workoutService.getNextRecommendedWorkout(req.user.userId, true);
+  }
+
   @Post('start-recommended')
-  startRecommended(@Request() req: any) {
-    return this.workoutService.startRecommendedWorkout(req.user.userId);
+  startRecommended(@Request() req: any, @Body() body?: { customRec?: any }) {
+    return this.workoutService.startRecommendedWorkout(req.user.userId, body?.customRec);
   }
 
   @Post('warmup')

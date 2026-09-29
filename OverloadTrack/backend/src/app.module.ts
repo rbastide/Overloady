@@ -7,9 +7,10 @@ import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
 import { ExerciseModule } from './exercise/exercise.module';
 import { RoutineModule } from './routine/routine.module';
+import { AiModule } from './ai/ai.module';
 
 @Module({
-  imports: [PrismaModule, WorkoutModule, AuthModule, UserModule, ExerciseModule, RoutineModule],
+  imports: [PrismaModule, WorkoutModule, AuthModule, UserModule, ExerciseModule, RoutineModule, AiModule],
   controllers: [AppController],
   providers: [AppService],
 })
