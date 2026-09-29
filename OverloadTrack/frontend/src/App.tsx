@@ -572,12 +572,13 @@ function App() {
         <ToastContainer toasts={toasts} onDismiss={dismissToast} />
         <div className={`glass-panel auth-card ${!isLoginMode ? 'auth-card-wide' : ''}`}>
           <div className="logo">
-            <span>O</span>verloady
+            <span className="logo-bolt">⚡</span>
+            <span className="logo-text">OVERLOADY</span>
           </div>
-          <p>
+          <p className="subtitle">
             {isLoginMode
-              ? 'Heureux de vous revoir ! Connectez-vous pour suivre votre progression.'
-              : "Créez votre compte et choisissez votre programme d'entraînement."}
+              ? 'Heureux de vous revoir ! Préparez votre prochaine surcharge progressive.'
+              : "Créez votre profil d'athlète et personnalisez votre programme d'entraînement."}
           </p>
 
           <form onSubmit={handleAuthSubmit}>
@@ -691,9 +692,9 @@ function App() {
         className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
         onClick={() => setActiveTab(item.id as any)}
       >
-        <span>{item.icon}</span>
+        <span className="nav-icon">{item.icon}</span>
         <span>{item.label}</span>
-        {item.badge && <span className="nav-badge">{item.badge}</span>}
+        {item.badge && <span className={`nav-badge ${item.id === 'logger' && activeSessionId ? 'live' : ''}`}>{item.badge}</span>}
       </div>
     ));
   };
@@ -704,29 +705,38 @@ function App() {
 
       {/* Sidebar for Desktop */}
       <aside className="sidebar">
-        <div className="logo">
-          <span>O</span>verloady
+        <div>
+          <div className="sidebar-header">
+            <div className="logo">
+              <span className="logo-bolt">⚡</span>
+              <span className="logo-text">OVERLOADY</span>
+            </div>
+            <div className="sidebar-tagline">Progressive Overload Lab</div>
+          </div>
+          <nav className="nav-links">{renderNavItems()}</nav>
         </div>
-        <nav className="nav-links">{renderNavItems()}</nav>
-        <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+
+        <div className="sidebar-footer">
+          <div className="sidebar-user-card">
+            <div className="user-avatar">
+              {(profile.user?.email?.[0] || 'A').toUpperCase()}
+            </div>
+            <div className="user-info">
+              <div className="user-name">{profile.user?.email?.split('@')[0] || 'Athlète'}</div>
+              <div className="user-goal-tag">
+                {profile.goal === 'FORCE' ? '🔴 Force' : profile.goal === 'ENDURANCE' ? '🟢 Endurance' : '🟣 Hypertrophie'}
+              </div>
+            </div>
+          </div>
+
           <button
             className="btn-secondary"
-            style={{ width: '100%', fontSize: '0.85rem' }}
+            style={{ width: '100%', fontSize: '0.825rem', padding: '0.65rem 0.85rem', justifyContent: 'center' }}
             onClick={() => setIsPlateCalcOpen(true)}
           >
-            🧮 Calculateur 1RM / Disques
+            🧮 Calculatrices Gym
           </button>
-          <button
-            className="btn-icon"
-            style={{
-              width: '100%',
-              justifyContent: 'flex-start',
-              gap: '0.75rem',
-              padding: '0.75rem 1rem',
-              color: '#ff5e5e',
-            }}
-            onClick={handleLogout}
-          >
+          <button className="btn-sidebar-logout" onClick={handleLogout}>
             <span>🚪</span> Déconnexion
           </button>
         </div>
@@ -749,38 +759,54 @@ function App() {
 
             {/* Dashboard Stats Grid */}
             <div className="dashboard-grid">
-              <div className="glass-panel stat-card">
-                <h3>Séances cette semaine</h3>
+              <div className="stat-card" style={{ '--stat-accent': 'var(--accent-primary)' } as any}>
+                <div className="stat-card-header">
+                  <h3>Séances cette semaine</h3>
+                  <div className="stat-card-icon" style={{ color: 'var(--accent-orange)' }}>🔥</div>
+                </div>
                 <div className="value" style={{ color: 'var(--accent-orange)' }}>
                   {dashboardStats.workoutsThisWeek ?? 0}{' '}
                   <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>/ 7j</span>
                 </div>
+                <div className="sub-caption">Régularité d'entraînement</div>
               </div>
 
-              <div className="glass-panel stat-card">
-                <h3>Volume soulevé (7j)</h3>
+              <div className="stat-card" style={{ '--stat-accent': 'var(--accent-green)' } as any}>
+                <div className="stat-card-header">
+                  <h3>Volume soulevé (7j)</h3>
+                  <div className="stat-card-icon" style={{ color: 'var(--accent-green)' }}>⚡</div>
+                </div>
                 <div className="value" style={{ color: 'var(--accent-green)' }}>
                   {dashboardStats.weekVolume ? `${dashboardStats.weekVolume.toLocaleString()}` : '0'}{' '}
                   <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>kg</span>
                 </div>
+                <div className="sub-caption">Tonnage total déplacé</div>
               </div>
 
-              <div className="glass-panel stat-card">
-                <h3>Poids actuel</h3>
-                <div className="value" style={{ color: 'var(--accent-purple)' }}>
+              <div className="stat-card" style={{ '--stat-accent': 'var(--accent-purple)' } as any}>
+                <div className="stat-card-header">
+                  <h3>Poids actuel</h3>
+                  <div className="stat-card-icon" style={{ color: 'var(--accent-purple)' }}>⚖️</div>
+                </div>
+                <div className="value" style={{ color: '#c084fc' }}>
                   {profile.weight || '--'}{' '}
                   <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>kg</span>
                 </div>
+                <div className="sub-caption">Dernière pesée enregistrée</div>
               </div>
 
-              <div className="glass-panel stat-card">
-                <h3>Indice IMC</h3>
-                <div className="value">
+              <div className="stat-card" style={{ '--stat-accent': 'var(--accent-cyan)' } as any}>
+                <div className="stat-card-header">
+                  <h3>Indice IMC</h3>
+                  <div className="stat-card-icon" style={{ color: 'var(--accent-cyan)' }}>🧬</div>
+                </div>
+                <div className="value" style={{ color: 'var(--accent-cyan)' }}>
                   {bmi || '--'}{' '}
                   <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                     {bmi ? (bmi < 25 ? '(Normal)' : '(Surpoids)') : ''}
                   </span>
                 </div>
+                <div className="sub-caption">Ratio corporel taille/poids</div>
               </div>
             </div>
 
