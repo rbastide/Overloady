@@ -386,28 +386,33 @@ function App() {
     }
 
     try {
+      const anyCompletedExplicitly = workout.some((ex) => ex.sets.some((s) => s.completed));
+      const exercisesPayload = workout.map((ex) => ({
+        exerciseId: ex.exerciseId,
+        sets: ex.sets.map((s) => ({
+          reps: Number(s.reps) || 0,
+          weight: Number(s.weight) || 0,
+          completed: anyCompletedExplicitly
+            ? Boolean(s.completed)
+            : Number(s.weight) > 0 && Number(s.reps) > 0,
+        })),
+      }));
+
       await api.post('/workout/finish', {
         sessionId: activeSessionId,
         rpe: sessionRpe,
         notes: sessionNotes,
-        exercises: workout.map((ex) => ({
-          exerciseId: ex.exerciseId,
-          sets: ex.sets.map((s) => ({
-            reps: Number(s.reps) || 0,
-            weight: Number(s.weight) || 0,
-            completed: Boolean(s.completed),
-          })),
-        })),
+        exercises: exercisesPayload,
       });
 
-      showToast('Séance enregistrée avec succès ! 💪', 'success');
+      showToast('Séance enregistrée avec succès ! 💪 Vos charges et volume sont synchronisés.', 'success');
       setActiveSessionId(null);
       setActiveRoutineName(null);
       setWorkout([]);
       setWorkoutStartTime(null);
       setShowRestTimer(false);
       setActiveTab('history');
-      fetchData();
+      await fetchData();
     } catch (err: any) {
       showToast(err.response?.data?.message || "Erreur lors de l'enregistrement", 'error');
     }
@@ -1214,9 +1219,26 @@ function App() {
                       </tbody>
                     </table>
 
-                    <div style={{ marginTop: '0.75rem' }}>
+                    <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.6rem' }}>
                       <button className="btn-small" onClick={() => addSet(eIndex)}>
                         + Ajouter une série
+                      </button>
+                      <button
+                        className="btn-small"
+                        style={{ color: 'var(--accent-volt)', borderColor: 'rgba(204, 255, 0, 0.3)' }}
+                        onClick={() => {
+                          setWorkout((prev) => {
+                            const copy = [...prev];
+                            copy[eIndex] = {
+                              ...copy[eIndex],
+                              sets: copy[eIndex].sets.map((s) => ({ ...s, completed: true })),
+                            };
+                            return copy;
+                          });
+                          showToast(`Toutes les séries de "${exercise.name}" ont été validées !`, 'info');
+                        }}
+                      >
+                        ✓ Tout valider
                       </button>
                     </div>
                   </div>
@@ -1413,21 +1435,33 @@ function App() {
               let sessionVolume = 0;
               (session.exercises || []).forEach((ex: any) => {
                 (ex.sets || []).forEach((s: any) => {
-                  if (s.completed) sessionVolume += (s.weight || 0) * (s.reps || 0);
+                  if (s.completed || (s.weight > 0 && s.reps > 0)) {
+                    sessionVolume += (s.weight || 0) * (s.reps || 0);
+                  }
                 });
               });
+
+              const sessionTitle = session.notes?.startsWith('Séance Recommandée : ')
+                ? session.notes.replace('Séance Recommandée : ', '⚡ ')
+                : session.notes?.startsWith('Programme: ')
+                ? `📋 ${session.notes.replace('Programme: ', '')}`
+                : session.routine
+                ? session.routine.name
+                : 'Séance Libre';
 
               return (
                 <div key={session.id} className="glass-panel" style={{ marginBottom: '1.25rem' }}>
                   <div className="flex-between" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
                     <div>
-                      <h3 style={{ color: 'var(--accent-orange)', margin: 0 }}>
-                        {session.routine ? session.routine.name : 'Séance Libre'} —{' '}
-                        {new Date(session.startedAt).toLocaleDateString('fr-FR', {
-                          weekday: 'long',
-                          day: 'numeric',
-                          month: 'long',
-                        })}
+                      <h3 style={{ color: 'var(--accent-volt)', margin: 0 }}>
+                        {sessionTitle} —{' '}
+                        <span style={{ color: 'var(--text-muted)', fontWeight: 500, fontSize: '0.9rem' }}>
+                          {new Date(session.startedAt).toLocaleDateString('fr-FR', {
+                            weekday: 'long',
+                            day: 'numeric',
+                            month: 'long',
+                          })}
+                        </span>
                       </h3>
                       <div style={{ display: 'flex', gap: '1rem', marginTop: '0.35rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                         <span>RPE: <strong>{session.rpe}/10</strong></span>

@@ -135,6 +135,10 @@ export class WorkoutService {
         where: { sessionId: data.sessionId },
       });
 
+      const anyCompletedExplicitly = data.exercises.some((ex) =>
+        ex.sets?.some((s) => s.completed === true),
+      );
+
       for (const exDto of data.exercises) {
         if (!exDto.exerciseId) continue;
         const exLog = await this.prisma.exerciseLog.create({
@@ -146,12 +150,16 @@ export class WorkoutService {
 
         if (exDto.sets && exDto.sets.length > 0) {
           for (const set of exDto.sets) {
+            const isCompleted = anyCompletedExplicitly
+              ? Boolean(set.completed)
+              : Number(set.weight) > 0 && Number(set.reps) > 0;
+
             await this.prisma.setLog.create({
               data: {
                 exerciseLogId: exLog.id,
                 reps: Number(set.reps) || 0,
                 weight: Number(set.weight) || 0,
-                completed: Boolean(set.completed),
+                completed: isCompleted,
               },
             });
           }
