@@ -24,11 +24,42 @@ interface ActiveExercise {
   sets: ActiveSet[];
 }
 
+const GOAL_OPTIONS = [
+  {
+    id: 'FORCE',
+    name: 'Force & Puissance',
+    icon: '🔴',
+    badge: '3-5 reps • 80-87% 1RM',
+    rest: 'Repos 3-4 min',
+    desc: 'Charges maximales sur les mouvements polyarticulaires pour bâtir une force pure sans compromis.',
+    className: 'goal-force',
+  },
+  {
+    id: 'BODYBUILDING',
+    name: 'Bodybuilding (Hypertrophie)',
+    icon: '🟣',
+    badge: '8-12 reps • 70-75% 1RM',
+    rest: 'Repos 75-90s',
+    desc: 'Volume optimisé pour stimuler la croissance musculaire, le recrutement et la congestion.',
+    className: 'goal-bodybuilding',
+  },
+  {
+    id: 'ENDURANCE',
+    name: 'Endurance Musculaire',
+    icon: '🟢',
+    badge: '15-20 reps • 50-60% 1RM',
+    rest: 'Repos 30-45s',
+    desc: 'Séries longues et intensité métabolique pour développer votre résistance et votre tonicité.',
+    className: 'goal-endurance',
+  },
+];
+
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('token'));
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [signupGoal, setSignupGoal] = useState<'FORCE' | 'BODYBUILDING' | 'ENDURANCE'>('BODYBUILDING');
   const [authError, setAuthError] = useState('');
 
   // Navigation
@@ -40,6 +71,8 @@ function App() {
   const [routines, setRoutines] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
   const [dashboardStats, setDashboardStats] = useState<any>({});
+  const [nextRecommendation, setNextRecommendation] = useState<any>(null);
+  const [isStartingRec, setIsStartingRec] = useState<boolean>(false);
 
   // Active Workout Session
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -118,18 +151,20 @@ function App() {
 
   const fetchData = async () => {
     try {
-      const [profileRes, exercisesRes, historyRes, routinesRes, statsRes] = await Promise.all([
+      const [profileRes, exercisesRes, historyRes, routinesRes, statsRes, recRes] = await Promise.all([
         api.get('/profile').catch(() => ({ data: {} })),
         api.get('/exercises').catch(() => ({ data: [] })),
         api.get('/workout/history').catch(() => ({ data: [] })),
         api.get('/routines').catch(() => ({ data: [] })),
         api.get('/workout/dashboard-stats').catch(() => ({ data: {} })),
+        api.get('/workout/next-recommendation').catch(() => ({ data: null })),
       ]);
       setProfile(profileRes.data);
       setExercises(exercisesRes.data);
       setHistory(historyRes.data);
       setRoutines(routinesRes.data);
       setDashboardStats(statsRes.data);
+      setNextRecommendation(recRes.data);
     } catch (err) {
       console.error(err);
       if ((err as any).response?.status === 401) {
@@ -143,10 +178,13 @@ function App() {
     setAuthError('');
     try {
       const endpoint = isLoginMode ? '/auth/login' : '/auth/register';
-      const res = await api.post(endpoint, { email, password });
+      const payload = isLoginMode
+        ? { email, password }
+        : { email, password, goal: signupGoal };
+      const res = await api.post(endpoint, payload);
       localStorage.setItem('token', res.data.access_token);
       setIsAuthenticated(true);
-      showToast(isLoginMode ? 'Connexion réussie !' : 'Compte créé avec succès !');
+      showToast(isLoginMode ? 'Connexion réussie !' : 'Compte créé avec succès ! Bienvenue sur Overloady.');
     } catch (err: any) {
       setAuthError(err.response?.data?.message || "Échec de l'authentification");
     }
@@ -203,6 +241,40 @@ function App() {
       showToast(`Programme "${routine.name}" lancé !`, 'success');
     } catch (err) {
       showToast('Erreur lors du lancement de la routine', 'error');
+    }
+  };
+
+  // Start Adaptive Recommended Workout
+  const startRecommendedWorkout = async () => {
+    if (!nextRecommendation) return;
+    setIsStartingRec(true);
+    try {
+      const res = await api.post('/workout/start-recommended');
+      setActiveSessionId(res.data.id);
+      setActiveRoutineName(nextRecommendation.title);
+      setSessionNotes(res.data.notes || `Séance Recommandée : ${nextRecommendation.title}`);
+      setSessionRpe(7);
+      setWorkoutStartTime(new Date());
+
+      const prefilledExercises: ActiveExercise[] = (res.data.exercises || []).map((exLog: any) => ({
+        exerciseId: exLog.exerciseId,
+        name: exLog.exercise?.name || 'Exercice',
+        category: exLog.exercise?.category,
+        progressiveTarget: `${nextRecommendation.goalDetails?.label || ''} : ${nextRecommendation.goalDetails?.repTarget || ''}`,
+        sets: (exLog.sets || []).map((s: any) => ({
+          weight: s.weight,
+          reps: s.reps,
+          completed: false,
+        })),
+      }));
+
+      setWorkout(prefilledExercises);
+      setActiveTab('logger');
+      showToast(`Séance "${nextRecommendation.title}" démarrée ! Bon entraînement !`, 'success');
+    } catch (err: any) {
+      showToast(err.response?.data?.message || "Impossible de démarrer la séance recommandée", 'error');
+    } finally {
+      setIsStartingRec(false);
     }
   };
 
@@ -346,8 +418,13 @@ function App() {
       await api.put('/profile', {
         height: Number(profile.height),
         weight: Number(profile.weight),
+        goal: profile.goal || 'BODYBUILDING',
       });
-      showToast('Profil mis à jour !', 'success');
+      showToast('Profil et programme mis à jour !', 'success');
+      const recRes = await api.get('/workout/next-recommendation').catch(() => ({ data: null }));
+      if (recRes?.data) {
+        setNextRecommendation(recRes.data);
+      }
     } catch (err) {
       showToast('Erreur lors de la sauvegarde du profil', 'error');
     }
@@ -493,14 +570,14 @@ function App() {
     return (
       <div className="auth-container">
         <ToastContainer toasts={toasts} onDismiss={dismissToast} />
-        <div className="glass-panel auth-card">
+        <div className={`glass-panel auth-card ${!isLoginMode ? 'auth-card-wide' : ''}`}>
           <div className="logo">
             <span>O</span>verloady
           </div>
           <p>
             {isLoginMode
               ? 'Heureux de vous revoir ! Connectez-vous pour suivre votre progression.'
-              : 'Créez votre compte pour suivre votre surcharge progressive.'}
+              : "Créez votre compte et choisissez votre programme d'entraînement."}
           </p>
 
           <form onSubmit={handleAuthSubmit}>
@@ -527,6 +604,41 @@ function App() {
               />
             </div>
 
+            {!isLoginMode && (
+              <div style={{ textAlign: 'left', marginTop: '1.25rem', marginBottom: '1.25rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 600, fontSize: '0.9rem' }}>
+                  🎯 Choisissez votre programme d'entraînement
+                </label>
+                <p style={{ fontSize: '0.785rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+                  Chaque séance suivante sera automatiquement recommandée pour progresser vers cet objectif :
+                </p>
+
+                <div className="goal-selector-grid">
+                  {GOAL_OPTIONS.map((g) => (
+                    <div
+                      key={g.id}
+                      className={`goal-card-option ${g.className} ${signupGoal === g.id ? 'selected' : ''}`}
+                      onClick={() => setSignupGoal(g.id as any)}
+                    >
+                      <div className="goal-card-icon">{g.icon}</div>
+                      <div className="goal-card-content">
+                        <div className="goal-card-title">
+                          <span>{g.name}</span>
+                          {signupGoal === g.id && (
+                            <span style={{ fontSize: '0.75rem', color: 'var(--accent-orange)' }}>● Sélectionné</span>
+                          )}
+                        </div>
+                        <div className="goal-card-desc">{g.desc}</div>
+                        <div className="goal-card-specs">
+                          {g.badge} | ⏱ {g.rest}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {authError && (
               <div style={{ color: '#ff2a5f', marginBottom: '1rem', fontSize: '0.875rem' }}>
                 {authError}
@@ -534,7 +646,7 @@ function App() {
             )}
 
             <button type="submit" className="btn-neon" style={{ width: '100%', marginTop: '0.5rem' }}>
-              {isLoginMode ? 'Se Connecter' : "S'inscrire"}
+              {isLoginMode ? 'Se Connecter' : 'Créer mon compte & Démarrer'}
             </button>
           </form>
 
@@ -671,6 +783,69 @@ function App() {
                 </div>
               </div>
             </div>
+
+            {/* Adaptive Next Workout Recommendation Card */}
+            {nextRecommendation && (
+              <div className={`recommendation-panel goal-${nextRecommendation.goal?.toLowerCase()}`}>
+                <div className="rec-badge">
+                  <span>{nextRecommendation.goalDetails?.icon || '🎯'}</span>
+                  <span>Programme {nextRecommendation.goalDetails?.label || nextRecommendation.goal}</span>
+                  <span>• Prochaine Séance Recommandée</span>
+                </div>
+
+                <div className="rec-header">
+                  <div>
+                    <h2 className="rec-title">{nextRecommendation.title}</h2>
+                    <p className="rec-rationale">{nextRecommendation.rationale}</p>
+                  </div>
+                  <button
+                    className="btn-neon"
+                    style={{ whiteSpace: 'nowrap', alignSelf: 'flex-start' }}
+                    onClick={startRecommendedWorkout}
+                    disabled={isStartingRec || !!activeSessionId}
+                  >
+                    {isStartingRec
+                      ? 'Lancement en cours...'
+                      : activeSessionId
+                      ? '⚠️ Séance déjà en cours'
+                      : '▶ Démarrer cette séance'}
+                  </button>
+                </div>
+
+                <div className="rec-chips">
+                  <div className="rec-chip">
+                    <span>💪 Focus :</span>
+                    <strong style={{ color: 'var(--text-main)' }}>{nextRecommendation.focusMuscle}</strong>
+                  </div>
+                  <div className="rec-chip">
+                    <span>🎯 Cible :</span>
+                    <strong style={{ color: 'var(--text-main)' }}>{nextRecommendation.goalDetails?.repTarget}</strong>
+                  </div>
+                  <div className="rec-chip">
+                    <span>⏱ Repos conseillé :</span>
+                    <strong style={{ color: 'var(--text-main)' }}>{nextRecommendation.goalDetails?.restTarget}</strong>
+                  </div>
+                </div>
+
+                {nextRecommendation.exercises && nextRecommendation.exercises.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem', fontWeight: 600 }}>
+                      📋 Exercices ciblés pour cette séance :
+                    </div>
+                    <div className="rec-exercises-preview">
+                      {nextRecommendation.exercises.map((ex: any) => (
+                        <div key={ex.exerciseId} className="rec-ex-card">
+                          <div className="rec-ex-name">{ex.name}</div>
+                          <div className="rec-ex-meta">
+                            {ex.sets?.length} séries × {ex.sets?.[0]?.reps || 10} reps @ {ex.sets?.[0]?.weight || 20} kg
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Quick Actions Card */}
             <div className="glass-panel" style={{ marginBottom: '2rem' }}>
@@ -1329,6 +1504,38 @@ function App() {
                     </div>
                   </div>
                 )}
+
+                <div className="form-group" style={{ marginTop: '1.25rem', marginBottom: '1.5rem' }}>
+                  <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 600 }}>
+                    🎯 Programme d'entraînement principal
+                  </label>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+                    Changer de programme adapte immédiatement les objectifs (charges, répétitions, temps de repos) de vos prochaines séances recommandées :
+                  </p>
+                  <div className="goal-selector-grid">
+                    {GOAL_OPTIONS.map((g) => (
+                      <div
+                        key={g.id}
+                        className={`goal-card-option ${g.className} ${(profile.goal || 'BODYBUILDING') === g.id ? 'selected' : ''}`}
+                        onClick={() => setProfile({ ...profile, goal: g.id })}
+                      >
+                        <div className="goal-card-icon">{g.icon}</div>
+                        <div className="goal-card-content">
+                          <div className="goal-card-title">
+                            <span>{g.name}</span>
+                            {(profile.goal || 'BODYBUILDING') === g.id && (
+                              <span style={{ fontSize: '0.75rem', color: 'var(--accent-orange)' }}>● Actif</span>
+                            )}
+                          </div>
+                          <div className="goal-card-desc">{g.desc}</div>
+                          <div className="goal-card-specs">
+                            {g.badge} | ⏱ {g.rest}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
 
                 <div className="form-group">
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>

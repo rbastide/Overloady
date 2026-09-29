@@ -23,7 +23,7 @@ const exercises = [
 async function main() {
   console.log('Start seeding...');
   for (const ex of exercises) {
-    const exercise = await prisma.exercise.upsert({
+    const exercise: any = await (prisma.exercise as any).upsert({
       where: { wgerId: ex.wgerId },
       update: {
         category: ex.category,

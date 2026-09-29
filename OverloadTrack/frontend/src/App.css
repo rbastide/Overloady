@@ -19,6 +19,11 @@
   width: 100%;
   max-width: 420px;
   text-align: center;
+  transition: max-width 0.3s ease;
+}
+
+.auth-card.auth-card-wide {
+  max-width: 540px;
 }
 
 .auth-card .logo {
@@ -866,3 +871,201 @@
     left: 1rem;
   }
 }
+
+/* ================= GOAL SELECTOR & AI RECOMMENDATION ================= */
+.goal-selector-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  margin: 1.25rem 0;
+  text-align: left;
+}
+
+.goal-card-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.goal-card-option:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.goal-card-option.selected {
+  background: rgba(255, 94, 58, 0.08);
+  border-color: var(--accent-orange);
+  box-shadow: 0 0 15px rgba(255, 94, 58, 0.2);
+}
+
+.goal-card-option.selected.goal-bodybuilding {
+  background: rgba(157, 78, 221, 0.1);
+  border-color: var(--accent-purple);
+  box-shadow: 0 0 15px rgba(157, 78, 221, 0.2);
+}
+
+.goal-card-option.selected.goal-endurance {
+  background: rgba(32, 201, 151, 0.1);
+  border-color: var(--accent-green);
+  box-shadow: 0 0 15px rgba(32, 201, 151, 0.2);
+}
+
+.goal-card-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+  padding-top: 0.1rem;
+}
+
+.goal-card-content {
+  flex: 1;
+}
+
+.goal-card-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.goal-card-desc {
+  font-size: 0.775rem;
+  color: var(--text-muted);
+  margin-top: 0.2rem;
+  line-height: 1.35;
+}
+
+.goal-card-specs {
+  display: inline-block;
+  font-size: 0.725rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  margin-top: 0.35rem;
+  color: var(--text-main);
+}
+
+/* AI Recommendation Card */
+.recommendation-panel {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, rgba(255, 94, 58, 0.08) 0%, rgba(18, 24, 38, 0.9) 60%);
+  border: 1px solid rgba(255, 94, 58, 0.3);
+  border-radius: 16px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 8px 32px rgba(255, 94, 58, 0.1);
+}
+
+.recommendation-panel.goal-bodybuilding {
+  background: linear-gradient(135deg, rgba(157, 78, 221, 0.1) 0%, rgba(18, 24, 38, 0.9) 60%);
+  border-color: rgba(157, 78, 221, 0.35);
+  box-shadow: 0 8px 32px rgba(157, 78, 221, 0.12);
+}
+
+.recommendation-panel.goal-endurance {
+  background: linear-gradient(135deg, rgba(32, 201, 151, 0.08) 0%, rgba(18, 24, 38, 0.9) 60%);
+  border-color: rgba(32, 201, 151, 0.35);
+  box-shadow: 0 8px 32px rgba(32, 201, 151, 0.12);
+}
+
+.rec-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 0.25rem 0.65rem;
+  border-radius: 20px;
+  background: rgba(255, 94, 58, 0.15);
+  color: var(--accent-orange);
+  margin-bottom: 0.75rem;
+}
+
+.goal-bodybuilding .rec-badge {
+  background: rgba(157, 78, 221, 0.18);
+  color: #c77dff;
+}
+
+.goal-endurance .rec-badge {
+  background: rgba(32, 201, 151, 0.18);
+  color: var(--accent-green);
+}
+
+.rec-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.rec-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin-bottom: 0.3rem;
+}
+
+.rec-rationale {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  max-width: 680px;
+  line-height: 1.45;
+  margin-bottom: 1.25rem;
+}
+
+.rec-chips {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+
+.rec-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0.35rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.rec-exercises-preview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.rec-ex-card {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+}
+
+.rec-ex-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+}
+
+.rec-ex-meta {
+  font-size: 0.775rem;
+  color: var(--text-muted);
+}
+
