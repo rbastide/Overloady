@@ -11,8 +11,8 @@ import { JwtStrategy } from './jwt.strategy';
     PrismaModule,
     PassportModule,
     JwtModule.register({
-      secret: 'super-secret-key-1234', // In production, use env var
-      signOptions: { expiresIn: '60m' },
+      secret: process.env.JWT_SECRET || 'super-secret-key-1234',
+      signOptions: { expiresIn: '30d' },
     }),
   ],
   providers: [AuthService, JwtStrategy],
