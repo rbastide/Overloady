@@ -112,7 +112,9 @@ function App() {
 
   // Modals
   const [isPlateCalcOpen, setIsPlateCalcOpen] = useState(false);
-  const [plateCalcDefaultWeight, setPlateCalcDefaultWeight] = useState(80);
+  const [plateCalcContext, setPlateCalcContext] = useState<{ exerciseName: string | null; weight?: number; reps?: number }>({
+    exerciseName: null,
+  });
   const [selectedExerciseIdForModal, setSelectedExerciseIdForModal] = useState<string | null>(null);
   const [isAddExerciseOpen, setIsAddExerciseOpen] = useState(false);
   const [isRoutineModalOpen, setIsRoutineModalOpen] = useState(false);
@@ -677,9 +679,15 @@ function App() {
     });
   };
 
-  // Open Plate Calculator for specific weight
-  const openPlateCalculatorWithWeight = (weight: number) => {
-    setPlateCalcDefaultWeight(weight || 80);
+  // Open the load calculator, optionally on an exercise of the session and its first set
+  const openPlateCalculator = (exercise?: ActiveExercise) => {
+    const firstSet = exercise?.sets[0];
+    setPlateCalcContext({
+      exerciseName: exercise?.name || null,
+      // An empty set falls back to the calculator's own default for the movement.
+      weight: Number(firstSet?.weight) > 0 ? Number(firstSet?.weight) : undefined,
+      reps: firstSet && Number(firstSet.reps) > 0 ? Number(firstSet.reps) : undefined,
+    });
     setIsPlateCalcOpen(true);
   };
 
@@ -913,7 +921,7 @@ function App() {
         goal={profile.goal}
         testWeekStatus={testWeekStatus}
         onOpenTestWeek={() => setIsTestWeekModalOpen(true)}
-        onOpenPlateCalc={() => setIsPlateCalcOpen(true)}
+        onOpenPlateCalc={() => openPlateCalculator()}
         onLogout={handleLogout}
       />
 
@@ -1381,11 +1389,8 @@ function App() {
                         </button>
                         <button
                           className="btn-icon"
-                          title="Calculer les disques"
-                          onClick={() => {
-                            const lastSetWeight = exercise.sets[0]?.weight || 80;
-                            openPlateCalculatorWithWeight(lastSetWeight);
-                          }}
+                          title="Calculatrice de charge"
+                          onClick={() => openPlateCalculator(exercise)}
                         >
                           🧮
                         </button>
@@ -2010,7 +2015,11 @@ function App() {
       <PlateCalculatorModal
         isOpen={isPlateCalcOpen}
         onClose={() => setIsPlateCalcOpen(false)}
-        defaultWeight={plateCalcDefaultWeight}
+        exercises={exercises}
+        initialExerciseName={plateCalcContext.exerciseName}
+        defaultWeight={plateCalcContext.weight}
+        defaultReps={plateCalcContext.reps}
+        bodyWeight={Number(profile.weight) || undefined}
       />
 
       <ExerciseDetailModal
