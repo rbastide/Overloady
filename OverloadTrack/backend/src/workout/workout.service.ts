@@ -5,6 +5,7 @@ import {
   Logger,
   BadRequestException,
   ServiceUnavailableException,
+  OnApplicationBootstrap,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService, CoachChatMessage } from '../ai/ai.service';
@@ -32,7 +33,7 @@ export interface FinishWorkoutDto {
 }
 
 @Injectable()
-export class WorkoutService {
+export class WorkoutService implements OnApplicationBootstrap {
   private readonly logger = new Logger(WorkoutService.name);
   private recommendationCache = new Map<string, { data: any; timestamp: number }>();
 
@@ -40,6 +41,39 @@ export class WorkoutService {
     private prisma: PrismaService,
     private aiService: AiService,
   ) {}
+
+  onApplicationBootstrap() {
+    this.migrateLegacySessionTitles().catch((err) => this.logger.warn(`Session title migration failed: ${err.message}`));
+  }
+
+  /**
+   * One-off, idempotent: older sessions kept their title (and calibration marker) in the notes.
+   * Moves it to `title`/`testWeekStep` so the notes field only holds the athlete's text.
+   */
+  private async migrateLegacySessionTitles() {
+    const legacy = await this.prisma.workoutSession.findMany({
+      where: {
+        title: null,
+        OR: [{ notes: { startsWith: 'Séance Recommandée : ' } }, { notes: { startsWith: 'Programme: ' } }, { notes: { startsWith: '[SEMAINE_TEST_' } }],
+      } as any,
+      select: { id: true, notes: true },
+    });
+    for (const session of legacy) {
+      const notes = session.notes || '';
+      const step = Number(/\[SEMAINE_TEST_([1-3])\]/.exec(notes)?.[1]) || null;
+      const title =
+        notes
+          .replace(/^Séance Recommandée : |^Programme: /, '')
+          .replace(/\[SEMAINE_TEST_[1-3]\]\s*/, '')
+          .replace(/^Semaine Test \(Séance (\d)\/3\)/, 'Semaine test $1/3')
+          .trim() || (step ? `Semaine test ${step}/3` : null);
+      await this.prisma.workoutSession.update({
+        where: { id: session.id },
+        data: { title, testWeekStep: step, notes: null } as any,
+      });
+    }
+    if (legacy.length > 0) this.logger.log(`Moved ${legacy.length} legacy session titles out of the notes`);
+  }
 
   async startWorkout(userId: string, routineId?: string) {
     let routine = null;
@@ -54,8 +88,9 @@ export class WorkoutService {
       data: {
         userId,
         ...(routineId && { routineId }),
+        ...(routine && { title: routine.name }),
         rpe: 0,
-      },
+      } as any,
     });
 
     // If starting from a routine, pre-fill exercises with progressive overload from past sessions
@@ -183,18 +218,20 @@ export class WorkoutService {
     const sessionBefore = await this.prisma.workoutSession.findUnique({
       where: { id: data.sessionId },
     });
-    const checkNotes = data.notes || (sessionBefore as any)?.notes || '';
-    if (checkNotes.includes('[SEMAINE_TEST_1]')) {
+    const legacyNotes = data.notes || (sessionBefore as any)?.notes || '';
+    const legacyStep = /\[SEMAINE_TEST_([1-3])\]/.exec(legacyNotes)?.[1];
+    const testStep = Number((sessionBefore as any)?.testWeekStep) || Number(legacyStep) || 0;
+    if (testStep === 1) {
       await this.prisma.profile.update({
         where: { userId },
         data: { testWeekProgress: 1 } as any,
       }).catch(() => null);
-    } else if (checkNotes.includes('[SEMAINE_TEST_2]')) {
+    } else if (testStep === 2) {
       await this.prisma.profile.update({
         where: { userId },
         data: { testWeekProgress: 2 } as any,
       }).catch(() => null);
-    } else if (checkNotes.includes('[SEMAINE_TEST_3]')) {
+    } else if (testStep === 3) {
       await this.prisma.profile.update({
         where: { userId },
         data: { testWeekProgress: 3, testWeekCompleted: true } as any,
@@ -206,7 +243,8 @@ export class WorkoutService {
       data: {
         endedAt: new Date(),
         rpe: data.rpe ?? 7,
-        ...(data.notes ? { notes: data.notes } : {}),
+        // Notes are the athlete's own text: an emptied field clears them.
+        notes: stripLegacyMarkers(data.notes) || null,
       } as any,
       include: {
         exercises: {
@@ -711,7 +749,7 @@ export class WorkoutService {
       let lastSessionContext = null;
       if (lastSession) {
         lastSessionContext = {
-          title: (lastSession as any)?.notes || 'Dernière séance',
+          title: (lastSession as any)?.title || 'Dernière séance',
           startedAt: lastSession.startedAt.toISOString().split('T')[0],
           exercises: lastSession.exercises.map((el) => {
             const maxW = el.sets.reduce((max, s) => (s.completed && s.weight > max ? s.weight : max), 0);
@@ -956,7 +994,7 @@ export class WorkoutService {
       benchmarks,
       recentSessions: recent.map((s) => ({
         date: s.startedAt.toISOString().split('T')[0],
-        title: (s.notes || 'Séance').slice(0, 80),
+        title: ((s as any).title || 'Séance libre').slice(0, 80),
         exercises: s.exercises.map((e) => e.exercise.name),
       })),
       availableExercises: pool.filter((e) => e.source !== 'wger').map((e) => e.name),
@@ -998,7 +1036,8 @@ export class WorkoutService {
       data: {
         userId,
         rpe: 0,
-        notes: `Séance Recommandée : ${recommendation.title}`,
+        title: recommendation.title,
+        testWeekStep: recommendation.isTestWeek ? Number(recommendation.testStep) || null : null,
       } as any,
     });
 
@@ -1571,7 +1610,7 @@ export class WorkoutService {
       totalTestSteps: 3,
       aiGenerated: false,
       aiModel: 'Protocole de Calibration Overloady',
-      title: `[SEMAINE_TEST_${step}] Semaine Test (Séance ${step}/3) — ${template.name}`,
+      title: `Semaine test ${step}/3 — ${template.name}`,
       goal,
       goalDetails: currentMeta,
       focusMuscle: template.focus,
@@ -1704,4 +1743,15 @@ export class WorkoutService {
     this.recommendationCache.delete(userId);
     return { success: true, message: 'Semaine de test réinitialisée. Prêt pour une nouvelle calibration.' };
   }
+}
+
+/**
+ * Sessions used to store their title and calibration marker in the notes
+ * ("Séance Recommandée : [SEMAINE_TEST_1] ..."): only the athlete's own text is kept.
+ */
+function stripLegacyMarkers(notes?: string): string {
+  if (!notes) return '';
+  const text = notes.trim();
+  if (/^\[SEMAINE_TEST_[1-3]\]$/.test(text) || /^(Séance Recommandée : |Programme: )/.test(text)) return '';
+  return text;
 }

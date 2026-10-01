@@ -41,7 +41,9 @@ model WorkoutSession {
   routineId String?
   routine   Routine?      @relation(fields: [routineId], references: [id], onDelete: SetNull)
   rpe       Int           @default(7)
-  notes     String?
+  title     String?       // display name (programme, recommended or calibration session)
+  testWeekStep Int?       // 1-3 when the session belongs to the calibration week
+  notes     String?       // the athlete's own notes only
   startedAt DateTime      @default(now())
   endedAt   DateTime?
   exercises ExerciseLog[]

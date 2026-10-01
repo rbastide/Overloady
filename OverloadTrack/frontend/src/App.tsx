@@ -109,6 +109,8 @@ function App() {
   // Active Workout Session
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [activeRoutineName, setActiveRoutineName] = useState<string | null>(null);
+  // Calibration step (1-3) of the running session, null outside the test week
+  const [activeTestStep, setActiveTestStep] = useState<number | null>(null);
   const [workout, setWorkout] = useState<ActiveExercise[]>([]);
   const [sessionRpe, setSessionRpe] = useState<number>(7);
   const [sessionNotes, setSessionNotes] = useState<string>('');
@@ -272,6 +274,7 @@ function App() {
       const res = await api.post('/workout/start', {});
       setActiveSessionId(res.data.id);
       setActiveRoutineName(null);
+      setActiveTestStep(null);
       setWorkout([]);
       setSessionNotes('');
       setSessionRpe(7);
@@ -289,7 +292,8 @@ function App() {
       const res = await api.post('/workout/start', { routineId: routine.id });
       setActiveSessionId(res.data.id);
       setActiveRoutineName(routine.name);
-      setSessionNotes(`Programme: ${routine.name}`);
+      setActiveTestStep(null);
+      setSessionNotes('');
       setSessionRpe(7);
       setWorkoutStartTime(new Date());
 
@@ -341,7 +345,8 @@ function App() {
       const res = await api.post('/workout/start-recommended', { customRec: rec });
       setActiveSessionId(res.data.id);
       setActiveRoutineName(rec.title);
-      setSessionNotes(res.data.notes || `Séance Recommandée : ${rec.title}`);
+      setActiveTestStep(res.data.testWeekStep || null);
+      setSessionNotes('');
       setSessionRpe(7);
       setWorkoutStartTime(new Date());
 
@@ -397,8 +402,9 @@ function App() {
       const res = await api.post(`/workout/test-week/start/${step}`);
       const session = res.data;
       setActiveSessionId(session.id);
-      setActiveRoutineName(`Semaine Test (Étape ${step}/3)`);
-      setSessionNotes(session.notes || `[SEMAINE_TEST_${step}]`);
+      setActiveRoutineName(session.title || `Semaine test ${step}/3`);
+      setActiveTestStep(step);
+      setSessionNotes('');
       setSessionRpe(7);
       setWorkoutStartTime(new Date());
 
@@ -406,7 +412,7 @@ function App() {
         exerciseId: exLog.exerciseId,
         name: exLog.exercise?.name || 'Exercice Test',
         category: exLog.exercise?.category,
-        progressiveTarget: '🎯 Série Test : Notez votre charge maximale propre (RPE 8-9)',
+        progressiveTarget: 'Série Test : Notez votre charge maximale propre (RPE 8-9)',
         sets: (exLog.sets || []).map((s: any) => ({
           reps: s.reps || 10,
           weight: s.weight || 20,
@@ -552,6 +558,7 @@ function App() {
       showToast('Séance enregistrée avec succès ! 💪 Vos charges et volume sont synchronisés.', 'success');
       setActiveSessionId(null);
       setActiveRoutineName(null);
+      setActiveTestStep(null);
       setWorkout([]);
       setWorkoutStartTime(null);
       setShowRestTimer(false);
@@ -657,7 +664,7 @@ function App() {
 
     history.forEach((session) => {
       const dateStr = new Date(session.startedAt).toISOString().split('T')[0];
-      const routineName = (session.routine?.name || 'Séance libre').replace(/;/g, ',');
+      const routineName = (session.title || session.routine?.name || 'Séance libre').replace(/;/g, ',');
       const notes = (session.notes || '').replace(/;/g, ',').replace(/\n/g, ' ');
 
       (session.exercises || []).forEach((exLog: any) => {
@@ -698,7 +705,7 @@ function App() {
       month: 'long',
       year: 'numeric',
     });
-    const routineName = session.routine?.name || 'Séance Libre';
+    const routineName = session.title || session.routine?.name || 'Séance libre';
     let totalVol = 0;
     const lines: string[] = [
       `🏋️ Overloady — ${routineName} (${dateStr})`,
@@ -1425,7 +1432,7 @@ function App() {
             {activeSessionId ? (
               <div className="workout-logger">
                 {/* Active Test Week Session Notice */}
-                {sessionNotes?.includes('[SEMAINE_TEST_') && (
+                {activeTestStep && (
                   <div className="active-session-test-banner">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                       <span style={{ fontSize: '1.5rem' }}>🧪</span>
@@ -1645,11 +1652,11 @@ function App() {
                   </div>
 
                   <div className="form-group" style={{ margin: 0 }}>
-                    <label>Notes de séance (sensations, forme, courbatures...)</label>
+                    <label>Tes notes (facultatif)</label>
                     <input
                       type="text"
                       className="input-glass"
-                      placeholder="Ex: Excellente séance, bonne congestion, barre facile à 80kg..."
+                      placeholder="Sensations, forme, courbatures… ex : bonne congestion, barre facile à 80 kg"
                       value={sessionNotes}
                       onChange={(e) => setSessionNotes(e.target.value)}
                     />
@@ -1798,13 +1805,11 @@ function App() {
                 });
               });
 
-              const sessionTitle = session.notes?.startsWith('Séance Recommandée : ')
-                ? session.notes.replace('Séance Recommandée : ', '⚡ ')
-                : session.notes?.startsWith('Programme: ')
-                ? `📋 ${session.notes.replace('Programme: ', '')}`
+              const sessionTitle = session.title
+                ? `${session.testWeekStep ? '🧪' : session.routine ? '📋' : '⚡'} ${session.title}`
                 : session.routine
-                ? session.routine.name
-                : 'Séance Libre';
+                ? `📋 ${session.routine.name}`
+                : 'Séance libre';
 
               return (
                 <div key={session.id} className="glass-panel" style={{ marginBottom: '1.25rem' }}>
