@@ -14,6 +14,7 @@ import { AnalyticsView } from './components/AnalyticsView';
 import { TestWeekModal } from './components/TestWeekModal';
 import { Navigation, type AppTab } from './components/Navigation';
 import { Icon } from './components/Icons';
+import { CoachChat, type CoachWorkout } from './components/CoachChat';
 
 interface ActiveSet {
   reps: number;
@@ -297,28 +298,28 @@ function App() {
   };
 
   // Start Adaptive Recommended Workout
-  const startRecommendedWorkout = async () => {
-    if (!nextRecommendation) return;
+  // Also used by the coach chat, which passes its own session.
+  const startRecommendedWorkout = async (rec: any = nextRecommendation) => {
+    if (!rec) return;
     setIsStartingRec(true);
     try {
-      const res = await api.post('/workout/start-recommended', { customRec: nextRecommendation });
+      const res = await api.post('/workout/start-recommended', { customRec: rec });
       setActiveSessionId(res.data.id);
-      setActiveRoutineName(nextRecommendation.title);
-      setSessionNotes(res.data.notes || `Séance Recommandée : ${nextRecommendation.title}`);
+      setActiveRoutineName(rec.title);
+      setSessionNotes(res.data.notes || `Séance Recommandée : ${rec.title}`);
       setSessionRpe(7);
       setWorkoutStartTime(new Date());
 
       const prefilledExercises: ActiveExercise[] = (res.data.exercises || []).map((exLog: any, idx: number) => {
         const matchingRecEx =
-          nextRecommendation.exercises?.[idx] ||
-          nextRecommendation.exercises?.find((re: any) => re.exerciseId === exLog.exerciseId);
+          rec.exercises?.[idx] || rec.exercises?.find((re: any) => re.exerciseId === exLog.exerciseId);
         return {
           exerciseId: exLog.exerciseId,
           name: exLog.exercise?.name || matchingRecEx?.name || 'Exercice',
           category: exLog.exercise?.category || matchingRecEx?.category,
           progressiveTarget:
             matchingRecEx?.targetAdvice ||
-            `${nextRecommendation.goalDetails?.label || ''} : ${nextRecommendation.goalDetails?.repTarget || ''}`,
+            (rec.goalDetails ? `${rec.goalDetails.label || ''} : ${rec.goalDetails.repTarget || ''}` : undefined),
           sets: (exLog.sets || []).map((s: any) => ({
             weight: s.weight,
             reps: s.reps,
@@ -329,11 +330,24 @@ function App() {
 
       setWorkout(prefilledExercises);
       setActiveTab('logger');
-      showToast(`Séance "${nextRecommendation.title}" démarrée ! Bon entraînement !`, 'success');
+      showToast(`Séance "${rec.title}" démarrée ! Bon entraînement !`, 'success');
     } catch (err: any) {
       showToast(err.response?.data?.message || "Impossible de démarrer la séance recommandée", 'error');
     } finally {
       setIsStartingRec(false);
+    }
+  };
+
+  // Routines only store the exercise list: sets and loads come back from progressive overload.
+  const saveCoachWorkoutAsRoutine = async (coachWorkout: CoachWorkout) => {
+    try {
+      const exerciseIds = Array.from(new Set(coachWorkout.exercises.map((ex) => ex.exerciseId)));
+      await api.post('/routines', { name: coachWorkout.title, exerciseIds });
+      const routinesRes = await api.get('/routines');
+      setRoutines(routinesRes.data);
+      showToast(`Programme "${coachWorkout.title}" enregistré !`, 'success');
+    } catch (err: any) {
+      showToast(err.response?.data?.message || "Impossible d'enregistrer le programme", 'error');
     }
   };
 
@@ -1155,7 +1169,7 @@ function App() {
                       <button
                         className="btn-volt"
                         style={{ width: '100%' }}
-                        onClick={startRecommendedWorkout}
+                        onClick={() => startRecommendedWorkout()}
                         disabled={isStartingRec || !!activeSessionId || isRegeneratingAi}
                       >
                         {isStartingRec
@@ -1276,7 +1290,7 @@ function App() {
         {/* ================= TAB 2: WORKOUT LOGGER ================= */}
         {activeTab === 'logger' && (
           <div>
-            <div className="header flex-between">
+            <div className={`header flex-between${activeSessionId ? '' : ' logger-header-idle'}`}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                   <h1>{activeSessionId ? (activeRoutineName || 'Séance en direct') : 'Aucune séance active'}</h1>
@@ -1550,19 +1564,24 @@ function App() {
                 </button>
               </div>
             ) : (
-              <div className="glass-panel flex-center" style={{ flexDirection: 'column', padding: '4rem 2rem', textAlign: 'center' }}>
-                <span style={{ fontSize: '3rem', marginBottom: '1rem' }}>🏋️‍♂️</span>
-                <h2>Aucun entraînement en cours</h2>
-                <p style={{ color: 'var(--text-muted)', maxWidth: '400px', margin: '0.5rem auto 1.5rem auto' }}>
-                  Prêt à repousser vos limites ? Démarrez une séance libre ou lancez un programme personnalisé.
-                </p>
-                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-                  <button className="btn-neon" onClick={startNewWorkout}>
-                    Démarrer une séance libre
-                  </button>
-                  <button className="btn-secondary" onClick={() => setActiveTab('routines')}>
-                    Choisir un programme
-                  </button>
+              <div className="logger-idle">
+                <CoachChat
+                  onStartWorkout={(coachWorkout) => startRecommendedWorkout(coachWorkout)}
+                  onSaveRoutine={saveCoachWorkoutAsRoutine}
+                  onError={(text) => showToast(text, 'error')}
+                />
+                <div className="glass-panel logger-idle-start">
+                  <span className="logger-idle-emoji">🏋️‍♂️</span>
+                  <h2>Aucun entraînement en cours</h2>
+                  <p>Démarre une séance libre, lance un de tes programmes ou demande une séance au coach.</p>
+                  <div className="logger-idle-actions">
+                    <button className="btn-neon" onClick={startNewWorkout}>
+                      Démarrer une séance libre
+                    </button>
+                    <button className="btn-secondary" onClick={() => setActiveTab('routines')}>
+                      Choisir un programme
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

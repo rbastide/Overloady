@@ -73,6 +73,10 @@ const paths: Record<string, React.ReactNode> = {
   bolt: <path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z" />,
   plus: <path d="M12 5v14M5 12h14" />,
   close: <path d="M6 6l12 12M18 6 6 18" />,
+  send: <path d="M4 12 20 4l-6 16-3-7-7-1z" />,
+  sparkle: <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z" />,
+  play: <path d="M7 4v16l13-8z" />,
+  save: <path d="M5 3h11l3 3v15H5zM8 3v5h7V3M8 21v-7h8v7" />,
   chevronRight: <path d="m9 6 6 6-6 6" />,
 };
 

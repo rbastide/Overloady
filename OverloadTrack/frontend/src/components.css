@@ -197,3 +197,409 @@
     min-height: 40px;
   }
 }
+
+/* ==========================================================================
+   Séance tab — idle state with the AI coach chat
+   ========================================================================== */
+.logger-idle {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(260px, 1fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.logger-idle-start {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 2rem 1.5rem;
+}
+
+.logger-idle-emoji {
+  font-size: 2.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.logger-idle-start h2 {
+  font-size: 1.2rem;
+}
+
+.logger-idle-start p {
+  color: var(--text-muted);
+  margin: 0.5rem 0 1.25rem;
+  font-size: 0.9rem;
+}
+
+.logger-idle-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: 100%;
+}
+
+.coach-chat {
+  display: flex;
+  flex-direction: column;
+  height: min(76vh, 780px);
+  min-height: 460px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.coach-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border-bottom: var(--glass-border);
+}
+
+.coach-avatar {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #06080a;
+  background: var(--accent-volt);
+  box-shadow: var(--accent-volt-glow);
+}
+
+.coach-head-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.coach-head-text h2 {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.coach-head-text p {
+  margin: 0.1rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.coach-head-tag {
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: var(--radius-pill);
+  background: var(--accent-volt-subtle);
+  color: var(--accent-volt);
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em; /* the heading's tight tracking swallows the spaces at this size */
+  word-spacing: 0.08em;
+  vertical-align: middle;
+}
+
+.coach-head .link-btn {
+  flex-shrink: 0;
+}
+
+.coach-messages {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  position: relative; /* offsetParent for scrolling to a reply */
+}
+
+.coach-empty {
+  margin: auto 0;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.coach-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.coach-chip {
+  border: var(--glass-border-light);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  padding: 0.55rem 0.9rem;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.coach-chip:hover {
+  border-color: rgba(204, 255, 0, 0.5);
+  color: var(--accent-volt);
+}
+
+.coach-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.coach-msg-user {
+  align-items: flex-end;
+}
+
+.coach-bubble {
+  max-width: 85%;
+  padding: 0.7rem 1rem;
+  border-radius: var(--radius-lg);
+  font-size: 0.92rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.coach-msg-user .coach-bubble {
+  background: var(--accent-volt);
+  color: #06080a;
+  font-weight: 600;
+  border-bottom-right-radius: var(--radius-xs);
+}
+
+.coach-msg-assistant .coach-bubble {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.06);
+  border: var(--glass-border);
+  color: var(--text-secondary);
+  border-bottom-left-radius: var(--radius-xs);
+}
+
+.coach-thinking {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--text-muted) !important;
+}
+
+.coach-dots {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.coach-dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-volt);
+  animation: coach-dot 1.2s infinite ease-in-out;
+}
+
+.coach-dots i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.coach-dots i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes coach-dot {
+  0%, 80%, 100% { opacity: 0.25; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-3px); }
+}
+
+.coach-workout {
+  background: var(--bg-card-solid);
+  border: var(--glass-border-light);
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.1rem;
+}
+
+.coach-workout-head h3 {
+  margin: 0;
+  font-size: 1.02rem;
+}
+
+.coach-workout-meta {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--accent-volt);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.coach-workout-notes {
+  margin: 0.6rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.coach-exercises {
+  list-style: none;
+  counter-reset: coach-ex;
+  margin: 0.85rem 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.coach-exercises li {
+  counter-increment: coach-ex;
+  position: relative;
+  padding: 0.5rem 0 0.5rem 1.9rem;
+  border-top: var(--glass-border);
+}
+
+.coach-exercises li::before {
+  content: counter(coach-ex);
+  position: absolute;
+  left: 0;
+  top: 0.55rem;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: var(--accent-volt-subtle);
+  color: var(--accent-volt);
+}
+
+.coach-ex-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.coach-ex-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  min-width: 0;
+}
+
+.coach-ex-sets {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.coach-ex-advice {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+}
+
+.coach-workout-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.coach-workout-actions button {
+  flex: 1 1 180px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.7rem 1rem;
+  font-size: 0.88rem;
+}
+
+.coach-input {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+  padding: 0.85rem 1rem;
+  border-top: var(--glass-border);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.coach-input textarea {
+  flex: 1;
+  resize: none;
+  min-height: 46px;
+  max-height: 140px;
+  field-sizing: content;
+  padding: 0.7rem 1rem;
+  border-radius: var(--radius-lg);
+  border: var(--glass-border-light);
+  background: var(--bg-inset);
+  color: var(--text-main);
+  font-family: var(--font-body);
+  font-size: 16px; /* below 16px iOS Safari zooms on focus */
+  line-height: 1.4;
+}
+
+.coach-input textarea:focus {
+  outline: none;
+  border-color: rgba(204, 255, 0, 0.5);
+}
+
+.coach-send {
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  border: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--accent-volt);
+  color: #06080a;
+  cursor: pointer;
+}
+
+.coach-send:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+@media (max-width: 1023px) {
+  .logger-idle {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 767px) {
+  /* The top bar already names the tab and the idle panel holds the start buttons */
+  .logger-header-idle {
+    display: none;
+  }
+
+  .coach-chat {
+    /* Fill the screen between the top bar and the bottom tab bar */
+    height: calc(100dvh - 170px - env(safe-area-inset-bottom));
+    min-height: 420px;
+  }
+
+  .coach-head {
+    padding: 0.8rem 1rem;
+  }
+
+  .coach-head-text p {
+    display: none;
+  }
+
+  .coach-messages {
+    padding: 1rem 0.85rem;
+  }
+
+  .coach-bubble {
+    max-width: 92%;
+  }
+
+  .coach-workout {
+    padding: 0.9rem;
+  }
+
+  .logger-idle-start {
+    padding: 1.5rem 1rem;
+  }
+}

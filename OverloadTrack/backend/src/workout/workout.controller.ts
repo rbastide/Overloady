@@ -52,6 +52,11 @@ export class WorkoutController {
     return this.workoutService.resetTestWeek(req.user.userId);
   }
 
+  @Post('coach-chat')
+  coachChat(@Request() req: any, @Body() body: { messages?: unknown }) {
+    return this.workoutService.coachChat(req.user.userId, body?.messages);
+  }
+
   @Post('start-recommended')
   startRecommended(@Request() req: any, @Body() body?: { customRec?: any }) {
     return this.workoutService.startRecommendedWorkout(req.user.userId, body?.customRec);

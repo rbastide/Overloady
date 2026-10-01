@@ -1,6 +1,16 @@
-import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  Logger,
+  BadRequestException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { AiService } from '../ai/ai.service';
+import { AiService, CoachChatMessage } from '../ai/ai.service';
+
+const COACH_MAX_MESSAGES = 12;
+const COACH_MAX_MESSAGE_LENGTH = 2000;
 
 interface FinishSetDto {
   reps: number;
@@ -904,6 +914,74 @@ export class WorkoutService {
 
     this.recommendationCache.set(userId, { data: fallbackResult, timestamp: Date.now() });
     return fallbackResult;
+  }
+
+  /**
+   * Chat with the AI coach. Returns the coach's message and the proposed sessions, each one
+   * mapped to real exercises and ready to be started with startRecommendedWorkout.
+   */
+  async coachChat(userId: string, rawMessages: unknown) {
+    const messages: CoachChatMessage[] = (Array.isArray(rawMessages) ? rawMessages : [])
+      .filter((m: any) => (m?.role === 'user' || m?.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+      .slice(-COACH_MAX_MESSAGES)
+      .map((m: any) => ({ role: m.role, content: m.content.trim().slice(0, COACH_MAX_MESSAGE_LENGTH) }));
+
+    // The conversation sent to the model must start and end with the athlete.
+    while (messages.length > 0 && messages[0].role !== 'user') messages.shift();
+    if (messages.length === 0 || messages[messages.length - 1].role !== 'user') {
+      throw new BadRequestException('Dis à Atlas ce que tu veux travailler.');
+    }
+
+    const [profile, benchmarks, recent, pool] = await Promise.all([
+      this.prisma.profile.findUnique({ where: { userId } }),
+      this.getTestedBenchmarks(userId),
+      this.prisma.workoutSession.findMany({
+        where: { userId, endedAt: { not: null } },
+        orderBy: { startedAt: 'desc' },
+        take: 3,
+        include: { exercises: { include: { exercise: true } } },
+      }),
+      this.getExercisePool(),
+    ]);
+
+    const reply = await this.aiService.coachChat({
+      goal: (profile as any)?.goal || 'BODYBUILDING',
+      weight: (profile as any)?.weight,
+      height: (profile as any)?.height,
+      benchmarks,
+      recentSessions: recent.map((s) => ({
+        date: s.startedAt.toISOString().split('T')[0],
+        title: (s.notes || 'Séance').slice(0, 80),
+        exercises: s.exercises.map((e) => e.exercise.name),
+      })),
+      availableExercises: pool.filter((e) => e.source !== 'wger').map((e) => e.name),
+      messages,
+    });
+
+    if (!reply) {
+      throw new ServiceUnavailableException('Atlas ne répond pas pour le moment. Réessaie dans quelques secondes.');
+    }
+
+    return {
+      message: reply.message,
+      workouts: reply.workouts.map((w) => ({
+        title: w.title,
+        focus: w.focus,
+        durationMin: w.durationMin,
+        notes: w.notes,
+        exercises: w.exercises.map((ex) => {
+          const dbEx = this.findMatchingExercise(ex.name, '', pool);
+          return {
+            exerciseId: dbEx.id,
+            name: dbEx.name,
+            category: dbEx.category,
+            rest: ex.rest,
+            targetAdvice: [`${ex.sets}×${ex.reps}`, ex.rest && `repos ${ex.rest}`, ex.tip].filter(Boolean).join(' · '),
+            sets: Array.from({ length: ex.sets }, (_, i) => ({ setNumber: i + 1, weight: ex.weight, reps: ex.reps })),
+          };
+        }),
+      })),
+    };
   }
 
   async startRecommendedWorkout(userId: string, customRec?: any) {
