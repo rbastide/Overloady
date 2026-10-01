@@ -11,38 +11,6 @@
   z-index: 1;
 }
 
-/* ==========================================================================
-   FLOATING TOP ISLAND NAVBAR (Goodbye old clunky left sidebar!)
-   ========================================================================== */
-.top-navbar-wrapper {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  padding: 1rem 2rem 0.5rem 2rem;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  background: linear-gradient(180deg, rgba(6, 7, 9, 0.9) 0%, rgba(6, 7, 9, 0.4) 100%);
-}
-
-.top-navbar {
-  max-width: 1360px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1.5rem;
-  padding: 0.65rem 1.25rem;
-  background: rgba(14, 18, 27, 0.75);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--radius-pill);
-  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5);
-  transition: all 0.25s ease;
-}
-
-.top-navbar:hover {
-  border-color: rgba(255, 255, 255, 0.16);
-}
-
 /* Brand Logo */
 .brand-group {
   display: flex;
@@ -93,133 +61,8 @@
 }
 
 /* Nav Pill Island */
-.nav-island {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  background: rgba(0, 0, 0, 0.4);
-  padding: 4px;
-  border-radius: var(--radius-pill);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.nav-tab-btn {
-  padding: 0.55rem 0.95rem;
-  border-radius: var(--radius-pill);
-  color: var(--text-muted);
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: transparent;
-  border: none;
-  white-space: nowrap;
-}
-
-.nav-tab-btn:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.nav-tab-btn.active {
-  background: var(--accent-volt);
-  color: #06080a;
-  font-weight: 800;
-  box-shadow: 0 0 16px rgba(204, 255, 0, 0.45);
-}
-
-.nav-tab-btn .tab-badge {
-  font-size: 0.65rem;
-  padding: 1px 6px;
-  border-radius: 10px;
-  background: #ff3366;
-  color: #fff;
-  font-weight: 800;
-  animation: voltPulse 1.2s infinite;
-}
 
 /* Top Navbar Right Controls */
-.navbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.user-pill-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.35rem 0.85rem 0.35rem 0.45rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--radius-pill);
-  color: var(--text-secondary);
-  font-size: 0.825rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.user-pill-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-.user-avatar-mini {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent-volt), #00f0ff);
-  color: #000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 800;
-  font-size: 0.75rem;
-}
-
-.btn-gym-tools {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: var(--text-main);
-  padding: 0.55rem 0.95rem;
-  border-radius: var(--radius-pill);
-  font-size: 0.825rem;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  transition: all 0.2s;
-}
-
-.btn-gym-tools:hover {
-  background: rgba(255, 255, 255, 0.14);
-  border-color: rgba(255, 255, 255, 0.25);
-  transform: translateY(-1px);
-}
-
-.btn-logout-icon {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 0.45rem;
-  border-radius: 50%;
-  font-size: 1.1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-}
-
-.btn-logout-icon:hover {
-  color: #ff4d6d;
-  background: rgba(255, 77, 109, 0.15);
-}
 
 /* ==========================================================================
    MAIN CANVAS & BENTO GRID ARCHITECTURE
@@ -234,24 +77,31 @@
 }
 
 /* Bento Grid System */
+/* Left column: compact welcome card + stats · right column: AI coach (full height) */
 .bento-grid {
   display: grid;
-  grid-template-columns: repeat(12, 1fr);
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  grid-template-areas:
+    'hero ai'
+    'stats ai';
+  /* The AI card's extra height goes to the stats row, so the welcome card stays compact */
+  grid-template-rows: auto 1fr;
+  align-items: start;
   gap: 1.5rem;
   margin-bottom: 2rem;
 }
 
 .bento-hero {
-  grid-column: span 7;
+  grid-area: hero;
   background: linear-gradient(135deg, rgba(204, 255, 0, 0.08) 0%, rgba(16, 20, 29, 0.85) 60%);
   border: 1px solid rgba(204, 255, 0, 0.25);
   border-radius: var(--radius-xl);
-  padding: 2.25rem;
+  padding: 1.5rem 1.75rem;
   position: relative;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  gap: 1.1rem;
   box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.6);
 }
 
@@ -268,10 +118,9 @@
 
 .bento-hero h1 {
   font-family: var(--font-heading);
-  font-size: 2.2rem;
+  font-size: 1.6rem;
   font-weight: 800;
   letter-spacing: -0.03em;
-  margin-bottom: 0.5rem;
 }
 
 .bento-hero p.hero-subtitle {
@@ -287,9 +136,113 @@
   flex-wrap: wrap;
 }
 
+.hero-top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem 0.75rem;
+}
+
+.hero-date {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  text-transform: capitalize;
+}
+
+.hero-programs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.hero-programs-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.link-btn {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--accent-volt);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.hero-program-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 0.5rem;
+}
+
+.hero-program {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 46px;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: var(--radius-md);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text-main);
+  font-family: var(--font-body);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.hero-program:hover {
+  border-color: rgba(204, 255, 0, 0.4);
+  background: rgba(204, 255, 0, 0.06);
+}
+
+.hero-program-play {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--accent-volt);
+  color: #06080a;
+  font-size: 0.65rem;
+}
+
+.hero-program-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.hero-program-meta {
+  flex-shrink: 0;
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.hero-programs-empty {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
 /* Bento AI Coach Tile */
 .bento-ai-rec {
-  grid-column: span 5;
+  grid-area: ai;
+  align-self: stretch;
   background: linear-gradient(135deg, rgba(0, 240, 255, 0.08) 0%, rgba(16, 20, 29, 0.85) 60%);
   border: 1px solid rgba(0, 240, 255, 0.3);
   border-radius: var(--radius-xl);
@@ -518,8 +471,14 @@
 }
 
 /* Bento Stat Tiles (4 columns) */
+.bento-stats {
+  grid-area: stats;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+
 .bento-stat-card {
-  grid-column: span 3;
   background: var(--bg-card);
   backdrop-filter: var(--blur-amount);
   border: var(--glass-border);
@@ -1668,71 +1627,25 @@
   color: var(--accent-cyan);
 }
 
-/* Mobile Nav Bottom Dock */
-.mobile-nav {
-  display: none;
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: rgba(10, 14, 22, 0.95);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 0.5rem;
-  padding-bottom: env(safe-area-inset-bottom, 0.85rem);
-  z-index: 100;
-  justify-content: space-around;
-  align-items: center;
-}
-
-.mobile-nav-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.2rem;
-  color: var(--text-dim);
-  font-size: 0.725rem;
-  padding: 0.35rem 0.5rem;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.mobile-nav-item.active {
-  color: var(--accent-volt);
-  font-weight: 800;
-}
-
 /* Responsive Media Queries */
 @media (max-width: 1080px) {
-  .bento-hero {
-    grid-column: span 12;
+  .bento-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'hero'
+      'ai'
+      'stats';
+    grid-template-rows: none;
   }
-  .bento-ai-rec {
-    grid-column: span 12;
-  }
-  .bento-stat-card {
-    grid-column: span 6;
-  }
-  .top-navbar-wrapper {
-    padding: 0.75rem 1rem;
+  .bento-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 768px) {
-  .top-navbar {
-    display: none;
-  }
-  .mobile-nav {
-    display: flex;
-  }
-  .main-content {
-    padding: 1.25rem 1rem;
-    padding-bottom: 6rem;
-  }
-  .bento-stat-card {
-    grid-column: span 6;
+  .bento-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
   }
 }
 
@@ -2237,88 +2150,9 @@
   margin-bottom: 1.25rem;
 }
 
-/* ==========================================================================
-   MOBILE NATIVE BOTTOM NAVIGATION & SAFE AREAS (iOS / Android PWA)
-   ========================================================================== */
-.mobile-nav {
-  display: none;
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 999;
-  background: rgba(10, 14, 22, 0.94);
-  backdrop-filter: blur(25px);
-  -webkit-backdrop-filter: blur(25px);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 0.5rem 0.5rem max(0.6rem, env(safe-area-inset-bottom, 0.6rem)) 0.5rem;
-  justify-content: space-around;
-  align-items: center;
-  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.6);
-}
-
-.mobile-nav-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.2rem;
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 0.35rem 0.5rem;
-  border-radius: var(--radius-sm);
-  transition: all 0.18s ease;
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.mobile-nav-item.active {
-  color: var(--accent-volt);
-  transform: translateY(-2px);
-}
-
-.mobile-nav-item.active span:first-child {
-  filter: drop-shadow(0 0 8px rgba(204, 255, 0, 0.6));
-}
-
 @media (max-width: 900px) {
-  .nav-island {
-    display: none !important;
-  }
-  
-  .mobile-nav {
-    display: flex;
-  }
-
-  .top-navbar-wrapper {
-    padding: max(0.6rem, env(safe-area-inset-top, 0.6rem)) 1rem 0.5rem 1rem;
-  }
-
-  .top-navbar {
-    padding: 0.5rem 0.85rem;
-  }
-
-  .brand-title {
-    font-size: 1.15rem;
-  }
-
-  .main-content {
-    padding: 1rem 1rem 6.5rem 1rem;
-  }
-
-  .bento-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .bento-hero, .bento-ai-rec, .bento-stat-card {
-    grid-column: span 1 !important;
-  }
-
   .test-week-steps-row {
     grid-template-columns: 1fr;
   }
 }
-
-
 

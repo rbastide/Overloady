@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import api from './api';
 import './App.css';
+import './shell.css';
+import './components.css';
 import { RestTimer } from './components/RestTimer';
 import { PlateCalculatorModal } from './components/PlateCalculatorModal';
 import { ExerciseDetailModal } from './components/ExerciseDetailModal';
@@ -10,6 +12,8 @@ import { ToastContainer, type ToastMessage } from './components/Toast';
 import { WarmupModal } from './components/WarmupModal';
 import { AnalyticsView } from './components/AnalyticsView';
 import { TestWeekModal } from './components/TestWeekModal';
+import { Navigation, type AppTab } from './components/Navigation';
+import { Icon } from './components/Icons';
 
 interface ActiveSet {
   reps: number;
@@ -57,6 +61,10 @@ const GOAL_OPTIONS = [
 
 // The library holds ~900 exercises (wger import): cards are rendered in pages.
 const LIBRARY_PAGE_SIZE = 60;
+// Programs shown as quick-launch buttons on the dashboard welcome card
+// (phones only display the first HERO_PROGRAMS_MOBILE, see .hero-program in shell.css).
+const HERO_PROGRAMS_MAX = 6;
+const HERO_PROGRAMS_MOBILE = 3;
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('token'));
@@ -69,7 +77,7 @@ function App() {
   const [authError, setAuthError] = useState('');
 
   // Navigation
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'logger' | 'analytics' | 'routines' | 'history' | 'exercises' | 'profile'>('dashboard');
+  const [activeTab, setActiveTab] = useState<AppTab>('dashboard');
 
   // Core Data
   const [profile, setProfile] = useState<any>({});
@@ -696,7 +704,9 @@ function App() {
 
         <section className="auth-hero">
           <div className="brand-group auth-brand">
-            <div className="brand-bolt">⚡</div>
+            <div className="brand-bolt">
+              <Icon name="bolt" size={18} strokeWidth={2.4} />
+            </div>
             <div className="brand-title">
               OVERLOADY
               <span className="brand-tag">PRO</span>
@@ -877,111 +887,21 @@ function App() {
     );
   }
 
-  const renderNavTabs = () => {
-    const items = [
-      { id: 'dashboard', label: 'Tableau de bord', icon: '📊' },
-      { id: 'logger', label: 'Séance', icon: '⚡', badge: activeSessionId ? 'En direct' : undefined },
-      { id: 'analytics', label: 'Analytique & PRs', icon: '📈' },
-      { id: 'routines', label: 'Programmes', icon: '📋' },
-      { id: 'history', label: 'Historique', icon: '📅' },
-      { id: 'exercises', label: 'Exercices', icon: '💪' },
-      { id: 'profile', label: 'Profil', icon: '👤' },
-    ];
-
-    return items.map((item) => (
-      <button
-        key={item.id}
-        className={`nav-tab-btn ${activeTab === item.id ? 'active' : ''}`}
-        onClick={() => setActiveTab(item.id as any)}
-      >
-        <span>{item.icon}</span>
-        <span>{item.label}</span>
-        {item.badge && <span className="tab-badge">{item.badge}</span>}
-      </button>
-    ));
-  };
-
-  const renderMobileNav = () => {
-    const items = [
-      { id: 'dashboard', label: 'Accueil', icon: '📊' },
-      { id: 'logger', label: 'Séance', icon: '⚡' },
-      { id: 'analytics', label: 'PRs', icon: '📈' },
-      { id: 'routines', label: 'Plans', icon: '📋' },
-      { id: 'history', label: 'Historique', icon: '📅' },
-      { id: 'exercises', label: 'Exercices', icon: '💪' },
-      { id: 'profile', label: 'Profil', icon: '👤' },
-    ];
-
-    return items.map((item) => (
-      <div
-        key={item.id}
-        className={`mobile-nav-item ${activeTab === item.id ? 'active' : ''}`}
-        onClick={() => setActiveTab(item.id as any)}
-      >
-        <span style={{ fontSize: '1.25rem' }}>{item.icon}</span>
-        <span>{item.label}</span>
-      </div>
-    ));
-  };
-
   return (
     <div className="app-container">
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
-      {/* Floating Island Navbar */}
-      <div className="top-navbar-wrapper">
-        <header className="top-navbar">
-          <div className="brand-group" onClick={() => setActiveTab('dashboard')}>
-            <div className="brand-bolt">⚡</div>
-            <div className="brand-title">
-              OVERLOADY
-              <span className="brand-tag">PRO</span>
-            </div>
-          </div>
-
-          <nav className="nav-island">
-            {renderNavTabs()}
-          </nav>
-
-          <div className="navbar-actions">
-            {testWeekStatus && (
-              <button
-                className="btn-gym-tools"
-                style={{
-                  borderColor: testWeekStatus.testWeekCompleted
-                    ? 'rgba(16, 185, 129, 0.45)'
-                    : 'rgba(0, 240, 255, 0.45)',
-                  color: testWeekStatus.testWeekCompleted
-                    ? 'var(--accent-emerald)'
-                    : 'var(--accent-cyan)',
-                  background: testWeekStatus.testWeekCompleted
-                    ? 'rgba(16, 185, 129, 0.08)'
-                    : 'rgba(0, 240, 255, 0.08)',
-                }}
-                onClick={() => setIsTestWeekModalOpen(true)}
-                title="Consulter le protocole d'évaluation et de calibration"
-              >
-                🧪 {testWeekStatus.testWeekCompleted ? 'Calibration IA ✓' : `Semaine Test (${testWeekStatus.testWeekProgress}/3)`}
-              </button>
-            )}
-            <button className="btn-gym-tools" onClick={() => setIsPlateCalcOpen(true)}>
-              🧮 Disques / 1RM
-            </button>
-            <div className="user-pill-btn" onClick={() => setActiveTab('profile')}>
-              <div className="user-avatar-mini">
-                {displayName[0].toUpperCase()}
-              </div>
-              <span>{displayName}</span>
-              <span style={{ fontSize: '0.75rem', color: 'var(--accent-volt)' }}>
-                {profile.goal === 'FORCE' ? '🔴' : profile.goal === 'ENDURANCE' ? '🟢' : '🟣'}
-              </span>
-            </div>
-            <button className="btn-logout-icon" title="Déconnexion" onClick={handleLogout}>
-              🚪
-            </button>
-          </div>
-        </header>
-      </div>
+      <Navigation
+        activeTab={activeTab}
+        onNavigate={setActiveTab}
+        hasActiveSession={!!activeSessionId}
+        displayName={displayName}
+        goal={profile.goal}
+        testWeekStatus={testWeekStatus}
+        onOpenTestWeek={() => setIsTestWeekModalOpen(true)}
+        onOpenPlateCalc={() => setIsPlateCalcOpen(true)}
+        onLogout={handleLogout}
+      />
 
       {/* Main Content Area */}
       <main className="main-content">
@@ -1074,41 +994,55 @@ function App() {
             )}
 
             <div className="bento-grid">
-              {/* Bento 1: Hero Welcome & Quick Launch */}
+              {/* Bento 1: compact welcome + program quick launch (grows with the number of programs) */}
               <div className="bento-hero">
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.85rem', flexWrap: 'wrap' }}>
-                    <span className="badge-pill">
-                      ⚡ PROGRAMME {profile.goal || 'BODYBUILDING'}
+                <div className="hero-top">
+                  <span className="badge-pill">⚡ PROGRAMME {profile.goal || 'BODYBUILDING'}</span>
+                  {testWeekStatus?.testWeekCompleted && (
+                    <span
+                      className="badge-pill"
+                      style={{ color: 'var(--accent-emerald)', borderColor: 'rgba(16, 185, 129, 0.4)', cursor: 'pointer' }}
+                      onClick={() => setIsTestWeekModalOpen(true)}
+                    >
+                      ✓ PROFIL CALIBRÉ
                     </span>
-                    {testWeekStatus?.testWeekCompleted && (
-                      <span
-                        className="badge-pill"
-                        style={{ color: 'var(--accent-emerald)', borderColor: 'rgba(16, 185, 129, 0.4)', cursor: 'pointer' }}
-                        onClick={() => setIsTestWeekModalOpen(true)}
-                      >
-                        ✓ PROFIL CALIBRÉ
-                      </span>
+                  )}
+                  <span className="hero-date">
+                    {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+                  </span>
+                </div>
+                <h1>Bonjour, {displayName} 👋</h1>
+
+                <div className="hero-programs">
+                  <div className="hero-programs-head">
+                    <span>Vos programmes ({routines.length})</span>
+                    {routines.length > HERO_PROGRAMS_MOBILE && (
+                      <button className="link-btn" onClick={() => setActiveTab('routines')}>
+                        Tout voir
+                      </button>
                     )}
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
-                    </span>
                   </div>
-                  <h1>Bonjour, {displayName} 👋</h1>
-                  <p className="hero-subtitle">
-                    Prêt pour votre prochaine séance ? Votre surcharge progressive est automatiquement calculée et prête à être exécutée.
-                  </p>
+                  {routines.length > 0 ? (
+                    <div className="hero-program-list">
+                      {routines.slice(0, HERO_PROGRAMS_MAX).map((rt) => (
+                        <button key={rt.id} className="hero-program" onClick={() => startRoutineWorkout(rt)} title={`Lancer ${rt.name}`}>
+                          <span className="hero-program-play">▶</span>
+                          <span className="hero-program-name">{rt.name}</span>
+                          <span className="hero-program-meta">{rt.exercises?.length || 0} exos</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="hero-programs-empty">Aucun programme pour l'instant (ex : Push / Pull / Legs).</p>
+                  )}
                 </div>
 
                 <div className="bento-actions">
                   <button className="btn-volt" onClick={startNewWorkout}>
-                    + Démarrer une séance libre
+                    + Séance libre
                   </button>
                   <button className="btn-glass" onClick={() => setIsRoutineModalOpen(true)}>
-                    + Créer un programme
-                  </button>
-                  <button className="btn-glass" onClick={() => setActiveTab('analytics')}>
-                    📈 Analytique & Records
+                    + Nouveau programme
                   </button>
                 </div>
               </div>
@@ -1284,110 +1218,58 @@ function App() {
               )}
 
               {/* Bento 3: 4 Stat Tiles */}
-              <div className="bento-stat-card">
-                <div className="stat-header">
-                  <span className="stat-label">Séances (7j)</span>
-                  <span className="stat-icon">🔥</span>
+              <div className="bento-stats">
+                <div className="bento-stat-card">
+                  <div className="stat-header">
+                    <span className="stat-label">Séances (7j)</span>
+                    <span className="stat-icon">🔥</span>
+                  </div>
+                  <div className="stat-number" style={{ color: 'var(--accent-volt)' }}>
+                    {dashboardStats.workoutsThisWeek ?? 0}
+                  </div>
+                  <div className="stat-footer">Fréquence d'entraînement</div>
                 </div>
-                <div className="stat-number" style={{ color: 'var(--accent-volt)' }}>
-                  {dashboardStats.workoutsThisWeek ?? 0}
-                </div>
-                <div className="stat-footer">Fréquence d'entraînement</div>
-              </div>
 
-              <div className="bento-stat-card">
-                <div className="stat-header">
-                  <span className="stat-label">Volume total (7j)</span>
-                  <span className="stat-icon">⚡</span>
+                <div className="bento-stat-card">
+                  <div className="stat-header">
+                    <span className="stat-label">Volume total (7j)</span>
+                    <span className="stat-icon">⚡</span>
+                  </div>
+                  <div className="stat-number" style={{ color: 'var(--accent-cyan)' }}>
+                    {dashboardStats.weekVolume ? `${dashboardStats.weekVolume.toLocaleString()}` : '0'}
+                    <span style={{ fontSize: '1rem', color: 'var(--text-muted)', marginLeft: '4px' }}>kg</span>
+                  </div>
+                  <div className="stat-footer">Tonnage cumulé soulevé</div>
                 </div>
-                <div className="stat-number" style={{ color: 'var(--accent-cyan)' }}>
-                  {dashboardStats.weekVolume ? `${dashboardStats.weekVolume.toLocaleString()}` : '0'}
-                  <span style={{ fontSize: '1rem', color: 'var(--text-muted)', marginLeft: '4px' }}>kg</span>
-                </div>
-                <div className="stat-footer">Tonnage cumulé soulevé</div>
-              </div>
 
-              <div className="bento-stat-card">
-                <div className="stat-header">
-                  <span className="stat-label">Poids corporel</span>
-                  <span className="stat-icon">⚖️</span>
+                <div className="bento-stat-card">
+                  <div className="stat-header">
+                    <span className="stat-label">Poids corporel</span>
+                    <span className="stat-icon">⚖️</span>
+                  </div>
+                  <div className="stat-number" style={{ color: 'var(--accent-purple)' }}>
+                    {profile.weight || '--'}
+                    <span style={{ fontSize: '1rem', color: 'var(--text-muted)', marginLeft: '4px' }}>kg</span>
+                  </div>
+                  <div className="stat-footer">Dernière pesée enregistrée</div>
                 </div>
-                <div className="stat-number" style={{ color: 'var(--accent-purple)' }}>
-                  {profile.weight || '--'}
-                  <span style={{ fontSize: '1rem', color: 'var(--text-muted)', marginLeft: '4px' }}>kg</span>
-                </div>
-                <div className="stat-footer">Dernière pesée enregistrée</div>
-              </div>
 
-              <div className="bento-stat-card">
-                <div className="stat-header">
-                  <span className="stat-label">Indice IMC</span>
-                  <span className="stat-icon">🧬</span>
+                <div className="bento-stat-card">
+                  <div className="stat-header">
+                    <span className="stat-label">Indice IMC</span>
+                    <span className="stat-icon">🧬</span>
+                  </div>
+                  <div className="stat-number" style={{ color: 'var(--accent-coral)' }}>
+                    {bmi || '--'}
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: '6px' }}>
+                      {bmi ? (bmi < 25 ? '(Normal)' : '(Surpoids)') : ''}
+                    </span>
+                  </div>
+                  <div className="stat-footer">Ratio taille / poids corporel</div>
                 </div>
-                <div className="stat-number" style={{ color: 'var(--accent-coral)' }}>
-                  {bmi || '--'}
-                  <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: '6px' }}>
-                    {bmi ? (bmi < 25 ? '(Normal)' : '(Surpoids)') : ''}
-                  </span>
-                </div>
-                <div className="stat-footer">Ratio taille / poids corporel</div>
               </div>
             </div>
 
-            {/* Routines Grid Section */}
-            <div style={{ marginTop: '2.5rem', marginBottom: '2rem' }}>
-              <div className="flex-between" style={{ marginBottom: '1.25rem' }}>
-                <h2>Vos Programmes d'entraînement ({routines.length})</h2>
-                <button
-                  className="btn-small"
-                  onClick={() => setIsRoutineModalOpen(true)}
-                  style={{ color: 'var(--accent-volt)' }}
-                >
-                  + Nouveau programme
-                </button>
-              </div>
-
-              {routines.length > 0 ? (
-                <div className="routine-grid">
-                  {routines.map((rt) => (
-                    <div key={rt.id} className="routine-card">
-                      <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-                          <h3 style={{ fontSize: '1.25rem' }}>{rt.name}</h3>
-                          <span className="badge-pill">{rt.exercises?.length || 0} exercices</span>
-                        </div>
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
-                          Routine personnalisée prête à l'emploi
-                        </p>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '1.5rem' }}>
-                          {(rt.exercises || []).map((ex: any) => (
-                            <span key={ex.id} className="badge-category">
-                              {ex.name}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      <button
-                        className="btn-volt"
-                        style={{ width: '100%', fontSize: '0.9rem' }}
-                        onClick={() => startRoutineWorkout(rt)}
-                      >
-                        ▶ Lancer ce programme
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="glass-panel" style={{ textAlign: 'center', padding: '2.5rem' }}>
-                  <p style={{ color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
-                    Vous n'avez pas encore créé de programme d'entraînement (ex : Push / Pull / Legs).
-                  </p>
-                  <button className="btn-volt" onClick={() => setIsRoutineModalOpen(true)}>
-                    + Créer mon premier programme
-                  </button>
-                </div>
-              )}
-            </div>
           </div>
         )}
 
@@ -2104,9 +1986,6 @@ function App() {
           </div>
         )}
       </main>
-
-      {/* Bottom Nav for Mobile */}
-      <nav className="mobile-nav">{renderMobileNav()}</nav>
 
       {/* Modals */}
       <PlateCalculatorModal

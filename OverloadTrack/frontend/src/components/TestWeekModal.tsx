@@ -60,7 +60,7 @@ export const TestWeekModal: React.FC<TestWeekModalProps> = ({
       <div
         className="modal-content test-week-modal"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: '820px', width: '95%' }}
+        style={{ maxWidth: '820px' }}
       >
         {/* Header */}
         <div className="modal-header" style={{ alignItems: 'flex-start' }}>
