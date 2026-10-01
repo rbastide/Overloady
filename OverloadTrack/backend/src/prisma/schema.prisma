@@ -26,6 +26,8 @@ model Profile {
   height      Int
   weight      Float
   goal        String   @default("BODYBUILDING")
+  experience  String   @default("BEGINNER") // NONE | BEGINNER | INTERMEDIATE | ADVANCED
+  bodyFat     Float?   // optional, in %
   testWeekCompleted Boolean @default(false)
   testWeekProgress  Int     @default(0)
   createdAt   DateTime @default(now())

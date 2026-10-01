@@ -15,6 +15,12 @@ import { TestWeekModal } from './components/TestWeekModal';
 import { Navigation, type AppTab } from './components/Navigation';
 import { Icon } from './components/Icons';
 import { CoachChat, type CoachWorkout } from './components/CoachChat';
+import {
+  AthleteProfileFields,
+  toAthleteProfilePayload,
+  toAthleteProfileValue,
+  type AthleteProfileValue,
+} from './components/AthleteProfileFields';
 
 interface ActiveSet {
   reps: number;
@@ -75,6 +81,10 @@ function App() {
   const [showPassword, setShowPassword] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [signupGoal, setSignupGoal] = useState<'FORCE' | 'BODYBUILDING' | 'ENDURANCE'>('BODYBUILDING');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  // Sign-up: 1 = account, 2 = athlete profile used to calibrate the test week and the AI coach
+  const [signupStep, setSignupStep] = useState<1 | 2>(1);
+  const [signupAthlete, setSignupAthlete] = useState<AthleteProfileValue>(toAthleteProfileValue(null));
   const [authError, setAuthError] = useState('');
 
   // Navigation
@@ -200,29 +210,52 @@ function App() {
     }
   };
 
-  const handleAuthSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submitAuth = async (withAthleteProfile: boolean) => {
     setAuthError('');
     setIsAuthLoading(true);
     try {
       const endpoint = isLoginMode ? '/auth/login' : '/auth/register';
       const payload = isLoginMode
         ? { username, password }
-        : { username, password, goal: signupGoal };
+        : {
+            username,
+            password,
+            goal: signupGoal,
+            ...(withAthleteProfile ? toAthleteProfilePayload(signupAthlete) : {}),
+          };
       const res = await api.post(endpoint, payload);
       localStorage.setItem('token', res.data.access_token);
       setIsAuthenticated(true);
       showToast(isLoginMode ? 'Connexion réussie !' : 'Compte créé avec succès ! Bienvenue sur Overloady.');
     } catch (err: any) {
       const message = err.response?.data?.message;
-      setAuthError(Array.isArray(message) ? message[0] : message || "Échec de l'authentification");
+      const text = Array.isArray(message) ? message[0] : message || "Échec de l'authentification";
+      // Account errors (identifiant taken, password rules) are fixed on the first step.
+      if (!isLoginMode && /identifiant|mot de passe/i.test(text)) setSignupStep(1);
+      setAuthError(text);
     } finally {
       setIsAuthLoading(false);
     }
   };
 
+  const handleAuthSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isLoginMode && signupStep === 1) {
+      if (password !== confirmPassword) {
+        setAuthError('Les deux mots de passe ne correspondent pas.');
+        return;
+      }
+      setAuthError('');
+      setSignupStep(2);
+      return;
+    }
+    submitAuth(!isLoginMode);
+  };
+
   const switchAuthMode = (loginMode: boolean) => {
     setIsLoginMode(loginMode);
+    setSignupStep(1);
+    setConfirmPassword('');
     setAuthError('');
   };
 
@@ -560,17 +593,34 @@ function App() {
     e.preventDefault();
     try {
       await api.put('/profile', {
-        height: Number(profile.height),
-        weight: Number(profile.weight),
+        ...toAthleteProfilePayload(toAthleteProfileValue(profile)),
         goal: profile.goal || 'BODYBUILDING',
       });
       showToast('Profil et programme mis à jour !', 'success');
+      api.get('/workout/test-week').then((res) => setTestWeekStatus(res.data)).catch(() => {});
       const recRes = await api.get('/workout/next-recommendation').catch(() => ({ data: null }));
       if (recRes?.data) {
         setNextRecommendation(recRes.data);
       }
-    } catch (err) {
-      showToast('Erreur lors de la sauvegarde du profil', 'error');
+    } catch (err: any) {
+      showToast(err.response?.data?.message || 'Erreur lors de la sauvegarde du profil', 'error');
+    }
+  };
+
+  // Athlete profile edited from the calibration window: saved, then the test loads are recomputed
+  const saveCalibrationProfile = async (value: AthleteProfileValue) => {
+    try {
+      const res = await api.put('/profile', toAthleteProfilePayload(value));
+      setProfile((prev: any) => ({ ...prev, ...res.data }));
+      const [testWeekRes, recRes] = await Promise.all([
+        api.get('/workout/test-week'),
+        api.get('/workout/next-recommendation').catch(() => ({ data: null })),
+      ]);
+      setTestWeekStatus(testWeekRes.data);
+      if (recRes.data) setNextRecommendation(recRes.data);
+      showToast('Profil enregistré : charges de calibration recalculées !', 'success');
+    } catch (err: any) {
+      showToast(err.response?.data?.message || 'Erreur lors de la sauvegarde du profil', 'error');
     }
   };
 
@@ -783,15 +833,22 @@ function App() {
             </div>
 
             <div className="auth-card-header">
-              <h2>{isLoginMode ? 'Bon retour 👋' : 'Créer un compte'}</h2>
+              {!isLoginMode && <span className="auth-step">Étape {signupStep} / 2</span>}
+              <h2>{isLoginMode ? 'Bon retour 👋' : signupStep === 1 ? 'Créer un compte' : 'Ton profil athlète'}</h2>
               <p>
                 {isLoginMode
                   ? 'Connectez-vous pour reprendre votre progression.'
-                  : "Choisissez un identifiant et votre objectif, on s'occupe du reste."}
+                  : signupStep === 1
+                  ? "Choisissez un identifiant et votre objectif, on s'occupe du reste."
+                  : 'Pour calibrer tes charges de départ et le coach IA. Tu pourras le modifier plus tard.'}
               </p>
             </div>
 
             <form onSubmit={handleAuthSubmit} className="auth-form">
+              {!isLoginMode && signupStep === 2 ? (
+                <AthleteProfileFields value={signupAthlete} onChange={setSignupAthlete} idPrefix="signup" />
+              ) : (
+              <>
               <div className="auth-field">
                 <label htmlFor="auth-username">Identifiant</label>
                 <div className="auth-input-wrap">
@@ -859,6 +916,32 @@ function App() {
 
               {!isLoginMode && (
                 <div className="auth-field">
+                  <label htmlFor="auth-password-confirm">Confirmer le mot de passe</label>
+                  <div className="auth-input-wrap">
+                    <svg className="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <rect x="4" y="11" width="16" height="10" rx="2" />
+                      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                    </svg>
+                    <input
+                      id="auth-password-confirm"
+                      type={showPassword ? 'text' : 'password'}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="••••••••"
+                      autoComplete="new-password"
+                      required
+                    />
+                  </div>
+                  {confirmPassword && (
+                    <span className={`auth-hint ${confirmPassword === password ? 'auth-hint-ok' : 'auth-hint-error'}`}>
+                      {confirmPassword === password ? '✓ Les mots de passe correspondent' : 'Les mots de passe ne correspondent pas'}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {!isLoginMode && (
+                <div className="auth-field">
                   <label>Votre objectif</label>
                   <div className="auth-goal-grid">
                     {GOAL_OPTIONS.map((g) => (
@@ -879,6 +962,8 @@ function App() {
                   </span>
                 </div>
               )}
+              </>
+              )}
 
               {authError && (
                 <div className="auth-error" role="alert">
@@ -892,9 +977,20 @@ function App() {
 
               <button type="submit" className="btn-neon auth-submit" disabled={isAuthLoading}>
                 {isAuthLoading && <span className="auth-spinner" aria-hidden="true" />}
-                {isLoginMode ? 'Se connecter' : 'Créer mon compte'}
+                {isLoginMode ? 'Se connecter' : signupStep === 1 ? 'Continuer' : 'Créer mon compte'}
                 {!isAuthLoading && <span aria-hidden="true">→</span>}
               </button>
+
+              {!isLoginMode && signupStep === 2 && (
+                <div className="auth-step-actions">
+                  <button type="button" onClick={() => setSignupStep(1)} disabled={isAuthLoading}>
+                    ← Retour
+                  </button>
+                  <button type="button" onClick={() => submitAuth(false)} disabled={isAuthLoading}>
+                    Passer cette étape
+                  </button>
+                </div>
+              )}
             </form>
 
             <p className="auth-switch">
@@ -1918,26 +2014,12 @@ function App() {
                   <input type="text" value={profile.user?.username || ''} readOnly disabled style={{ opacity: 0.7 }} />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                  <div className="form-group">
-                    <label>Taille (cm)</label>
-                    <input
-                      type="number"
-                      className="input-glass"
-                      value={profile.height || ''}
-                      onChange={(e) => setProfile({ ...profile, height: e.target.value })}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Poids corporel (kg)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      className="input-glass"
-                      value={profile.weight || ''}
-                      onChange={(e) => setProfile({ ...profile, weight: e.target.value })}
-                    />
-                  </div>
+                <div className="form-group">
+                  <AthleteProfileFields
+                    value={toAthleteProfileValue(profile)}
+                    onChange={(value) => setProfile({ ...profile, ...value })}
+                    idPrefix="profile"
+                  />
                 </div>
 
                 {bmi && (
@@ -2064,6 +2146,8 @@ function App() {
         onSkipTestWeek={handleSkipTestWeek}
         onResetTestWeek={handleResetTestWeek}
         isStarting={isStartingTestStep}
+        profile={profile}
+        onSaveProfile={saveCalibrationProfile}
       />
     </div>
   );

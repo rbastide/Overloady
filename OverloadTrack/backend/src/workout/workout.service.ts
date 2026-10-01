@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService, CoachChatMessage } from '../ai/ai.service';
+import { calibrationLoadFactor, describeAthlete, scaleCalibrationLoad } from '../user/athlete-profile';
 
 const COACH_MAX_MESSAGES = 12;
 const COACH_MAX_MESSAGE_LENGTH = 2000;
@@ -621,16 +622,18 @@ export class WorkoutService {
 
   async getNextRecommendedWorkout(userId: string, forceFreshAi = false) {
     const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes cache
-    if (!forceFreshAi && this.recommendationCache.has(userId)) {
-      const cached = this.recommendationCache.get(userId)!;
-      if (Date.now() - cached.timestamp < CACHE_TTL_MS) {
-        return cached.data;
-      }
-    }
-
     const profile = await this.prisma.profile.findUnique({
       where: { userId },
     });
+
+    if (!forceFreshAi && this.recommendationCache.has(userId)) {
+      const cached = this.recommendationCache.get(userId)!;
+      // A profile edit (weight, experience...) makes the cached loads stale.
+      const profileChangedAt = profile?.updatedAt ? profile.updatedAt.getTime() : 0;
+      if (Date.now() - cached.timestamp < CACHE_TTL_MS && cached.timestamp >= profileChangedAt) {
+        return cached.data;
+      }
+    }
     const goal = ((profile as any)?.goal || 'BODYBUILDING').toUpperCase();
 
     // Last session to detect muscle fatigue & rotation
@@ -699,7 +702,7 @@ export class WorkoutService {
 
     if (isTestWeekActive) {
       const nextStep = Math.min(3, Number((profile as any)?.testWeekProgress || 0) + 1);
-      return this.generateTestWeekRecommendation(userId, goal, nextStep, allExercises, currentMeta);
+      return this.generateTestWeekRecommendation(userId, goal, nextStep, allExercises, currentMeta, profile);
     }
 
     // Try AI Generation with Pollinations Bodybuilding Coach
@@ -729,6 +732,7 @@ export class WorkoutService {
         goal,
         weight: (profile as any)?.weight || 75,
         height: (profile as any)?.height || 178,
+        athlete: describeAthlete(profile as any),
         benchmarks: testedBenchmarks,
         lastSession: lastSessionContext,
         // The wger import adds ~900 exercises: only the app library is offered to the AI.
@@ -948,6 +952,7 @@ export class WorkoutService {
       goal: (profile as any)?.goal || 'BODYBUILDING',
       weight: (profile as any)?.weight,
       height: (profile as any)?.height,
+      athlete: describeAthlete(profile as any),
       benchmarks,
       recentSessions: recent.map((s) => ({
         date: s.startedAt.toISOString().split('T')[0],
@@ -1529,8 +1534,9 @@ export class WorkoutService {
     step: number,
     allExercises: any[],
     currentMeta: any,
+    profile?: any,
   ) {
-    const templates = this.getTestWeekTemplates(goal);
+    const templates = this.getPersonalizedTestTemplates(goal, profile);
     const template = templates.find((t) => t.step === step) || templates[0];
 
     const mappedExercises: any[] = [];
@@ -1578,6 +1584,18 @@ export class WorkoutService {
     return result;
   }
 
+  /** Test-week templates with starting loads scaled to the athlete's weight, lean mass and experience. */
+  getPersonalizedTestTemplates(goal: string, profile?: any) {
+    const factor = calibrationLoadFactor(profile);
+    return this.getTestWeekTemplates(goal).map((template) => ({
+      ...template,
+      exercises: template.exercises.map((ex) => ({
+        ...ex,
+        defaultWeight: scaleCalibrationLoad(ex.name, ex.defaultWeight, factor),
+      })),
+    }));
+  }
+
   async getTestWeekStatus(userId: string) {
     const profile = await this.prisma.profile.findUnique({
       where: { userId },
@@ -1587,7 +1605,7 @@ export class WorkoutService {
     const testWeekProgress = Number((profile as any)?.testWeekProgress) || 0;
     const currentStep = Math.min(3, testWeekProgress + 1);
 
-    const templates = this.getTestWeekTemplates(goal);
+    const templates = this.getPersonalizedTestTemplates(goal, profile);
     const sessions = templates.map((t) => {
       let status: 'completed' | 'current' | 'upcoming' = 'upcoming';
       if (t.step <= testWeekProgress) {
@@ -1665,7 +1683,7 @@ export class WorkoutService {
     const goal = ((profile as any)?.goal || 'BODYBUILDING').toUpperCase();
     const allExercises = await this.getExercisePool();
     const goalMeta = { label: goal };
-    const rec = await this.generateTestWeekRecommendation(userId, goal, step, allExercises, goalMeta);
+    const rec = await this.generateTestWeekRecommendation(userId, goal, step, allExercises, goalMeta, profile);
     return this.startRecommendedWorkout(userId, rec);
   }
 

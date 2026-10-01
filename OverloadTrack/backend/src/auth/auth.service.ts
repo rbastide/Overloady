@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException, ConflictException, BadRequestExcepti
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { normalizeBodyFat, normalizeExperience, normalizeHeight, normalizeWeight } from '../user/athlete-profile';
 
 const USERNAME_PATTERN = /^[a-z0-9_.-]{3,24}$/;
 const MIN_PASSWORD_LENGTH = 6;
@@ -57,8 +58,11 @@ export class AuthService {
           profile: {
             create: {
               dateOfBirth: new Date(),
-              height: 175,
-              weight: 70,
+              // Athlete profile is optional at sign-up: defaults until the athlete fills it.
+              height: normalizeHeight(data.height) ?? 175,
+              weight: normalizeWeight(data.weight) ?? 70,
+              experience: normalizeExperience(data.experience) ?? 'BEGINNER',
+              bodyFat: normalizeBodyFat(data.bodyFat) ?? null,
               goal,
             } as any
           }

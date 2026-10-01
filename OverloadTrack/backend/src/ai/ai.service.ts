@@ -4,6 +4,8 @@ export interface AiWorkoutPromptContext {
   goal: string;
   weight?: number;
   height?: number;
+  /** Weight, experience and body fat in one line (see describeAthlete). */
+  athlete?: string;
   age?: number;
   benchmarks?: Record<string, any> | null;
   lastSession?: {
@@ -52,6 +54,7 @@ export interface CoachChatContext {
   goal: string;
   weight?: number;
   height?: number;
+  athlete?: string;
   benchmarks?: Record<string, any> | null;
   recentSessions: Array<{ date: string; title: string; exercises: string[] }>;
   availableExercises: string[];
@@ -129,7 +132,7 @@ Tu dois répondre STRICTEMENT avec un objet JSON valide (aucun markdown, aucun o
 
     const userPrompt = `Profil athlète :
 - Objectif sélectionné : ${goal}
-- Poids corporel : ${context.weight ? `${context.weight} kg` : '75 kg'}
+- Gabarit et niveau : ${context.athlete || (context.weight ? `${context.weight} kg` : '75 kg')}
 - Dernière séance : ${
       context.lastSession && context.lastSession.exercises.length > 0
         ? JSON.stringify(context.lastSession)
@@ -237,7 +240,7 @@ Réponds STRICTEMENT avec un objet JSON valide (aucun markdown) suivant ce sché
   ]
 }`;
 
-    const profileNote = `[Profil athlète — objectif ${goal}, ${context.weight || 75} kg, ${context.height || 178} cm. Records connus : ${
+    const profileNote = `[Profil athlète — objectif ${goal}, ${context.athlete || `${context.weight || 75} kg, ${context.height || 178} cm`}. Records connus : ${
       context.benchmarks && Object.keys(context.benchmarks).length > 0 ? JSON.stringify(context.benchmarks) : 'aucun'
     }. Dernières séances : ${
       context.recentSessions.length > 0
