@@ -603,3 +603,241 @@
     padding: 1.5rem 1rem;
   }
 }
+
+/* ==========================================================================
+   Routine builder — browse by muscle group instead of typing names
+   ========================================================================== */
+.routine-modal {
+  max-width: 720px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* only the exercise list scrolls, the name and selection stay visible */
+}
+
+.routine-modal > *,
+.routine-modal form > * {
+  flex-shrink: 0;
+}
+
+.routine-modal form {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.routine-modal .routine-browse {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.routine-selected-empty {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.routine-selected {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.routine-selected-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: var(--radius-pill);
+  border: var(--glass-border-volt);
+  background: var(--accent-volt-subtle);
+  color: var(--text-main);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.routine-selected-chip > span:last-child {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
+
+.routine-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(95px, 1fr));
+  gap: 0.45rem;
+  margin-bottom: 0.75rem;
+}
+
+.routine-group {
+  position: relative;
+  padding: 0.65rem 0.5rem;
+  border-radius: var(--radius-md);
+  border: var(--glass-border-light);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.routine-group:hover {
+  border-color: rgba(204, 255, 0, 0.4);
+}
+
+.routine-group.active {
+  background: var(--accent-volt);
+  border-color: var(--accent-volt);
+  color: #06080a;
+}
+
+.routine-group-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.3rem;
+  border-radius: var(--radius-pill);
+  display: grid;
+  place-items: center;
+  background: var(--accent-cyan);
+  color: #06080a;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.routine-search {
+  margin-bottom: 0.75rem;
+  font-size: 16px; /* no iOS zoom on focus */
+  text-align: left;
+}
+
+.routine-picker {
+  flex: 1 1 auto;
+  min-height: 150px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 0.25rem;
+}
+
+.routine-picker-title {
+  margin: 0.25rem 0 0.5rem;
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.routine-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 0.45rem;
+  margin-bottom: 0.75rem;
+}
+
+.routine-tile {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  min-height: 52px;
+  padding: 0.6rem 2.4rem 0.6rem 0.8rem;
+  position: relative;
+  text-align: left;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-main);
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.routine-tile:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.routine-tile.selected {
+  background: rgba(204, 255, 0, 0.1);
+  border-color: var(--accent-volt);
+}
+
+.routine-tile-name {
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.routine-tile-cat {
+  color: var(--text-dim);
+  font-size: 0.72rem;
+}
+
+.routine-tile-check {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.routine-tile.selected .routine-tile-check {
+  background: var(--accent-volt);
+  color: #06080a;
+}
+
+.routine-more {
+  width: 100%;
+  margin-bottom: 0.75rem;
+  font-size: 0.85rem;
+  padding: 0.65rem 1rem;
+}
+
+.routine-picker-note {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+@media (max-width: 767px) {
+  .routine-groups {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .routine-tiles {
+    grid-template-columns: 1fr;
+  }
+
+  .routine-tile {
+    min-height: 46px;
+  }
+
+  /* One swipeable row so a long selection doesn't push the list off screen */
+  .routine-selected {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin: 0 -0.25rem;
+    padding: 0 0.25rem 0.15rem;
+  }
+
+  .routine-selected-chip {
+    flex-shrink: 0;
+  }
+}
