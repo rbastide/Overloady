@@ -8,7 +8,7 @@ export class UserService {
   async getProfile(userId: string) {
     const profile = await this.prisma.profile.findUnique({
       where: { userId },
-      include: { user: { select: { email: true } } }
+      include: { user: { select: { username: true } } }
     });
 
     if (!profile) {

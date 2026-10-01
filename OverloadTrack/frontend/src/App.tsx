@@ -58,8 +58,10 @@ const GOAL_OPTIONS = [
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('token'));
   const [isLoginMode, setIsLoginMode] = useState(true);
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [signupGoal, setSignupGoal] = useState<'FORCE' | 'BODYBUILDING' | 'ENDURANCE'>('BODYBUILDING');
   const [authError, setAuthError] = useState('');
 
@@ -186,18 +188,27 @@ function App() {
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
+    setIsAuthLoading(true);
     try {
       const endpoint = isLoginMode ? '/auth/login' : '/auth/register';
       const payload = isLoginMode
-        ? { email, password }
-        : { email, password, goal: signupGoal };
+        ? { username, password }
+        : { username, password, goal: signupGoal };
       const res = await api.post(endpoint, payload);
       localStorage.setItem('token', res.data.access_token);
       setIsAuthenticated(true);
       showToast(isLoginMode ? 'Connexion réussie !' : 'Compte créé avec succès ! Bienvenue sur Overloady.');
     } catch (err: any) {
-      setAuthError(err.response?.data?.message || "Échec de l'authentification");
+      const message = err.response?.data?.message;
+      setAuthError(Array.isArray(message) ? message[0] : message || "Échec de l'authentification");
+    } finally {
+      setIsAuthLoading(false);
     }
+  };
+
+  const switchAuthMode = (loginMode: boolean) => {
+    setIsLoginMode(loginMode);
+    setAuthError('');
   };
 
   const handleLogout = () => {
@@ -664,6 +675,9 @@ function App() {
     return matchSearch && matchCategory;
   });
 
+  // Legacy accounts use their former email as identifier
+  const displayName = profile.user?.username?.split('@')[0] || 'Athlète';
+
   const allCategories = ['Tous', ...Array.from(new Set(exercises.map((e) => e.category || 'Général')))];
 
   // Calculate BMI
@@ -673,96 +687,188 @@ function App() {
   // Render Authentication Screen
   if (!isAuthenticated) {
     return (
-      <div className="auth-container">
+      <div className="auth-shell">
         <ToastContainer toasts={toasts} onDismiss={dismissToast} />
-        <div className={`glass-panel auth-card ${!isLoginMode ? 'auth-card-wide' : ''}`}>
-          <div className="logo">
-            <span className="logo-bolt">⚡</span>
-            <span className="logo-text">OVERLOADY</span>
+
+        <section className="auth-hero">
+          <div className="brand-group auth-brand">
+            <div className="brand-bolt">⚡</div>
+            <div className="brand-title">
+              OVERLOADY
+              <span className="brand-tag">PRO</span>
+            </div>
           </div>
-          <p className="subtitle">
-            {isLoginMode
-              ? 'Heureux de vous revoir ! Préparez votre prochaine surcharge progressive.'
-              : "Créez votre profil d'athlète et personnalisez votre programme d'entraînement."}
-          </p>
 
-          <form onSubmit={handleAuthSubmit}>
-            <div className="form-group">
-              <label>Adresse Email</label>
-              <input
-                type="email"
-                className="input-glass"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="votre.email@exemple.com"
-                required
-              />
-            </div>
-            <div className="form-group">
-              <label>Mot de passe</label>
-              <input
-                type="password"
-                className="input-glass"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-              />
+          <div className="auth-hero-body">
+            <span className="auth-eyebrow">Surcharge progressive</span>
+            <h1 className="auth-headline">
+              Chaque séance,<br />
+              <span>un cran plus loin.</span>
+            </h1>
+            <p className="auth-hero-text">
+              Suivez vos charges, laissez le coach IA calculer la prochaine étape et regardez vos records tomber.
+            </p>
+
+            <div className="auth-progress-chart" aria-hidden="true">
+              {[38, 46, 44, 55, 61, 58, 70, 78, 84, 96].map((h, i) => (
+                <div key={i} className="auth-progress-bar" style={{ height: `${h}%`, animationDelay: `${i * 60}ms` }} />
+              ))}
             </div>
 
-            {!isLoginMode && (
-              <div style={{ textAlign: 'left', marginTop: '1.25rem', marginBottom: '1.25rem' }}>
-                <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 600, fontSize: '0.9rem' }}>
-                  🎯 Choisissez votre programme d'entraînement
-                </label>
-                <p style={{ fontSize: '0.785rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
-                  Chaque séance suivante sera automatiquement recommandée pour progresser vers cet objectif :
-                </p>
+            <ul className="auth-features">
+              <li><span className="auth-feature-dot" />Charges cibles calculées automatiquement</li>
+              <li><span className="auth-feature-dot" />Programmes adaptés à votre objectif</li>
+              <li><span className="auth-feature-dot" />Records et progression en un coup d'œil</li>
+            </ul>
+          </div>
+        </section>
 
-                <div className="goal-selector-grid">
-                  {GOAL_OPTIONS.map((g) => (
-                    <div
-                      key={g.id}
-                      className={`goal-card-option ${g.className} ${signupGoal === g.id ? 'selected' : ''}`}
-                      onClick={() => setSignupGoal(g.id as any)}
-                    >
-                      <div className="goal-card-icon">{g.icon}</div>
-                      <div className="goal-card-content">
-                        <div className="goal-card-title">
-                          <span>{g.name}</span>
-                          {signupGoal === g.id && (
-                            <span style={{ fontSize: '0.75rem', color: 'var(--accent-orange)' }}>● Sélectionné</span>
-                          )}
-                        </div>
-                        <div className="goal-card-desc">{g.desc}</div>
-                        <div className="goal-card-specs">
-                          {g.badge} | ⏱ {g.rest}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+        <main className="auth-panel">
+          <div className="auth-card">
+            <div className="auth-tabs" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={isLoginMode}
+                className={isLoginMode ? 'active' : ''}
+                onClick={() => switchAuthMode(true)}
+              >
+                Connexion
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={!isLoginMode}
+                className={!isLoginMode ? 'active' : ''}
+                onClick={() => switchAuthMode(false)}
+              >
+                Inscription
+              </button>
+            </div>
+
+            <div className="auth-card-header">
+              <h2>{isLoginMode ? 'Bon retour 👋' : 'Créer un compte'}</h2>
+              <p>
+                {isLoginMode
+                  ? 'Connectez-vous pour reprendre votre progression.'
+                  : "Choisissez un identifiant et votre objectif, on s'occupe du reste."}
+              </p>
+            </div>
+
+            <form onSubmit={handleAuthSubmit} className="auth-form">
+              <div className="auth-field">
+                <label htmlFor="auth-username">Identifiant</label>
+                <div className="auth-input-wrap">
+                  <svg className="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="8" r="4" />
+                    <path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1" />
+                  </svg>
+                  <input
+                    id="auth-username"
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="ex. alex_lifts"
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    required
+                  />
                 </div>
+                {!isLoginMode && (
+                  <span className="auth-hint">3 à 24 caractères : lettres, chiffres, « . », « _ » ou « - ».</span>
+                )}
               </div>
-            )}
 
-            {authError && (
-              <div style={{ color: '#ff2a5f', marginBottom: '1rem', fontSize: '0.875rem' }}>
-                {authError}
+              <div className="auth-field">
+                <label htmlFor="auth-password">Mot de passe</label>
+                <div className="auth-input-wrap">
+                  <svg className="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <rect x="4" y="11" width="16" height="10" rx="2" />
+                    <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                  </svg>
+                  <input
+                    id="auth-password"
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    autoComplete={isLoginMode ? 'current-password' : 'new-password'}
+                    minLength={isLoginMode ? undefined : 6}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="auth-password-toggle"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                  >
+                    {showPassword ? (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 3l18 18" />
+                        <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+                        <path d="M9.9 5.1A10 10 0 0 1 12 5c6 0 10 7 10 7a17 17 0 0 1-3.2 3.9M6.6 6.6C3.8 8.3 2 12 2 12s4 7 10 7a9.6 9.6 0 0 0 5.4-1.6" />
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+                {!isLoginMode && <span className="auth-hint">6 caractères minimum.</span>}
               </div>
-            )}
 
-            <button type="submit" className="btn-neon" style={{ width: '100%', marginTop: '0.5rem' }}>
-              {isLoginMode ? 'Se Connecter' : 'Créer mon compte & Démarrer'}
-            </button>
-          </form>
+              {!isLoginMode && (
+                <div className="auth-field">
+                  <label>Votre objectif</label>
+                  <div className="auth-goal-grid">
+                    {GOAL_OPTIONS.map((g) => (
+                      <button
+                        type="button"
+                        key={g.id}
+                        className={`auth-goal-option ${signupGoal === g.id ? 'selected' : ''}`}
+                        onClick={() => setSignupGoal(g.id as any)}
+                      >
+                        <span className="auth-goal-icon">{g.icon}</span>
+                        <span className="auth-goal-name">{g.name.replace(/ \(.*\)/, '')}</span>
+                        <span className="auth-goal-badge">{g.badge.split(' • ')[0]}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <span className="auth-hint">
+                    {GOAL_OPTIONS.find((g) => g.id === signupGoal)?.desc}
+                  </span>
+                </div>
+              )}
 
-          <div className="auth-toggle">
-            {isLoginMode ? "Vous n'avez pas encore de compte ?" : 'Vous possédez déjà un compte ?'}
-            <span onClick={() => setIsLoginMode(!isLoginMode)}>
-              {isLoginMode ? "S'inscrire" : 'Se Connecter'}
-            </span>
+              {authError && (
+                <div className="auth-error" role="alert">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 8v4M12 16h.01" />
+                  </svg>
+                  <span>{authError}</span>
+                </div>
+              )}
+
+              <button type="submit" className="btn-neon auth-submit" disabled={isAuthLoading}>
+                {isAuthLoading && <span className="auth-spinner" aria-hidden="true" />}
+                {isLoginMode ? 'Se connecter' : 'Créer mon compte'}
+                {!isAuthLoading && <span aria-hidden="true">→</span>}
+              </button>
+            </form>
+
+            <p className="auth-switch">
+              {isLoginMode ? 'Pas encore de compte ?' : 'Déjà un compte ?'}
+              <button type="button" onClick={() => switchAuthMode(!isLoginMode)}>
+                {isLoginMode ? 'Créer un compte' : 'Se connecter'}
+              </button>
+            </p>
           </div>
-        </div>
+        </main>
       </div>
     );
   }
@@ -859,9 +965,9 @@ function App() {
             </button>
             <div className="user-pill-btn" onClick={() => setActiveTab('profile')}>
               <div className="user-avatar-mini">
-                {(profile.user?.email?.[0] || 'A').toUpperCase()}
+                {displayName[0].toUpperCase()}
               </div>
-              <span>{profile.user?.email?.split('@')[0] || 'Athlète'}</span>
+              <span>{displayName}</span>
               <span style={{ fontSize: '0.75rem', color: 'var(--accent-volt)' }}>
                 {profile.goal === 'FORCE' ? '🔴' : profile.goal === 'ENDURANCE' ? '🟢' : '🟣'}
               </span>
@@ -984,7 +1090,7 @@ function App() {
                       {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
                     </span>
                   </div>
-                  <h1>Bonjour, {profile.user?.email?.split('@')[0]} 👋</h1>
+                  <h1>Bonjour, {displayName} 👋</h1>
                   <p className="hero-subtitle">
                     Prêt pour votre prochaine séance ? Votre surcharge progressive est automatiquement calculée et prête à être exécutée.
                   </p>
@@ -1878,8 +1984,8 @@ function App() {
             <div className="glass-panel" style={{ maxWidth: '600px' }}>
               <form onSubmit={saveProfile}>
                 <div className="form-group">
-                  <label>Email du compte</label>
-                  <input type="email" value={profile.user?.email || ''} readOnly disabled style={{ opacity: 0.7 }} />
+                  <label>Identifiant du compte</label>
+                  <input type="text" value={profile.user?.username || ''} readOnly disabled style={{ opacity: 0.7 }} />
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
