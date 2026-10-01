@@ -55,6 +55,9 @@ const GOAL_OPTIONS = [
   },
 ];
 
+// The library holds ~900 exercises (wger import): cards are rendered in pages.
+const LIBRARY_PAGE_SIZE = 60;
+
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('token'));
   const [isLoginMode, setIsLoginMode] = useState(true);
@@ -121,6 +124,7 @@ function App() {
   // Exercise Library Filters
   const [exerciseSearch, setExerciseSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Tous');
+  const [libraryLimit, setLibraryLimit] = useState(LIBRARY_PAGE_SIZE);
 
   // Toasts
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -1606,10 +1610,16 @@ function App() {
                       <option value="" disabled>
                         Choisir un exercice parmi la bibliothèque...
                       </option>
-                      {exercises.map((ex) => (
-                        <option key={ex.id} value={ex.id}>
-                          {ex.name} [{ex.category || 'Général'}]
-                        </option>
+                      {allCategories.slice(1).map((cat) => (
+                        <optgroup key={cat} label={cat}>
+                          {exercises
+                            .filter((ex) => (ex.category || 'Général') === cat)
+                            .map((ex) => (
+                              <option key={ex.id} value={ex.id}>
+                                {ex.name}
+                              </option>
+                            ))}
+                        </optgroup>
                       ))}
                     </select>
 
@@ -1919,7 +1929,10 @@ function App() {
                 <button
                   key={cat}
                   className={`category-chip ${selectedCategory === cat ? 'active' : ''}`}
-                  onClick={() => setSelectedCategory(cat)}
+                  onClick={() => {
+                    setSelectedCategory(cat);
+                    setLibraryLimit(LIBRARY_PAGE_SIZE);
+                  }}
                 >
                   {cat}
                 </button>
@@ -1933,14 +1946,17 @@ function App() {
                 className="input-glass"
                 placeholder="🔍 Rechercher un exercice par nom..."
                 value={exerciseSearch}
-                onChange={(e) => setExerciseSearch(e.target.value)}
+                onChange={(e) => {
+                  setExerciseSearch(e.target.value);
+                  setLibraryLimit(LIBRARY_PAGE_SIZE);
+                }}
                 style={{ textAlign: 'left' }}
               />
             </div>
 
             {/* Exercise List */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
-              {filteredExercises.map((ex) => (
+              {filteredExercises.slice(0, libraryLimit).map((ex) => (
                 <div
                   key={ex.id}
                   className="glass-panel exercise-card"
@@ -1959,6 +1975,14 @@ function App() {
                 </div>
               ))}
             </div>
+
+            {filteredExercises.length > libraryLimit && (
+              <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
+                <button className="btn-secondary" onClick={() => setLibraryLimit((l) => l + LIBRARY_PAGE_SIZE)}>
+                  Afficher plus ({filteredExercises.length - libraryLimit} restants)
+                </button>
+              </div>
+            )}
 
             {filteredExercises.length === 0 && (
               <p style={{ color: 'var(--text-muted)', textAlign: 'center', marginTop: '2rem' }}>

@@ -59,6 +59,7 @@ model Exercise {
   wgerId    Int?          @unique
   name      String
   category  String        @default("Général")
+  source    String        @default("custom") // local | wger | custom
   routines  Routine[]
   logs      ExerciseLog[]
 }

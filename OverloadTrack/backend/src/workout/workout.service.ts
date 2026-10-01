@@ -566,6 +566,13 @@ export class WorkoutService {
     };
   }
 
+  // Local and custom exercises come first so name matching and fallbacks
+  // prefer the user's library over the wger import.
+  private async getExercisePool() {
+    const all = await this.prisma.exercise.findMany();
+    return [...all.filter((e) => e.source !== 'wger'), ...all.filter((e) => e.source === 'wger')];
+  }
+
   private findMatchingExercise(aiName: string, aiCategory: string, allExercises: any[]): any {
     if (!allExercises || allExercises.length === 0) return null;
     const cleanAi = (aiName || '').toLowerCase().trim();
@@ -627,7 +634,7 @@ export class WorkoutService {
       },
     });
 
-    const allExercises = await this.prisma.exercise.findMany();
+    const allExercises = await this.getExercisePool();
 
     const goalMetadata: Record<
       string,
@@ -714,7 +721,8 @@ export class WorkoutService {
         height: (profile as any)?.height || 178,
         benchmarks: testedBenchmarks,
         lastSession: lastSessionContext,
-        availableExercises: allExercises.map((e) => ({
+        // The wger import adds ~900 exercises: only the app library is offered to the AI.
+        availableExercises: allExercises.filter((e) => e.source !== 'wger').map((e) => ({
           id: e.id,
           name: e.name,
           category: (e as any).category || 'Général',
@@ -1577,7 +1585,7 @@ export class WorkoutService {
   async startTestWeekSession(userId: string, step: number) {
     const profile = await this.prisma.profile.findUnique({ where: { userId } });
     const goal = ((profile as any)?.goal || 'BODYBUILDING').toUpperCase();
-    const allExercises = await this.prisma.exercise.findMany();
+    const allExercises = await this.getExercisePool();
     const goalMeta = { label: goal };
     const rec = await this.generateTestWeekRecommendation(userId, goal, step, allExercises, goalMeta);
     return this.startRecommendedWorkout(userId, rec);

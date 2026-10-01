@@ -1,0 +1,110 @@
+export interface CatalogExercise {
+  name: string;
+  category: string;
+}
+
+// Built-in exercise library. The first 15 are the original defaults (their names are
+// referenced by the workout recommendation templates), the rest come from the Hevy export.
+export const DEFAULT_EXERCISES: CatalogExercise[] = [
+  { name: 'Bench Press (Barbell)', category: 'Pectoraux' },
+  { name: 'Squat (Barbell)', category: 'Jambes' },
+  { name: 'Deadlift (Barbell)', category: 'Dos' },
+  { name: 'Overhead Press (Dumbbell)', category: 'Épaules' },
+  { name: 'Pull-up', category: 'Dos' },
+  { name: 'Barbell Row', category: 'Dos' },
+  { name: 'Leg Press', category: 'Jambes' },
+  { name: 'Bicep Curl (Dumbbell)', category: 'Bras' },
+  { name: 'Tricep Extension (Cable)', category: 'Bras' },
+  { name: 'Lat Pulldown (Cable)', category: 'Dos' },
+  { name: 'Incline Dumbbell Press', category: 'Pectoraux' },
+  { name: 'Romanian Deadlift', category: 'Jambes' },
+  { name: 'Lateral Raise (Dumbbell)', category: 'Épaules' },
+  { name: 'Dips (Chest / Triceps)', category: 'Pectoraux' },
+  { name: 'Cable Crunch / Abs', category: 'Abdominaux' },
+
+  // Pectoraux
+  { name: 'Bench Press (Dumbbell)', category: 'Pectoraux' },
+  { name: 'Bench Press - Close Grip (Barbell)', category: 'Pectoraux' },
+  { name: 'Incline Bench Press (Barbell)', category: 'Pectoraux' },
+  { name: 'Incline Bench Press (Dumbbell)', category: 'Pectoraux' },
+  { name: 'Incline Bench Press (Smith Machine)', category: 'Pectoraux' },
+  { name: 'Chest Press (Machine)', category: 'Pectoraux' },
+  { name: 'Incline Chest Press (Machine)', category: 'Pectoraux' },
+  { name: 'Iso-Lateral Chest Press (Machine)', category: 'Pectoraux' },
+  { name: 'Butterfly (Pec Deck)', category: 'Pectoraux' },
+  { name: 'Pullover (Dumbbell)', category: 'Pectoraux' },
+
+  // Dos
+  { name: 'Pull Up', category: 'Dos' },
+  { name: 'Pull Up (Band)', category: 'Dos' },
+  { name: 'Chin Up (Assisted)', category: 'Dos' },
+  { name: 'Lat Pulldown (Machine)', category: 'Dos' },
+  { name: 'Lat Pulldown - Close Grip (Cable)', category: 'Dos' },
+  { name: 'Reverse Grip Lat Pulldown (Cable)', category: 'Dos' },
+  { name: 'Straight Arm Lat Pulldown (Cable)', category: 'Dos' },
+  { name: 'Seated Row (Machine)', category: 'Dos' },
+  { name: 'Seated Cable Row - V Grip (Cable)', category: 'Dos' },
+  { name: 'Single Arm Cable Row', category: 'Dos' },
+  { name: 'Iso-Lateral Row (Machine)', category: 'Dos' },
+  { name: 'Iso-Lateral High Row (Machine)', category: 'Dos' },
+  { name: 'Bent Over Row (Barbell)', category: 'Dos' },
+  { name: 'Dumbbell Row', category: 'Dos' },
+  { name: 'Back Extension (Weighted Hyperextension)', category: 'Dos' },
+
+  // Épaules
+  { name: 'Shoulder Press (Dumbbell)', category: 'Épaules' },
+  { name: 'Seated Shoulder Press (Machine)', category: 'Épaules' },
+  { name: 'Arnold Press (Dumbbell)', category: 'Épaules' },
+  { name: 'Lateral Raise (Cable)', category: 'Épaules' },
+  { name: 'Single Arm Lateral Raise (Cable)', category: 'Épaules' },
+  { name: 'Rear Delt Reverse Fly (Cable)', category: 'Épaules' },
+  { name: 'Rear Delt Reverse Fly (Machine)', category: 'Épaules' },
+  { name: 'Reverse Fly Single Arm (Cable)', category: 'Épaules' },
+  { name: 'Chest Supported Reverse Fly (Dumbbell)', category: 'Épaules' },
+  { name: 'Chest Supported Y Raise (Dumbbell)', category: 'Épaules' },
+  { name: 'Face Pull', category: 'Épaules' },
+
+  // Bras (biceps, triceps, avant-bras)
+  { name: 'Bicep Curl (Cable)', category: 'Bras' },
+  { name: 'Bayesian curl (poulie)', category: 'Bras' },
+  { name: 'Hammer Curl (Cable)', category: 'Bras' },
+  { name: 'Hammer Curl (Dumbbell)', category: 'Bras' },
+  { name: 'Seated Incline Curl (Dumbbell)', category: 'Bras' },
+  { name: 'Preacher Curl (Machine)', category: 'Bras' },
+  { name: 'Spider Curl (Barbell)', category: 'Bras' },
+  { name: 'EZ Bar Biceps Curl', category: 'Bras' },
+  { name: 'Reverse Curl (Barbell)', category: 'Bras' },
+  { name: 'Triceps Pushdown', category: 'Bras' },
+  { name: 'Triceps Extension (Cable)', category: 'Bras' },
+  { name: 'Overhead Triceps Extension (Cable)', category: 'Bras' },
+  { name: 'Skullcrusher (Barbell)', category: 'Bras' },
+  { name: 'Triceps Dip', category: 'Bras' },
+  { name: 'Seated Palms Up Wrist Curl', category: 'Bras' },
+  { name: 'Seated Wrist Extension (Barbell)', category: 'Bras' },
+  { name: 'Behind the Back Wrist Curl (Barbell)', category: 'Bras' },
+
+  // Jambes
+  { name: 'Squat (Smith Machine)', category: 'Jambes' },
+  { name: 'Hack Squat (Machine)', category: 'Jambes' },
+  { name: 'Leg Press (Machine)', category: 'Jambes' },
+  { name: 'Leg Extension (Machine)', category: 'Jambes' },
+  { name: 'Seated Leg Curl (Machine)', category: 'Jambes' },
+  { name: 'Lying Leg Curl (Machine)', category: 'Jambes' },
+  { name: 'Hip Abduction (Machine)', category: 'Jambes' },
+  { name: 'Hip Adduction (Machine)', category: 'Jambes' },
+  { name: 'Romanian Deadlift (Barbell)', category: 'Jambes' },
+  { name: 'Romanian Deadlift (Dumbbell)', category: 'Jambes' },
+  { name: 'Lunge (Barbell)', category: 'Jambes' },
+  { name: 'Reverse Lunge (Barbell)', category: 'Jambes' },
+  { name: 'Walking Lunge (Dumbbell)', category: 'Jambes' },
+
+  // Abdominaux
+  { name: 'Cable Crunch', category: 'Abdominaux' },
+  { name: 'Oblique crunch poulie', category: 'Abdominaux' },
+  { name: 'Ab Wheel', category: 'Abdominaux' },
+  { name: 'Plank', category: 'Abdominaux' },
+  { name: 'Hanging Leg Raise', category: 'Abdominaux' },
+  { name: 'Hanging Knee Raise', category: 'Abdominaux' },
+  { name: 'Leg Raise Parallel Bars', category: 'Abdominaux' },
+  { name: 'Knee Raise Parallel Bars', category: 'Abdominaux' },
+];
