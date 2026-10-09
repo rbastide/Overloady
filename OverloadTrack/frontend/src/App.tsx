@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import api from './api';
+import api, { hasValidToken, onUnauthorized } from './api';
 import './App.css';
 import './shell.css';
 import './components.css';
@@ -76,7 +76,7 @@ const HERO_PROGRAMS_MAX = 6;
 const HERO_PROGRAMS_MOBILE = 3;
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('token'));
+  const [isAuthenticated, setIsAuthenticated] = useState(hasValidToken);
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -226,6 +226,11 @@ function App() {
       // Allow a retry the next time this exercise is opened.
       .catch(() => requestedStats.current.delete(activeExerciseId));
   }, [activeExerciseId]);
+
+  // Expired or rejected session: straight back to the login page.
+  useEffect(() => {
+    onUnauthorized(() => handleLogout());
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated) {
