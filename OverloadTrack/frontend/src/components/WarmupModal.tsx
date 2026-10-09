@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api';
+import { Icon } from './Icons';
 
 interface WarmupSet {
   setNumber: number;
@@ -64,12 +65,14 @@ export const WarmupModal: React.FC<WarmupModalProps> = ({
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="glass-panel modal-card" onClick={(e) => e.stopPropagation()}>
-        <div className="flex-between" style={{ marginBottom: '1.25rem' }}>
+        <div className="modal-head">
           <div>
-            <h2>🔥 Protocole d'Échauffement</h2>
-            <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{exerciseName}</span>
+            <h2>Protocole d'Échauffement</h2>
+            <p>{exerciseName}</p>
           </div>
-          <button className="btn-icon" onClick={onClose}>✕</button>
+          <button className="btn-icon" onClick={onClose} aria-label="Fermer">
+            <Icon name="close" size={20} />
+          </button>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
@@ -121,11 +124,9 @@ export const WarmupModal: React.FC<WarmupModalProps> = ({
                 {warmupSets.map((s, idx) => (
                   <tr key={idx}>
                     <td>
-                      <span className="badge-pill" style={{ background: 'rgba(255, 94, 58, 0.2)' }}>
-                        #{s.setNumber}
-                      </span>
+                      <span className="badge-pill">#{s.setNumber}</span>
                     </td>
-                    <td style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--accent-orange)' }}>
+                    <td style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--accent-text)' }}>
                       {s.weight} kg
                     </td>
                     <td style={{ fontWeight: 600 }}>{s.reps}</td>
@@ -138,12 +139,13 @@ export const WarmupModal: React.FC<WarmupModalProps> = ({
         )}
 
         <button
-          className="btn-neon"
+          className="btn-primary"
           style={{ width: '100%' }}
           onClick={handleApply}
           disabled={warmupSets.length === 0}
         >
-          ⚡ Injecter l'échauffement dans la séance
+          <Icon name="flame" size={18} />
+          Injecter l'échauffement dans la séance
         </button>
       </div>
     </div>

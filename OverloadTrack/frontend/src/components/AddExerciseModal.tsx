@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import api from '../api';
+import { Icon } from './Icons';
 
 interface AddExerciseModalProps {
   isOpen: boolean;
@@ -48,9 +49,11 @@ export const AddExerciseModal: React.FC<AddExerciseModalProps> = ({ isOpen, onCl
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="glass-panel modal-card" onClick={(e) => e.stopPropagation()}>
-        <div className="flex-between" style={{ marginBottom: '1.5rem' }}>
+        <div className="modal-head">
           <h2>Nouvel Exercice</h2>
-          <button className="btn-icon" onClick={onClose}>✕</button>
+          <button className="btn-icon" onClick={onClose} aria-label="Fermer">
+            <Icon name="close" size={20} />
+          </button>
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -79,9 +82,9 @@ export const AddExerciseModal: React.FC<AddExerciseModalProps> = ({ isOpen, onCl
             </select>
           </div>
 
-          {error && <div style={{ color: '#ff2a5f', fontSize: '0.875rem', marginBottom: '1rem' }}>{error}</div>}
+          {error && <div className="form-error">{error}</div>}
 
-          <button type="submit" className="btn-neon" style={{ width: '100%' }} disabled={loading}>
+          <button type="submit" className="btn-primary" style={{ width: '100%' }} disabled={loading}>
             {loading ? 'Création...' : '+ Créer l\'exercice'}
           </button>
         </form>

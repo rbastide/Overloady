@@ -13,6 +13,9 @@ export const EQUIPMENT_LABELS: Record<Equipment, string> = {
   bodyweight: 'Poids du corps',
 };
 
+/** Olympic plates (kg), heaviest first. */
+export const BAR_PLATES = [25, 20, 15, 10, 5, 2.5, 1.25];
+
 /** Default rounding step (kg) for each equipment: the smallest jump you can really make. */
 export const DEFAULT_STEP: Record<Equipment, number> = {
   barbell: 2.5,

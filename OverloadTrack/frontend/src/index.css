@@ -1,61 +1,68 @@
 :root {
   /* ==========================================================================
-     OVERLOADY TITANIUM & VOLT DESIGN SYSTEM
-     High-End Performance Athletics • Bento Architecture
+     OVERLOADY — AURA BRONZE EDITORIAL DESIGN SYSTEM
+     Warm obsidian surfaces · solar amber accent · patina jade for recovery & progress
+     Syne for display & metrics · Hanken Grotesk for interface & data
      ========================================================================== */
 
-  /* Dark Titanium Canvas */
-  --bg-base: #060709;
-  --bg-surface: #0c0e14;
-  --bg-card: rgba(16, 20, 29, 0.65);
-  --bg-card-hover: rgba(22, 28, 42, 0.85);
-  --bg-card-solid: #111520;
-  --bg-inset: rgba(0, 0, 0, 0.45);
+  /* Surfaces: tonal stacking, the lighter the surface the more interactive it is */
+  --bg-canvas: #0e0d0f;
+  --bg-base: #141315;
+  --bg-sidebar: #1c1b1d;
+  --bg-card: #18171a;
+  --bg-card-hover: #1e1d21;
+  --bg-raised: #222025;
+  --bg-raised-hover: #2b292c;
+  --bg-inset: #100f12;
 
-  /* Performance Electric Accents */
-  --accent-volt: #ccff00;
-  --accent-volt-hover: #b8e600;
-  --accent-volt-glow: 0 0 28px rgba(204, 255, 0, 0.35);
-  --accent-volt-subtle: rgba(204, 255, 0, 0.08);
+  /* Hairlines replace heavy strokes and drop shadows */
+  --line: rgba(246, 243, 237, 0.07);
+  --line-strong: rgba(246, 243, 237, 0.12);
+  --line-warm: rgba(157, 143, 124, 0.18);
 
-  --accent-cyan: #00f0ff;
-  --accent-cyan-glow: 0 0 24px rgba(0, 240, 255, 0.3);
-  
-  --accent-purple: #b55fe6;
-  --accent-purple-glow: 0 0 24px rgba(181, 95, 230, 0.3);
+  /* Solar amber: primary actions, active states, milestones */
+  --accent: #e5a93c;
+  --accent-bright: #f4bd5f;
+  --accent-text: #ffc665;
+  --accent-deep: #704812;
+  --accent-ink: #0e0d0f;
+  --accent-soft: rgba(229, 169, 60, 0.1);
+  --accent-line: rgba(229, 169, 60, 0.32);
+  --accent-gradient: linear-gradient(135deg, var(--accent) 0%, var(--accent-bright) 100%);
+  --accent-halo: 0 12px 32px -8px rgba(229, 169, 60, 0.3);
 
-  --accent-coral: #ff3366;
-  --accent-coral-glow: 0 0 24px rgba(255, 51, 102, 0.3);
+  /* Patina jade: recovery, completed work, progression */
+  --jade: #5e8375;
+  --jade-text: #b9d6c8;
+  --jade-soft: rgba(94, 131, 117, 0.16);
+  --jade-line: rgba(94, 131, 117, 0.45);
 
-  --accent-emerald: #10b981;
+  /* Errors and destructive actions */
+  --danger: #ffb4ab;
+  --danger-soft: rgba(255, 180, 171, 0.08);
+  --danger-line: rgba(255, 180, 171, 0.3);
 
-  /* Typography & Grayscale */
-  --text-main: #ffffff;
-  --text-secondary: #e2e8f0;
-  --text-muted: #94a3b8;
-  --text-dim: #64748b;
+  /* Ink: alabaster, parchment, charcoal */
+  --text-main: #f6f3ed;
+  --text-secondary: #e6e1e4;
+  --text-muted: #c9c4bc;
+  --text-dim: #8a847d;
 
-  /* Glassmorphism & Depth */
-  --glass-border: 1px solid rgba(255, 255, 255, 0.08);
-  --glass-border-light: 1px solid rgba(255, 255, 255, 0.14);
-  --glass-border-volt: 1px solid rgba(204, 255, 0, 0.4);
-  --glass-shadow: 0 16px 40px -10px rgba(0, 0, 0, 0.6);
-  --glass-shadow-volt: 0 12px 35px -5px rgba(204, 255, 0, 0.15);
-  --blur-amount: blur(20px);
+  --shadow-card: 0 18px 40px -24px rgba(0, 0, 0, 0.75);
+  --shadow-pop: 0 30px 70px -20px rgba(0, 0, 0, 0.8);
 
-  /* Radii */
-  --radius-xs: 6px;
-  --radius-sm: 10px;
-  --radius-md: 14px;
-  --radius-lg: 20px;
-  --radius-xl: 28px;
+  /* Chiseled data frames, soft cards, pills only for tags and floating triggers */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
   --radius-pill: 9999px;
 
-  /* Fonts */
-  --font-brand: 'Syne', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-heading: 'Space Grotesk', 'Outfit', sans-serif;
-  --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  --font-display: 'Syne', 'Hanken Grotesk', system-ui, sans-serif;
+  --font-body: 'Hanken Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
   font-family: var(--font-body);
   line-height: 1.5;
@@ -83,50 +90,60 @@ body {
   min-height: 100vh;
   position: relative;
   overflow-x: hidden;
+  /* A whisper of warmth instead of a flat black */
   background-image:
-    radial-gradient(circle at 15% 10%, rgba(204, 255, 0, 0.07) 0%, transparent 40%),
-    radial-gradient(circle at 85% 80%, rgba(0, 240, 255, 0.06) 0%, transparent 45%),
-    radial-gradient(circle at 50% 40%, rgba(181, 95, 230, 0.04) 0%, transparent 60%);
+    radial-gradient(ellipse 55% 45% at 88% -8%, rgba(229, 169, 60, 0.07), transparent 65%),
+    radial-gradient(ellipse 45% 40% at 4% 104%, rgba(112, 72, 18, 0.12), transparent 65%);
   background-attachment: fixed;
 }
 
-/* Ambient Tactical Grid */
-body::before {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background-image: linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-                    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
-  background-size: 40px 40px;
-  pointer-events: none;
-  z-index: 0;
-}
-
 h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-heading);
-  letter-spacing: -0.03em;
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
   color: var(--text-main);
+}
+
+h4,
+h5,
+h6 {
+  font-family: var(--font-body);
   font-weight: 700;
+  letter-spacing: 0;
 }
 
-/* Glass Panels */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--accent);
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* Focus: a 1px amber stroke, no layout shift */
+:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Cards: matte graphite, warm hairline, no glass */
 .glass-panel {
-  background: var(--bg-card);
-  backdrop-filter: var(--blur-amount);
-  -webkit-backdrop-filter: var(--blur-amount);
-  border: var(--glass-border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--glass-shadow);
-  padding: 1.75rem;
   position: relative;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.glass-panel:hover {
-  border-color: rgba(255, 255, 255, 0.14);
+  padding: 1.5rem;
+  background: var(--bg-card);
+  border: 1px solid var(--line-warm);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
 }
 
 .flex-center {
@@ -141,39 +158,51 @@ h1, h2, h3, h4, h5, h6 {
   justify-content: space-between;
 }
 
-/* Custom Scrollbar */
+/* Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: rgba(6, 7, 9, 0.5);
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(246, 243, 237, 0.12);
   border-radius: var(--radius-pill);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--accent-volt);
+  background: var(--accent-deep);
 }
 
 /* Animations */
 @keyframes bentoEntrance {
   from {
     opacity: 0;
-    transform: translateY(16px) scale(0.99);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
   }
 }
 
-@keyframes voltPulse {
-  0%, 100% {
-    box-shadow: 0 0 15px rgba(204, 255, 0, 0.3);
+@keyframes amberPing {
+  0% {
+    box-shadow: 0 0 0 0 rgba(229, 169, 60, 0.55);
   }
-  50% {
-    box-shadow: 0 0 30px rgba(204, 255, 0, 0.6);
+  80%,
+  100% {
+    box-shadow: 0 0 0 6px rgba(229, 169, 60, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

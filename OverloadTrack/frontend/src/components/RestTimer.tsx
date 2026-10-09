@@ -1,10 +1,17 @@
 import React, { useState, useEffect } from 'react';
+import { Icon } from './Icons';
 
 interface RestTimerProps {
-  onTimerEnd?: () => void;
-  autoStartSeconds?: number | null;
+  /** Rest duration the timer opens with (seconds). */
+  initialSeconds: number;
+  /** Count down right away, e.g. when a set has just been validated. */
+  autoStart?: boolean;
+  /** A preset was picked: the next automatic rest reuses it. */
+  onDurationChange?: (seconds: number) => void;
   onClose?: () => void;
 }
+
+const PRESETS = [30, 60, 90, 120, 180];
 
 const playBeep = () => {
   try {
@@ -26,18 +33,16 @@ const playBeep = () => {
   }
 };
 
-export const RestTimer: React.FC<RestTimerProps> = ({ autoStartSeconds, onClose }) => {
-  const [initialDuration, setInitialDuration] = useState(90);
-  const [timeLeft, setTimeLeft] = useState(90);
-  const [isRunning, setIsRunning] = useState(false);
+const formatTime = (seconds: number) => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
+};
 
-  useEffect(() => {
-    if (autoStartSeconds && autoStartSeconds > 0) {
-      setInitialDuration(autoStartSeconds);
-      setTimeLeft(autoStartSeconds);
-      setIsRunning(true);
-    }
-  }, [autoStartSeconds]);
+export const RestTimer: React.FC<RestTimerProps> = ({ initialSeconds, autoStart = false, onDurationChange, onClose }) => {
+  const [initialDuration, setInitialDuration] = useState(initialSeconds);
+  const [timeLeft, setTimeLeft] = useState(initialSeconds);
+  const [isRunning, setIsRunning] = useState(autoStart);
 
   useEffect(() => {
     let interval: any = null;
@@ -60,71 +65,89 @@ export const RestTimer: React.FC<RestTimerProps> = ({ autoStartSeconds, onClose 
     setInitialDuration(sec);
     setTimeLeft(sec);
     setIsRunning(true);
+    onDurationChange?.(sec);
   };
 
   const adjustTime = (sec: number) => {
     setTimeLeft((prev) => Math.max(0, prev + sec));
   };
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  const toggle = () => {
+    if (timeLeft === 0) {
+      startWith(initialDuration);
+    } else {
+      setIsRunning(!isRunning);
+    }
   };
 
-  const progressPercent = initialDuration > 0 ? ((initialDuration - timeLeft) / initialDuration) * 100 : 0;
+  const isEnded = timeLeft === 0;
+  const progressPercent = initialDuration > 0 ? Math.min(100, ((initialDuration - timeLeft) / initialDuration) * 100) : 0;
+  const toggleLabel = isRunning ? 'Pause' : isEnded ? 'Relancer' : timeLeft === initialDuration ? 'Démarrer' : 'Reprendre';
 
   return (
-    <div className="rest-timer-bar glass-panel">
-      <div className="timer-header flex-between">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span style={{ fontSize: '1.25rem' }}>⏱️</span>
-          <strong>Chronomètre de repos</strong>
+    <section className={`rest-timer${isEnded ? ' is-ended' : ''}`} aria-label="Chronomètre de repos">
+      <div className="rest-timer-main">
+        <span className="rest-icon" aria-hidden="true">
+          <Icon name="hourglass" size={24} />
+        </span>
+        <div>
+          <div className="rest-kicker">
+            <strong>{isEnded ? 'Repos terminé' : 'Repos actif'}</strong>
+            <span>· Cible {formatTime(initialDuration)}</span>
+          </div>
+          <div className="rest-clock" role="timer" aria-live="off">
+            <span className="rest-time">{formatTime(timeLeft)}</span>
+            <span className="rest-state">{isEnded ? "C'est reparti" : isRunning ? 'restant' : 'en pause'}</span>
+          </div>
         </div>
+      </div>
+
+      <div className="rest-progress">
+        <div
+          className="rest-track"
+          role="progressbar"
+          aria-label="Récupération"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(progressPercent)}
+        >
+          <div className="rest-fill" style={{ width: `${progressPercent}%` }} />
+        </div>
+        <div className="rest-meta">
+          <div className="rest-presets" role="group" aria-label="Durée du repos">
+            {PRESETS.map((sec) => (
+              <button
+                key={sec}
+                type="button"
+                className={`rest-preset ${initialDuration === sec ? 'active' : ''}`}
+                onClick={() => startWith(sec)}
+              >
+                {formatTime(sec)}
+              </button>
+            ))}
+          </div>
+          <span className="rest-recovered">{Math.round(progressPercent)}% récupéré</span>
+        </div>
+      </div>
+
+      <div className="rest-controls">
+        <button type="button" className="rest-btn is-text" onClick={() => adjustTime(-15)}>
+          <span>-15s</span>
+        </button>
+        <button type="button" className="rest-btn is-text" onClick={() => adjustTime(15)}>
+          <span>+15s</span>
+        </button>
+        <button type="button" className="rest-btn is-primary" onClick={toggle} aria-label={toggleLabel} title={toggleLabel}>
+          <Icon name={isRunning ? 'pause' : 'play'} size={18} filled={!isRunning} strokeWidth={isRunning ? 2.4 : 1.5} />
+          <span>{toggleLabel}</span>
+        </button>
         {onClose && (
-          <button className="btn-icon" onClick={onClose} title="Masquer le timer">
-            ✕
+          <button type="button" className="rest-btn" onClick={onClose} aria-label="Passer le repos" title="Passer le repos">
+            <span>Passer</span>
+            <Icon name="skipNext" size={18} filled strokeWidth={1.5} />
           </button>
         )}
       </div>
-
-      <div className="timer-display flex-between" style={{ margin: '0.75rem 0' }}>
-        <div className={`timer-clock ${timeLeft === 0 ? 'timer-ended' : ''}`}>
-          {formatTime(timeLeft)}
-        </div>
-        <div className="timer-controls">
-          <button className="btn-small" onClick={() => adjustTime(-15)}>-15s</button>
-          <button 
-            className={`btn-small ${isRunning ? 'btn-active' : ''}`}
-            onClick={() => setIsRunning(!isRunning)}
-          >
-            {isRunning ? 'Pause' : timeLeft === 0 ? 'Relancer' : 'Démarrer'}
-          </button>
-          <button className="btn-small" onClick={() => adjustTime(+15)}>+15s</button>
-          <button className="btn-small btn-danger" onClick={() => { setIsRunning(false); setTimeLeft(initialDuration); }}>
-            Reset
-          </button>
-        </div>
-      </div>
-
-      <div className="timer-progress-track">
-        <div 
-          className="timer-progress-bar" 
-          style={{ width: `${Math.min(100, progressPercent)}%` }} 
-        />
-      </div>
-
-      <div className="timer-presets">
-        {[30, 60, 90, 120, 180].map((sec) => (
-          <button
-            key={sec}
-            className={`preset-btn ${initialDuration === sec ? 'active' : ''}`}
-            onClick={() => startWith(sec)}
-          >
-            {sec >= 60 ? `${sec / 60}m` : `${sec}s`}
-          </button>
-        ))}
-      </div>
-    </div>
+    </section>
   );
 };

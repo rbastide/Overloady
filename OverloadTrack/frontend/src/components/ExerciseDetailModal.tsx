@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api';
+import { Icon } from './Icons';
 
 interface ExerciseDetailModalProps {
   exerciseId: string | null;
@@ -42,7 +43,9 @@ export const ExerciseDetailModal: React.FC<ExerciseDetailModalProps> = ({
             <h2>{stats?.exercise?.name || 'Détails Exercice'}</h2>
             <span className="badge-category">{stats?.exercise?.category || 'Général'}</span>
           </div>
-          <button className="btn-icon" onClick={onClose}>✕</button>
+          <button className="btn-icon" onClick={onClose} aria-label="Fermer">
+            <Icon name="close" size={20} />
+          </button>
         </div>
 
         {loading ? (
@@ -55,26 +58,28 @@ export const ExerciseDetailModal: React.FC<ExerciseDetailModalProps> = ({
             <div className="dashboard-grid" style={{ marginBottom: '1.5rem', gridTemplateColumns: '1fr 1fr' }}>
               <div className="glass-panel stat-card" style={{ padding: '1rem' }}>
                 <h3>Record Max (PR)</h3>
-                <div className="value" style={{ color: 'var(--accent-orange)' }}>
+                <div className="value is-accent">
                   {stats.maxWeight > 0 ? `${stats.maxWeight} kg` : '-'}
                 </div>
               </div>
               <div className="glass-panel stat-card" style={{ padding: '1rem' }}>
                 <h3>1RM Estimé</h3>
-                <div className="value" style={{ color: 'var(--accent-purple)' }}>
+                <div className="value is-jade">
                   {stats.maxEstimated1RM > 0 ? `${stats.maxEstimated1RM} kg` : '-'}
                 </div>
               </div>
             </div>
 
             {/* Progressive Overload Recommendation */}
-            <div className="highlight-box" style={{ marginBottom: '1.5rem', borderLeft: '4px solid var(--accent-green)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                <span style={{ fontSize: '1.25rem' }}>🎯</span>
-                <strong style={{ color: 'var(--accent-green)' }}>Surcharge Progressive Recommandée</strong>
-              </div>
-              <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>
-                {stats.recommendedOverload.reason}
+            <div className="engine-banner" style={{ marginBottom: '1.5rem' }}>
+              <span className="engine-icon" aria-hidden="true">
+                <Icon name="target" size={22} />
+              </span>
+              <div className="engine-text">
+                <div className="engine-kicker">
+                  <strong>Surcharge Progressive Recommandée</strong>
+                </div>
+                <p>{stats.recommendedOverload.reason}</p>
               </div>
             </div>
 
@@ -96,7 +101,7 @@ export const ExerciseDetailModal: React.FC<ExerciseDetailModalProps> = ({
                       <tr key={i}>
                         <td style={{ color: 'var(--text-muted)' }}>{pt.date}</td>
                         <td style={{ fontWeight: 600 }}>{pt.maxWeight} kg</td>
-                        <td style={{ color: 'var(--accent-purple)' }}>{pt.estimated1RM} kg</td>
+                        <td style={{ color: 'var(--jade-text)' }}>{pt.estimated1RM} kg</td>
                         <td>{pt.totalVolume} kg</td>
                       </tr>
                     ))}
@@ -111,7 +116,7 @@ export const ExerciseDetailModal: React.FC<ExerciseDetailModalProps> = ({
 
             {isWorkoutActive && onAddToWorkout && (
               <button
-                className="btn-neon"
+                className="btn-primary"
                 style={{ width: '100%', marginTop: '1.5rem' }}
                 onClick={() => {
                   onAddToWorkout(stats.exercise);

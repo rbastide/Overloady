@@ -191,7 +191,7 @@ export const CoachChat: React.FC<CoachChatProps> = ({ onStartWorkout, onSaveRout
                   </ol>
                   <div className="coach-workout-actions">
                     <button
-                      className="btn-neon"
+                      className="btn-primary"
                       disabled={busyCard !== null}
                       onClick={() => runCardAction(`${key}-start`, () => onStartWorkout(w))}
                     >

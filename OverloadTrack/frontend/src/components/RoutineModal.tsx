@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import api from '../api';
+import { Icon } from './Icons';
 
 interface RoutineModalProps {
   isOpen: boolean;
@@ -127,9 +128,11 @@ export const RoutineModal: React.FC<RoutineModalProps> = ({ isOpen, onClose, exe
   return (
     <div className="modal-backdrop" onClick={close}>
       <div className="glass-panel modal-card routine-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="flex-between" style={{ marginBottom: '1.25rem' }}>
+        <div className="modal-head">
           <h2>Créer un programme</h2>
-          <button className="btn-icon" onClick={close} aria-label="Fermer">✕</button>
+          <button className="btn-icon" onClick={close} aria-label="Fermer">
+            <Icon name="close" size={20} />
+          </button>
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -232,9 +235,9 @@ export const RoutineModal: React.FC<RoutineModalProps> = ({ isOpen, onClose, exe
             </div>
           </div>
 
-          {error && <div style={{ color: '#ff2a5f', fontSize: '0.875rem', marginBottom: '1rem' }}>{error}</div>}
+          {error && <div className="form-error">{error}</div>}
 
-          <button type="submit" className="btn-neon" style={{ width: '100%', marginTop: '0.5rem' }} disabled={loading}>
+          <button type="submit" className="btn-primary" style={{ width: '100%', marginTop: '0.5rem' }} disabled={loading}>
             {loading
               ? 'Enregistrement...'
               : `Enregistrer le programme${selectedExerciseIds.length ? ` (${selectedExerciseIds.length})` : ''}`}

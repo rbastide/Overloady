@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  BAR_PLATES,
   DEFAULT_STEP,
   EQUIPMENT_LABELS,
   REP_TARGETS,
@@ -14,6 +15,7 @@ import {
   type Equipment,
   type MovementKind,
 } from '../lib/loadMath';
+import { Icon } from './Icons';
 
 interface PlateCalculatorModalProps {
   isOpen: boolean;
@@ -27,7 +29,6 @@ interface PlateCalculatorModalProps {
   bodyWeight?: number;
 }
 
-const BAR_PLATES = [25, 20, 15, 10, 5, 2.5, 1.25];
 const BELT_PLATES = [20, 15, 10, 5, 2.5, 1.25];
 const PLATE_COLORS: Record<number, string> = {
   25: '#e63946',
@@ -168,9 +169,11 @@ export const PlateCalculatorModal: React.FC<PlateCalculatorModalProps> = ({
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="glass-panel modal-card calc-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="flex-between" style={{ marginBottom: '1.25rem' }}>
+        <div className="modal-head">
           <h2>Calculatrice de charge</h2>
-          <button className="btn-icon" onClick={onClose} aria-label="Fermer">✕</button>
+          <button className="btn-icon" onClick={onClose} aria-label="Fermer">
+            <Icon name="close" size={20} />
+          </button>
         </div>
 
         {/* Movement */}

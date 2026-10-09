@@ -5,6 +5,7 @@ import {
   toAthleteProfileValue,
   type AthleteProfileValue,
 } from './AthleteProfileFields';
+import { Icon } from './Icons';
 
 interface ExercisePlan {
   name: string;
@@ -85,7 +86,10 @@ const CalibrationProfile: React.FC<{
     <div className="calibration-profile">
       <div className="calibration-profile-head">
         <div>
-          <div className="calibration-profile-title">👤 Ton profil de calibration</div>
+          <div className="calibration-profile-title">
+            <Icon name="user" size={17} />
+            Ton profil de calibration
+          </div>
           <div className="calibration-profile-summary">{summary}</div>
         </div>
         {!isEditing && (
@@ -105,7 +109,7 @@ const CalibrationProfile: React.FC<{
             <button type="button" className="btn-secondary" onClick={() => setIsEditing(false)} disabled={isSaving}>
               Annuler
             </button>
-            <button type="button" className="btn-neon" onClick={save} disabled={isSaving}>
+            <button type="button" className="btn-primary" onClick={save} disabled={isSaving}>
               {isSaving ? 'Enregistrement...' : 'Enregistrer et recalculer'}
             </button>
           </div>
@@ -140,49 +144,37 @@ export const TestWeekModal: React.FC<TestWeekModalProps> = ({
         {/* Header */}
         <div className="modal-header" style={{ alignItems: 'flex-start' }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
-              <span style={{ fontSize: '1.4rem' }}>🧪</span>
-              <span className="badge-pill" style={{ color: 'var(--accent-cyan)', borderColor: 'rgba(0, 240, 255, 0.4)' }}>
+            <div className="test-modal-tags">
+              <span className="badge-pill">
+                <Icon name="flask" size={13} />
                 PROTOCOLE DE CALIBRATION ATHLÈTE
               </span>
-              <span className="badge-pill" style={{ color: 'var(--accent-volt)', borderColor: 'rgba(204, 255, 0, 0.4)' }}>
-                OBJECTIF : {status.goal}
-              </span>
+              <span className="badge-pill is-jade">OBJECTIF : {status.goal}</span>
             </div>
-            <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 900 }}>
-              Semaine Test d'Évaluation & Calibration
-            </h2>
-            <p style={{ margin: '0.35rem 0 0', color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: 1.4 }}>
+            <h2 className="test-modal-title">Semaine Test d'Évaluation & Calibration</h2>
+            <p className="test-modal-intro">
               3 séances stratégiques pour mesurer vos charges de référence, votre 1RM estimé et calibrer le moteur IA avant de lancer vos cycles de progression.
             </p>
           </div>
-          <button className="btn-close-modal" onClick={onClose} title="Fermer">✕</button>
+          <button className="btn-close-modal" onClick={onClose} title="Fermer" aria-label="Fermer">
+            <Icon name="close" size={20} />
+          </button>
         </div>
 
         {/* Global Progress Bar */}
         <div className="test-progress-bar-container">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+          <div className="test-progress-head">
+            <span>
               {status.testWeekCompleted
-                ? '✅ Calibration terminée (100%) — Le Coach IA est activé !'
+                ? '✓ Calibration terminée (100%) — Le Coach IA est activé !'
                 : `Progression de la calibration : ${status.testWeekProgress} / ${status.totalSteps} séances validées (${progressPercent}%)`}
             </span>
-            <span style={{ fontSize: '0.8rem', fontWeight: 800, color: status.testWeekCompleted ? 'var(--accent-emerald)' : 'var(--accent-cyan)' }}>
-              {progressPercent}%
-            </span>
+            <strong className={status.testWeekCompleted ? 'is-done' : ''}>{progressPercent}%</strong>
           </div>
-          <div className="progress-track" style={{ height: '8px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '9999px', overflow: 'hidden' }}>
+          <div className="progress-track">
             <div
-              className="progress-fill"
-              style={{
-                width: `${progressPercent}%`,
-                height: '100%',
-                background: status.testWeekCompleted
-                  ? 'linear-gradient(90deg, var(--accent-emerald) 0%, var(--accent-volt) 100%)'
-                  : 'linear-gradient(90deg, var(--accent-cyan) 0%, var(--accent-volt) 100%)',
-                boxShadow: '0 0 12px rgba(0, 240, 255, 0.5)',
-                transition: 'width 0.4s ease',
-              }}
+              className={`progress-fill${status.testWeekCompleted ? ' is-done' : ''}`}
+              style={{ width: `${progressPercent}%` }}
             />
           </div>
         </div>
@@ -197,7 +189,7 @@ export const TestWeekModal: React.FC<TestWeekModalProps> = ({
         {status.benchmarks && Object.keys(status.benchmarks).length > 0 && (
           <div className="test-benchmarks-summary">
             <div className="benchmarks-header">
-              <span>⚡</span>
+              <Icon name="trophy" size={15} />
               <span>Vos Records & Benchmarks Actuels Enregistrés</span>
             </div>
             <div className="benchmarks-cards-grid">
@@ -230,7 +222,9 @@ export const TestWeekModal: React.FC<TestWeekModalProps> = ({
               >
                 <div className="test-card-top">
                   <div className="test-step-badge">
-                    {isCompleted ? '✅' : isCurrent ? '⚡' : '🔒'} {sess.dayName}
+                    {isCompleted ? '✓ ' : ''}
+                    {sess.dayName}
+                    {isCurrent ? ' · en cours' : ''}
                   </div>
                   <div className="test-card-badge">{sess.badge}</div>
                 </div>
@@ -241,7 +235,7 @@ export const TestWeekModal: React.FC<TestWeekModalProps> = ({
                 </div>
 
                 <p className="test-session-goal">
-                  🎯 <strong>Objectif de test :</strong> {sess.testingGoal}
+                  <strong>Objectif de test :</strong> {sess.testingGoal}
                 </p>
 
                 {/* Exercises Preview */}
@@ -252,7 +246,11 @@ export const TestWeekModal: React.FC<TestWeekModalProps> = ({
                       className={`test-exercise-pill ${ex.isKeyBenchmark ? 'key-benchmark' : ''}`}
                     >
                       <div className="test-ex-title">
-                        {ex.isKeyBenchmark && <span title="Benchmark principal" style={{ color: 'var(--accent-volt)' }}>⭐ </span>}
+                        {ex.isKeyBenchmark && (
+                          <span className="test-ex-star" title="Benchmark principal">
+                            ★{' '}
+                          </span>
+                        )}
                         <span>{ex.name}</span>
                       </div>
                       <div className="test-ex-details">
@@ -283,15 +281,16 @@ export const TestWeekModal: React.FC<TestWeekModalProps> = ({
                     </div>
                   ) : (
                     <button
-                      className={isCurrent ? 'btn-volt' : 'btn-glass'}
+                      className={isCurrent ? 'btn-primary' : 'btn-secondary'}
                       style={{ width: '100%' }}
                       onClick={() => onStartSession(sess.step)}
                       disabled={isStarting}
                     >
+                      {isCurrent && !isStarting && <Icon name="play" size={16} filled strokeWidth={1.5} />}
                       {isStarting
                         ? 'Lancement de la séance...'
                         : isCurrent
-                        ? `▶ Démarrer la Séance Test (Étape ${sess.step}/3)`
+                        ? `Démarrer la Séance Test (Étape ${sess.step}/3)`
                         : `Lancer le Test ${sess.dayName}`}
                     </button>
                   )}
@@ -310,7 +309,7 @@ export const TestWeekModal: React.FC<TestWeekModalProps> = ({
                 onClick={onSkipTestWeek}
                 title="Débloque directement le coach IA sans effectuer les tests"
               >
-                ⏩ Passer la phase de test et débloquer l'IA directement
+                Passer la phase de test et débloquer l'IA directement
               </button>
             ) : (
               <button
@@ -318,12 +317,12 @@ export const TestWeekModal: React.FC<TestWeekModalProps> = ({
                 onClick={onResetTestWeek}
                 title="Réinitialise la calibration pour relancer une semaine de tests"
               >
-                🔄 Relancer une Semaine de Test (Recalibration)
+                Relancer une Semaine de Test (Recalibration)
               </button>
             )}
           </div>
 
-          <button className="btn-glass" onClick={onClose}>
+          <button className="btn-secondary" onClick={onClose}>
             Fermer
           </button>
         </div>

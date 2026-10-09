@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from './api';
 import './App.css';
 import './shell.css';
@@ -13,58 +13,60 @@ import { WarmupModal } from './components/WarmupModal';
 import { AnalyticsView } from './components/AnalyticsView';
 import { TestWeekModal } from './components/TestWeekModal';
 import { Navigation, type AppTab } from './components/Navigation';
-import { Icon } from './components/Icons';
+import { Icon, type IconName } from './components/Icons';
 import { CoachChat, type CoachWorkout } from './components/CoachChat';
+import { ActiveExerciseCard, type ActiveExercise, type ExerciseStats } from './components/ActiveExercise';
+import { MuscleFocusCard, RecordCard } from './components/SessionInsights';
 import {
   AthleteProfileFields,
   toAthleteProfilePayload,
   toAthleteProfileValue,
   type AthleteProfileValue,
 } from './components/AthleteProfileFields';
+import { formatKg } from './lib/loadMath';
 
-interface ActiveSet {
-  reps: number;
-  weight: number;
-  completed: boolean;
-}
-
-interface ActiveExercise {
-  exerciseId: string;
+const GOAL_OPTIONS: {
+  id: 'FORCE' | 'BODYBUILDING' | 'ENDURANCE';
   name: string;
-  category?: string;
-  progressiveTarget?: string;
-  sets: ActiveSet[];
-}
-
-const GOAL_OPTIONS = [
+  icon: IconName;
+  badge: string;
+  rest: string;
+  desc: string;
+}[] = [
   {
     id: 'FORCE',
     name: 'Force & Puissance',
-    icon: '🔴',
+    icon: 'bolt',
     badge: '3-5 reps • 80-87% 1RM',
     rest: 'Repos 3-4 min',
     desc: 'Charges maximales sur les mouvements polyarticulaires pour bâtir une force pure sans compromis.',
-    className: 'goal-force',
   },
   {
     id: 'BODYBUILDING',
     name: 'Bodybuilding (Hypertrophie)',
-    icon: '🟣',
+    icon: 'dumbbell',
     badge: '8-12 reps • 70-75% 1RM',
     rest: 'Repos 75-90s',
     desc: 'Volume optimisé pour stimuler la croissance musculaire, le recrutement et la congestion.',
-    className: 'goal-bodybuilding',
   },
   {
     id: 'ENDURANCE',
     name: 'Endurance Musculaire',
-    icon: '🟢',
+    icon: 'activity',
     badge: '15-20 reps • 50-60% 1RM',
     rest: 'Repos 30-45s',
     desc: 'Séries longues et intensité métabolique pour développer votre résistance et votre tonicité.',
-    className: 'goal-endurance',
   },
 ];
+
+const DEFAULT_REST_SECONDS = 90;
+
+// Planned sets summary for the session queue, e.g. "3 × 10 · 20 kg".
+const describeSets = (exercise: ActiveExercise) => {
+  const first = exercise.sets[0];
+  if (!first) return 'Aucune série prévue';
+  return `${exercise.sets.length} × ${first.reps}${first.weight > 0 ? ` · ${formatKg(first.weight)} kg` : ''}`;
+};
 
 // The library holds ~900 exercises (wger import): cards are rendered in pages.
 const LIBRARY_PAGE_SIZE = 60;
@@ -116,10 +118,22 @@ function App() {
   const [sessionNotes, setSessionNotes] = useState<string>('');
   const [workoutStartTime, setWorkoutStartTime] = useState<Date | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
+  // Exercise opened by the athlete; null follows the first one with sets left to do.
+  const [focusedExercise, setFocusedExercise] = useState<number | null>(null);
+  // Best marks per exercise (finished sessions), to show the last performance and records.
+  const [exerciseStats, setExerciseStats] = useState<Record<string, ExerciseStats>>({});
+  const requestedStats = useRef(new Set<string>());
+  // Coaching cues of the running session (AI tips, coach notes or test protocol).
+  const [sessionTips, setSessionTips] = useState<string[]>([]);
+  const addExerciseRef = useRef<HTMLElement>(null);
 
   // Rest Timer State
   const [showRestTimer, setShowRestTimer] = useState<boolean>(false);
-  const [restTimerSeconds, setRestTimerSeconds] = useState<number | null>(null);
+  // Last duration picked in the timer, reused when a validated set starts the rest.
+  const [restDuration, setRestDuration] = useState<number>(DEFAULT_REST_SECONDS);
+  const [restAutoStart, setRestAutoStart] = useState<boolean>(false);
+  // Remounts the timer so each validated set starts a fresh countdown.
+  const [restTimerRun, setRestTimerRun] = useState<number>(0);
   const [autoRestEnabled, setAutoRestEnabled] = useState<boolean>(true);
 
   // Modals
@@ -179,6 +193,39 @@ function App() {
     }
     return () => clearInterval(interval);
   }, [activeSessionId, workoutStartTime]);
+
+  // The exercise on screen: the one the athlete opened, else the first with sets left to do.
+  const firstPendingExercise = workout.findIndex((ex) => ex.sets.some((s) => !s.completed));
+  const activeExerciseIndex =
+    focusedExercise !== null && focusedExercise < workout.length
+      ? focusedExercise
+      : firstPendingExercise !== -1
+      ? firstPendingExercise
+      : workout.length - 1;
+  const activeExercise: ActiveExercise | undefined = workout[activeExerciseIndex];
+  const activeExerciseId = activeExercise?.exerciseId;
+
+  const rememberStats = (exerciseId: string, data: any) => {
+    requestedStats.current.add(exerciseId);
+    setExerciseStats((prev) => ({
+      ...prev,
+      [exerciseId]: {
+        maxWeight: Number(data?.maxWeight) || 0,
+        maxEstimated1RM: Number(data?.maxEstimated1RM) || 0,
+        lastSet: data?.lastSet ? { weight: Number(data.lastSet.weight) || 0, reps: Number(data.lastSet.reps) || 0 } : null,
+      },
+    }));
+  };
+
+  useEffect(() => {
+    if (!activeExerciseId || requestedStats.current.has(activeExerciseId)) return;
+    requestedStats.current.add(activeExerciseId);
+    api
+      .get(`/workout/stats/${activeExerciseId}`)
+      .then((res) => rememberStats(activeExerciseId, res.data))
+      // Allow a retry the next time this exercise is opened.
+      .catch(() => requestedStats.current.delete(activeExerciseId));
+  }, [activeExerciseId]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -268,10 +315,18 @@ function App() {
     setWorkout([]);
   };
 
+  // Per-session view state: which exercise is open, coaching cues, rest timer.
+  const prepareSession = (tips: string[] = []) => {
+    setFocusedExercise(null);
+    setSessionTips(tips.filter((tip) => tip && tip.trim()));
+    setShowRestTimer(false);
+  };
+
   // Start Blank Workout
   const startNewWorkout = async () => {
     try {
       const res = await api.post('/workout/start', {});
+      prepareSession();
       setActiveSessionId(res.data.id);
       setActiveRoutineName(null);
       setActiveTestStep(null);
@@ -290,6 +345,7 @@ function App() {
   const startRoutineWorkout = async (routine: any) => {
     try {
       const res = await api.post('/workout/start', { routineId: routine.id });
+      prepareSession();
       setActiveSessionId(res.data.id);
       setActiveRoutineName(routine.name);
       setActiveTestStep(null);
@@ -343,6 +399,8 @@ function App() {
     setIsStartingRec(true);
     try {
       const res = await api.post('/workout/start-recommended', { customRec: rec });
+      // AI recommendations carry coaching tips, coach chat sessions a note.
+      prepareSession(Array.isArray(rec.coachingTips) ? rec.coachingTips : rec.notes ? [rec.notes] : []);
       setActiveSessionId(res.data.id);
       setActiveRoutineName(rec.title);
       setActiveTestStep(res.data.testWeekStep || null);
@@ -401,6 +459,8 @@ function App() {
     try {
       const res = await api.post(`/workout/test-week/start/${step}`);
       const session = res.data;
+      const protocol = testWeekStatus?.sessions?.find((s: any) => s.step === step);
+      prepareSession(protocol?.instructions || []);
       setActiveSessionId(session.id);
       setActiveRoutineName(session.title || `Semaine test ${step}/3`);
       setActiveTestStep(step);
@@ -462,6 +522,7 @@ function App() {
     let target = 'Objectif : 20kg × 10 reps';
     try {
       const statsRes = await api.get(`/workout/stats/${exercise.id}`);
+      rememberStats(exercise.id, statsRes.data);
       if (statsRes.data?.recommendedOverload?.reason) {
         target = statsRes.data.recommendedOverload.reason;
       }
@@ -469,6 +530,8 @@ function App() {
       // ignore
     }
 
+    // The athlete adds an exercise to log it now: open it.
+    setFocusedExercise(workout.length);
     setWorkout([
       ...workout,
       {
@@ -490,6 +553,7 @@ function App() {
     const updated = [...workout];
     updated.splice(index, 1);
     setWorkout(updated);
+    setFocusedExercise(null);
   };
 
   const addSet = (exerciseIndex: number) => {
@@ -519,10 +583,40 @@ function App() {
     updated[eIndex].sets[sIndex].completed = !currentVal;
     setWorkout(updated);
 
-    if (!currentVal && autoRestEnabled) {
-      setShowRestTimer(true);
-      setRestTimerSeconds(90);
+    // Last set of the exercise done: move on to the next exercise with sets left.
+    if (!currentVal && updated[eIndex].sets.every((s) => s.completed)) {
+      setFocusedExercise(null);
     }
+
+    if (!currentVal && autoRestEnabled) {
+      startRestTimer(true);
+    }
+  };
+
+  const completeAllSets = (eIndex: number) => {
+    setWorkout((prev) => {
+      const copy = [...prev];
+      copy[eIndex] = {
+        ...copy[eIndex],
+        sets: copy[eIndex].sets.map((s) => ({ ...s, completed: true })),
+      };
+      return copy;
+    });
+    setFocusedExercise(null);
+    showToast(`Toutes les séries de "${workout[eIndex].name}" ont été validées !`, 'info');
+  };
+
+  const startRestTimer = (autoStart: boolean) => {
+    setRestAutoStart(autoStart);
+    setRestTimerRun((run) => run + 1);
+    setShowRestTimer(true);
+  };
+
+  const scrollToAddExercise = () => {
+    const section = addExerciseRef.current;
+    if (!section) return;
+    section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    section.querySelector('select')?.focus({ preventScroll: true });
   };
 
   // Finish and Save Workout
@@ -561,7 +655,10 @@ function App() {
       setActiveTestStep(null);
       setWorkout([]);
       setWorkoutStartTime(null);
-      setShowRestTimer(false);
+      prepareSession();
+      // This session may hold new records: reload the stats next time.
+      requestedStats.current.clear();
+      setExerciseStats({});
       setActiveTab('history');
       await fetchData();
     } catch (err: any) {
@@ -775,49 +872,55 @@ function App() {
   const heightM = profile.height ? profile.height / 100 : 0;
   const bmi = heightM > 0 && profile.weight ? Math.round((profile.weight / (heightM * heightM)) * 10) / 10 : null;
 
+  // Live session telemetry
+  const isExerciseDone = (ex: ActiveExercise) => ex.sets.length > 0 && ex.sets.every((s) => s.completed);
+  const totalSets = workout.reduce((n, ex) => n + ex.sets.length, 0);
+  const completedSets = workout.reduce((n, ex) => n + ex.sets.filter((s) => s.completed).length, 0);
+  const sessionVolume = workout.reduce(
+    (volume, ex) =>
+      volume + ex.sets.reduce((v, s) => (s.completed ? v + (Number(s.weight) || 0) * (Number(s.reps) || 0) : v), 0),
+    0,
+  );
+  const exercisesDone = workout.filter(isExerciseDone).length;
+  const remainingExercises = workout.filter((ex, i) => i !== activeExerciseIndex && !isExerciseDone(ex)).length;
+  const goalName = (GOAL_OPTIONS.find((g) => g.id === (profile.goal || 'BODYBUILDING')) || GOAL_OPTIONS[1]).name.replace(/ \(.*\)/, '');
+  const sessionKicker = activeTestStep
+    ? `Semaine test · étape ${activeTestStep}/3`
+    : `${goalName} · ${new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}`;
+
   // Render Authentication Screen
   if (!isAuthenticated) {
+    const isSignupProfile = !isLoginMode && signupStep === 2;
     return (
       <div className="auth-shell">
         <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+        <div className="auth-glow auth-glow-a" aria-hidden="true" />
+        <div className="auth-glow auth-glow-b" aria-hidden="true" />
 
-        <section className="auth-hero">
-          <div className="brand-group auth-brand">
-            <div className="brand-bolt">
-              <Icon name="bolt" size={18} strokeWidth={2.4} />
+        <main className="auth-column">
+          <header className="auth-brand-row">
+            <div className="auth-brand">
+              <span className="brand-bolt">
+                <Icon name="bolt" size={19} filled strokeWidth={1.4} />
+              </span>
+              <span className="auth-brand-name">OVERLOADY</span>
             </div>
-            <div className="brand-title">
-              OVERLOADY
-              <span className="brand-tag">PRO</span>
-            </div>
-          </div>
+            <span className="auth-badge">
+              <span className="ping-dot" aria-hidden="true" />
+              Coach IA
+            </span>
+          </header>
 
-          <div className="auth-hero-body">
-            <span className="auth-eyebrow">Surcharge progressive</span>
+          <section className="auth-intro">
             <h1 className="auth-headline">
-              Chaque séance,<br />
+              Chaque séance,
+              <br />
               <span>un cran plus loin.</span>
             </h1>
-            <p className="auth-hero-text">
-              Suivez vos charges, laissez le coach IA calculer la prochaine étape et regardez vos records tomber.
-            </p>
+            <p>Suivi des charges, surcharge progressive et coach IA pour athlètes exigeants.</p>
+          </section>
 
-            <div className="auth-progress-chart" aria-hidden="true">
-              {[38, 46, 44, 55, 61, 58, 70, 78, 84, 96].map((h, i) => (
-                <div key={i} className="auth-progress-bar" style={{ height: `${h}%`, animationDelay: `${i * 60}ms` }} />
-              ))}
-            </div>
-
-            <ul className="auth-features">
-              <li><span className="auth-feature-dot" />Charges cibles calculées automatiquement</li>
-              <li><span className="auth-feature-dot" />Programmes adaptés à votre objectif</li>
-              <li><span className="auth-feature-dot" />Records et progression en un coup d'œil</li>
-            </ul>
-          </div>
-        </section>
-
-        <main className="auth-panel">
-          <div className="auth-card">
+          <section className="auth-card">
             <div className="auth-tabs" role="tablist">
               <button
                 type="button"
@@ -839,161 +942,146 @@ function App() {
               </button>
             </div>
 
-            <div className="auth-card-header">
-              {!isLoginMode && <span className="auth-step">Étape {signupStep} / 2</span>}
-              <h2>{isLoginMode ? 'Bon retour 👋' : signupStep === 1 ? 'Créer un compte' : 'Ton profil athlète'}</h2>
-              <p>
-                {isLoginMode
-                  ? 'Connectez-vous pour reprendre votre progression.'
-                  : signupStep === 1
-                  ? "Choisissez un identifiant et votre objectif, on s'occupe du reste."
-                  : 'Pour calibrer tes charges de départ et le coach IA. Tu pourras le modifier plus tard.'}
-              </p>
+            <div className="auth-welcome">
+              <div>
+                {!isLoginMode && <span className="auth-step">Étape {signupStep} / 2</span>}
+                <h2>{isLoginMode ? 'Bon retour 👋' : signupStep === 1 ? 'Créer un compte' : 'Ton profil athlète'}</h2>
+                <p>
+                  {isLoginMode
+                    ? 'Connectez-vous pour reprendre votre progression.'
+                    : signupStep === 1
+                    ? "Choisissez un identifiant et votre objectif, on s'occupe du reste."
+                    : 'Pour calibrer tes charges de départ et le coach IA. Tu pourras le modifier plus tard.'}
+                </p>
+              </div>
+              <span className="auth-welcome-icon" aria-hidden="true">
+                <Icon name={isSignupProfile ? 'user' : 'dumbbell'} size={22} />
+              </span>
             </div>
 
             <form onSubmit={handleAuthSubmit} className="auth-form">
-              {!isLoginMode && signupStep === 2 ? (
+              {isSignupProfile ? (
                 <AthleteProfileFields value={signupAthlete} onChange={setSignupAthlete} idPrefix="signup" />
               ) : (
-              <>
-              <div className="auth-field">
-                <label htmlFor="auth-username">Identifiant</label>
-                <div className="auth-input-wrap">
-                  <svg className="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <circle cx="12" cy="8" r="4" />
-                    <path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1" />
-                  </svg>
-                  <input
-                    id="auth-username"
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="ex. alex_lifts"
-                    autoComplete="username"
-                    autoCapitalize="none"
-                    autoCorrect="off"
-                    spellCheck={false}
-                    required
-                  />
-                </div>
-                {!isLoginMode && (
-                  <span className="auth-hint">3 à 24 caractères : lettres, chiffres, « . », « _ » ou « - ».</span>
-                )}
-              </div>
-
-              <div className="auth-field">
-                <label htmlFor="auth-password">Mot de passe</label>
-                <div className="auth-input-wrap">
-                  <svg className="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <rect x="4" y="11" width="16" height="10" rx="2" />
-                    <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-                  </svg>
-                  <input
-                    id="auth-password"
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    autoComplete={isLoginMode ? 'current-password' : 'new-password'}
-                    minLength={isLoginMode ? undefined : 6}
-                    required
-                  />
-                  <button
-                    type="button"
-                    className="auth-password-toggle"
-                    onClick={() => setShowPassword(!showPassword)}
-                    aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
-                  >
-                    {showPassword ? (
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M3 3l18 18" />
-                        <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
-                        <path d="M9.9 5.1A10 10 0 0 1 12 5c6 0 10 7 10 7a17 17 0 0 1-3.2 3.9M6.6 6.6C3.8 8.3 2 12 2 12s4 7 10 7a9.6 9.6 0 0 0 5.4-1.6" />
-                      </svg>
-                    ) : (
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" />
-                        <circle cx="12" cy="12" r="3" />
-                      </svg>
+                <>
+                  <div className="auth-field">
+                    <div className="auth-label-row">
+                      <label htmlFor="auth-username">Identifiant</label>
+                      <span className="auth-label-hint">ex : alex_lifts</span>
+                    </div>
+                    <div className="auth-input-wrap">
+                      <Icon name="user" size={18} className="auth-input-icon" />
+                      <input
+                        id="auth-username"
+                        type="text"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        placeholder="Votre identifiant"
+                        autoComplete="username"
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        required
+                      />
+                    </div>
+                    {!isLoginMode && (
+                      <span className="auth-hint">3 à 24 caractères : lettres, chiffres, « . », « _ » ou « - ».</span>
                     )}
-                  </button>
-                </div>
-                {!isLoginMode && <span className="auth-hint">6 caractères minimum.</span>}
-              </div>
-
-              {!isLoginMode && (
-                <div className="auth-field">
-                  <label htmlFor="auth-password-confirm">Confirmer le mot de passe</label>
-                  <div className="auth-input-wrap">
-                    <svg className="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <rect x="4" y="11" width="16" height="10" rx="2" />
-                      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-                    </svg>
-                    <input
-                      id="auth-password-confirm"
-                      type={showPassword ? 'text' : 'password'}
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="••••••••"
-                      autoComplete="new-password"
-                      required
-                    />
                   </div>
-                  {confirmPassword && (
-                    <span className={`auth-hint ${confirmPassword === password ? 'auth-hint-ok' : 'auth-hint-error'}`}>
-                      {confirmPassword === password ? '✓ Les mots de passe correspondent' : 'Les mots de passe ne correspondent pas'}
-                    </span>
-                  )}
-                </div>
-              )}
 
-              {!isLoginMode && (
-                <div className="auth-field">
-                  <label>Votre objectif</label>
-                  <div className="auth-goal-grid">
-                    {GOAL_OPTIONS.map((g) => (
+                  <div className="auth-field">
+                    <label htmlFor="auth-password">Mot de passe</label>
+                    <div className="auth-input-wrap">
+                      <Icon name="lock" size={18} className="auth-input-icon" />
+                      <input
+                        id="auth-password"
+                        type={showPassword ? 'text' : 'password'}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        autoComplete={isLoginMode ? 'current-password' : 'new-password'}
+                        minLength={isLoginMode ? undefined : 6}
+                        required
+                      />
                       <button
                         type="button"
-                        key={g.id}
-                        className={`auth-goal-option ${signupGoal === g.id ? 'selected' : ''}`}
-                        onClick={() => setSignupGoal(g.id as any)}
+                        className="auth-password-toggle"
+                        onClick={() => setShowPassword(!showPassword)}
+                        aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
                       >
-                        <span className="auth-goal-icon">{g.icon}</span>
-                        <span className="auth-goal-name">{g.name.replace(/ \(.*\)/, '')}</span>
-                        <span className="auth-goal-badge">{g.badge.split(' • ')[0]}</span>
+                        <Icon name={showPassword ? 'eyeOff' : 'eye'} size={19} />
                       </button>
-                    ))}
+                    </div>
+                    {!isLoginMode && <span className="auth-hint">6 caractères minimum.</span>}
                   </div>
-                  <span className="auth-hint">
-                    {GOAL_OPTIONS.find((g) => g.id === signupGoal)?.desc}
-                  </span>
-                </div>
-              )}
-              </>
+
+                  {!isLoginMode && (
+                    <div className="auth-field">
+                      <label htmlFor="auth-password-confirm">Confirmer le mot de passe</label>
+                      <div className="auth-input-wrap">
+                        <Icon name="lock" size={18} className="auth-input-icon" />
+                        <input
+                          id="auth-password-confirm"
+                          type={showPassword ? 'text' : 'password'}
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="••••••••"
+                          autoComplete="new-password"
+                          required
+                        />
+                      </div>
+                      {confirmPassword && (
+                        <span className={`auth-hint ${confirmPassword === password ? 'auth-hint-ok' : 'auth-hint-error'}`}>
+                          {confirmPassword === password ? '✓ Les mots de passe correspondent' : 'Les mots de passe ne correspondent pas'}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {!isLoginMode && (
+                    <div className="auth-field">
+                      <label>Votre objectif</label>
+                      <div className="auth-goal-grid">
+                        {GOAL_OPTIONS.map((g) => (
+                          <button
+                            type="button"
+                            key={g.id}
+                            className={`auth-goal-option ${signupGoal === g.id ? 'selected' : ''}`}
+                            onClick={() => setSignupGoal(g.id)}
+                          >
+                            <span className="auth-goal-icon">
+                              <Icon name={g.icon} size={20} />
+                            </span>
+                            <span className="auth-goal-name">{g.name.replace(/ \(.*\)/, '')}</span>
+                            <span className="auth-goal-badge">{g.badge.split(' • ')[0]}</span>
+                          </button>
+                        ))}
+                      </div>
+                      <span className="auth-hint">{GOAL_OPTIONS.find((g) => g.id === signupGoal)?.desc}</span>
+                    </div>
+                  )}
+                </>
               )}
 
               {authError && (
                 <div className="auth-error" role="alert">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="M12 8v4M12 16h.01" />
-                  </svg>
+                  <Icon name="alert" size={18} />
                   <span>{authError}</span>
                 </div>
               )}
 
-              <button type="submit" className="btn-neon auth-submit" disabled={isAuthLoading}>
+              <button type="submit" className="btn-primary auth-submit" disabled={isAuthLoading}>
                 {isAuthLoading && <span className="auth-spinner" aria-hidden="true" />}
                 {isLoginMode ? 'Se connecter' : signupStep === 1 ? 'Continuer' : 'Créer mon compte'}
-                {!isAuthLoading && <span aria-hidden="true">→</span>}
+                {!isAuthLoading && <Icon name="arrowRight" size={18} strokeWidth={2.4} />}
               </button>
 
-              {!isLoginMode && signupStep === 2 && (
+              {isSignupProfile && (
                 <div className="auth-step-actions">
-                  <button type="button" onClick={() => setSignupStep(1)} disabled={isAuthLoading}>
+                  <button type="button" className="btn-ghost" onClick={() => setSignupStep(1)} disabled={isAuthLoading}>
                     ← Retour
                   </button>
-                  <button type="button" onClick={() => submitAuth(false)} disabled={isAuthLoading}>
+                  <button type="button" className="btn-ghost" onClick={() => submitAuth(false)} disabled={isAuthLoading}>
                     Passer cette étape
                   </button>
                 </div>
@@ -1006,7 +1094,26 @@ function App() {
                 {isLoginMode ? 'Créer un compte' : 'Se connecter'}
               </button>
             </p>
+          </section>
+
+          <div className="auth-proof">
+            <div className="auth-proof-tile">
+              <span className="auth-proof-value">
+                +2,5<small>kg</small>
+              </span>
+              <span className="auth-proof-label">Incrément auto</span>
+            </div>
+            <div className="auth-proof-tile">
+              <span className="auth-proof-value">1RM</span>
+              <span className="auth-proof-label">Estimation auto</span>
+            </div>
+            <div className="auth-proof-tile">
+              <span className="auth-proof-value">RPE</span>
+              <span className="auth-proof-label">Effort suivi</span>
+            </div>
           </div>
+
+          <p className="auth-footnote">Surcharge progressive automatisée • Historique complet • Coach IA Atlas</p>
         </main>
       </div>
     );
@@ -1019,7 +1126,9 @@ function App() {
       <Navigation
         activeTab={activeTab}
         onNavigate={setActiveTab}
-        hasActiveSession={!!activeSessionId}
+        session={
+          activeSessionId ? { name: activeRoutineName || 'Séance libre', clock: formatDuration(elapsedSeconds) } : null
+        }
         displayName={displayName}
         goal={profile.goal}
         testWeekStatus={testWeekStatus}
@@ -1037,37 +1146,24 @@ function App() {
             {testWeekStatus && !testWeekStatus.testWeekCompleted && (
               <div className="test-week-banner">
                 <div className="test-week-banner-top">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                    <span style={{ fontSize: '1.3rem' }}>🧪</span>
-                    <span className="test-badge-glow">
-                      SEMAINE DE TEST ATHLÈTE • {testWeekStatus.testWeekProgress}/{testWeekStatus.totalSteps} COMPLÉTÉ
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    <button
-                      className="btn-glass"
-                      style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem' }}
-                      onClick={() => setIsTestWeekModalOpen(true)}
-                    >
-                      📋 Voir le protocole des tests
+                  <span className="test-badge-glow">
+                    <Icon name="flask" size={14} />
+                    Semaine de test athlète • {testWeekStatus.testWeekProgress}/{testWeekStatus.totalSteps} complété
+                  </span>
+                  <div className="test-week-banner-actions">
+                    <button className="btn-small" onClick={() => setIsTestWeekModalOpen(true)}>
+                      <Icon name="clipboard" size={16} />
+                      Voir le protocole des tests
                     </button>
-                    <button
-                      className="btn-text-danger"
-                      onClick={handleSkipTestWeek}
-                      title="Passer directement au Coach IA"
-                    >
-                      Passer ⏩
+                    <button className="btn-text-danger" onClick={handleSkipTestWeek} title="Passer directement au Coach IA">
+                      Passer
                     </button>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 900 }}>
-                    Phase d'Évaluation Initiale (1 Semaine)
-                  </h2>
-                  <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                    Calibrez vos charges de travail de référence avant de lancer l'IA
-                  </span>
+                <div className="test-week-banner-title">
+                  <h2>Phase d'Évaluation Initiale (1 Semaine)</h2>
+                  <span>Calibrez vos charges de travail de référence avant de lancer l'IA</span>
                 </div>
 
                 {/* 3 Step Cards */}
@@ -1076,42 +1172,38 @@ function App() {
                     const isCompleted = sess.status === 'completed';
                     const isCurrent = sess.status === 'current';
                     return (
-                      <div
+                      <button
+                        type="button"
                         key={sess.step}
                         className={`test-step-mini-card ${sess.status}`}
-                        style={{ cursor: 'pointer' }}
                         onClick={() => setIsTestWeekModalOpen(true)}
                       >
                         <div className="step-card-header">
-                          <span style={{ color: isCompleted ? 'var(--accent-emerald)' : isCurrent ? 'var(--accent-cyan)' : 'var(--text-dim)' }}>
-                            {isCompleted ? '✓ VALIDÉ' : isCurrent ? '⚡ EN COURS' : '🔒 À VENIR'}
-                          </span>
-                          <span style={{ color: 'var(--text-muted)' }}>{sess.dayName}</span>
+                          <span className="step-status">{isCompleted ? '✓ Validé' : isCurrent ? 'En cours' : 'À venir'}</span>
+                          <span className="step-day">{sess.dayName}</span>
                         </div>
                         <div className="step-card-title">{sess.name}</div>
                         <div className="step-card-focus">{sess.focus}</div>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
 
                 {/* Action button */}
-                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+                <div className="test-week-banner-cta">
                   <button
-                    className="btn-volt"
+                    className="btn-primary"
                     onClick={() => handleStartTestWeekSession(testWeekStatus.currentStep)}
                     disabled={isStartingTestStep || !!activeSessionId}
                   >
+                    {!isStartingTestStep && !activeSessionId && <Icon name="play" size={16} filled strokeWidth={1.5} />}
                     {isStartingTestStep
                       ? 'Lancement...'
                       : activeSessionId
-                      ? '⚠️ Séance déjà en cours'
-                      : `▶ Lancer la Séance Test ${testWeekStatus.currentStep} (${testWeekStatus.sessions?.[testWeekStatus.currentStep - 1]?.name || 'Test'})`}
+                      ? 'Séance déjà en cours'
+                      : `Lancer la Séance Test ${testWeekStatus.currentStep} (${testWeekStatus.sessions?.[testWeekStatus.currentStep - 1]?.name || 'Test'})`}
                   </button>
-                  <button
-                    className="btn-glass"
-                    onClick={() => setIsTestWeekModalOpen(true)}
-                  >
+                  <button className="btn-secondary" onClick={() => setIsTestWeekModalOpen(true)}>
                     Détail des 3 séances
                   </button>
                 </div>
@@ -1122,15 +1214,11 @@ function App() {
               {/* Bento 1: compact welcome + program quick launch (grows with the number of programs) */}
               <div className="bento-hero">
                 <div className="hero-top">
-                  <span className="badge-pill">⚡ PROGRAMME {profile.goal || 'BODYBUILDING'}</span>
+                  <span className="badge-pill">Programme {profile.goal || 'BODYBUILDING'}</span>
                   {testWeekStatus?.testWeekCompleted && (
-                    <span
-                      className="badge-pill"
-                      style={{ color: 'var(--accent-emerald)', borderColor: 'rgba(16, 185, 129, 0.4)', cursor: 'pointer' }}
-                      onClick={() => setIsTestWeekModalOpen(true)}
-                    >
-                      ✓ PROFIL CALIBRÉ
-                    </span>
+                    <button type="button" className="badge-pill is-jade is-clickable" onClick={() => setIsTestWeekModalOpen(true)}>
+                      ✓ Profil calibré
+                    </button>
                   )}
                   <span className="hero-date">
                     {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
@@ -1151,7 +1239,9 @@ function App() {
                     <div className="hero-program-list">
                       {routines.slice(0, HERO_PROGRAMS_MAX).map((rt) => (
                         <button key={rt.id} className="hero-program" onClick={() => startRoutineWorkout(rt)} title={`Lancer ${rt.name}`}>
-                          <span className="hero-program-play">▶</span>
+                          <span className="hero-program-play">
+                            <Icon name="play" size={12} filled strokeWidth={1.5} />
+                          </span>
                           <span className="hero-program-name">{rt.name}</span>
                           <span className="hero-program-meta">{rt.exercises?.length || 0} exos</span>
                         </button>
@@ -1163,46 +1253,34 @@ function App() {
                 </div>
 
                 <div className="bento-actions">
-                  <button className="btn-volt" onClick={startNewWorkout}>
-                    + Séance libre
+                  <button className="btn-primary" onClick={startNewWorkout}>
+                    <Icon name="plus" size={18} strokeWidth={2.4} />
+                    Séance libre
                   </button>
-                  <button className="btn-glass" onClick={() => setIsRoutineModalOpen(true)}>
-                    + Nouveau programme
+                  <button className="btn-secondary" onClick={() => setIsRoutineModalOpen(true)}>
+                    <Icon name="plus" size={18} />
+                    Nouveau programme
                   </button>
                 </div>
               </div>
 
               {/* Bento 2: AI Coach Recommended Workout */}
               {nextRecommendation ? (
-                <div className={`bento-ai-rec goal-${nextRecommendation.goal?.toLowerCase()}`}>
+                <div className="bento-ai-rec">
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.85rem' }}>
-                      <div
-                        className="bento-badge"
-                        style={{
-                          color: nextRecommendation.isTestWeek ? 'var(--accent-cyan)' : 'var(--accent-volt)',
-                          borderColor: nextRecommendation.isTestWeek ? 'rgba(0, 240, 255, 0.4)' : 'rgba(204, 255, 0, 0.35)',
-                          margin: 0,
-                        }}
-                      >
-                        <span
-                          className="ai-dot-pulse"
-                          style={{ background: nextRecommendation.isTestWeek ? 'var(--accent-cyan)' : 'var(--accent-volt)' }}
-                        ></span>
+                    <div className="bento-ai-head">
+                      <div className="bento-badge">
+                        <span className="ai-dot-pulse" />
                         <span>
                           {nextRecommendation.isTestWeek
-                            ? `🧪 SEMAINE TEST • Étape ${nextRecommendation.testStep}/${nextRecommendation.totalTestSteps}`
+                            ? `Semaine test • Étape ${nextRecommendation.testStep}/${nextRecommendation.totalTestSteps}`
                             : nextRecommendation.aiGenerated
-                            ? '⚡ Coach IA Connecté'
-                            : '🎯 Surcharge Calculée'}{' '}
+                            ? 'Coach IA connecté'
+                            : 'Surcharge calculée'}{' '}
                           • {nextRecommendation.goalDetails?.label || nextRecommendation.goal}
                         </span>
                       </div>
-                      {nextRecommendation.aiModel && (
-                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                          {nextRecommendation.aiModel}
-                        </span>
-                      )}
+                      {nextRecommendation.aiModel && <span className="bento-ai-model">{nextRecommendation.aiModel}</span>}
                     </div>
 
                     <h2>{nextRecommendation.title}</h2>
@@ -1224,8 +1302,8 @@ function App() {
                     {nextRecommendation.coachingTips && nextRecommendation.coachingTips.length > 0 && (
                       <div className="ai-tips-container">
                         <div className="ai-tips-title">
-                          <span>💡</span>
-                          <span>Consignes Clés du Coach IA</span>
+                          <Icon name="lightbulb" size={14} />
+                          <span>Consignes clés du coach IA</span>
                         </div>
                         <ul className="ai-tips-list">
                           {nextRecommendation.coachingTips.map((tip: string, idx: number) => (
@@ -1237,25 +1315,19 @@ function App() {
 
                     {/* AI Exercises Preview Toggle */}
                     {nextRecommendation.exercises && nextRecommendation.exercises.length > 0 && (
-                      <div style={{ marginBottom: '1.25rem' }}>
-                        <div
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            cursor: 'pointer',
-                            fontSize: '0.8rem',
-                            color: 'var(--text-secondary)',
-                            fontWeight: 700,
-                            padding: '0.25rem 0',
-                          }}
+                      <div>
+                        <button
+                          type="button"
+                          className="ai-preview-toggle"
                           onClick={() => setShowAiExercisesPreview((prev) => !prev)}
+                          aria-expanded={showAiExercisesPreview}
                         >
-                          <span>📋 {nextRecommendation.exercises.length} Exercices Prescrits {showAiExercisesPreview ? '▲' : '▼'}</span>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--accent-volt)' }}>
+                          <span>{nextRecommendation.exercises.length} exercices prescrits</span>
+                          <span>
                             {showAiExercisesPreview ? 'Masquer' : 'Voir le détail'}
+                            <Icon name={showAiExercisesPreview ? 'chevronUp' : 'chevronDown'} size={14} />
                           </span>
-                        </div>
+                        </button>
 
                         {showAiExercisesPreview && (
                           <div className="ai-exercises-preview">
@@ -1266,7 +1338,7 @@ function App() {
                                   <span className="ai-ex-badge">{ex.sets?.length || 3} séries</span>
                                 </div>
                                 {ex.reason && <div className="ai-ex-reason">"{ex.reason}"</div>}
-                                {ex.targetAdvice && <div className="ai-ex-advice">🎯 {ex.targetAdvice}</div>}
+                                {ex.targetAdvice && <div className="ai-ex-advice">{ex.targetAdvice}</div>}
                               </div>
                             ))}
                           </div>
@@ -1275,68 +1347,69 @@ function App() {
                     )}
                   </div>
 
-                  <div style={{ display: 'flex', gap: '0.75rem', flexDirection: 'column' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.75rem' }}>
+                  <div className="bento-ai-actions">
+                    <button
+                      className="btn-primary"
+                      onClick={() => startRecommendedWorkout()}
+                      disabled={isStartingRec || !!activeSessionId || isRegeneratingAi}
+                    >
+                      {!isStartingRec && !activeSessionId && <Icon name="play" size={16} filled strokeWidth={1.5} />}
+                      {isStartingRec
+                        ? 'Lancement en cours...'
+                        : activeSessionId
+                        ? 'Séance déjà en cours'
+                        : nextRecommendation.isTestWeek
+                        ? `Démarrer le Test (Étape ${nextRecommendation.testStep}/${nextRecommendation.totalTestSteps})`
+                        : 'Démarrer cette séance'}
+                    </button>
+                    {nextRecommendation.isTestWeek ? (
                       <button
-                        className="btn-volt"
-                        style={{ width: '100%' }}
-                        onClick={() => startRecommendedWorkout()}
-                        disabled={isStartingRec || !!activeSessionId || isRegeneratingAi}
+                        className="btn-secondary"
+                        onClick={() => setIsTestWeekModalOpen(true)}
+                        title="Consulter le protocole de la semaine de test"
                       >
-                        {isStartingRec
-                          ? 'Lancement en cours...'
-                          : activeSessionId
-                          ? '⚠️ Séance déjà en cours'
-                          : nextRecommendation.isTestWeek
-                          ? `▶ Démarrer le Test (Étape ${nextRecommendation.testStep}/${nextRecommendation.totalTestSteps})`
-                          : '▶ Démarrer cette séance'}
+                        <Icon name="clipboard" size={16} />
+                        Détail tests
                       </button>
-                      {nextRecommendation.isTestWeek ? (
-                        <button
-                          className="btn-glass"
-                          onClick={() => setIsTestWeekModalOpen(true)}
-                          title="Consulter le protocole de la semaine de test"
-                        >
-                          📋 Détail tests
-                        </button>
-                      ) : (
-                        <button
-                          className="btn-ai-regenerate"
-                          onClick={regenerateAiRecommendation}
-                          disabled={isRegeneratingAi || !!activeSessionId}
-                          title="Demander une autre séance générée par l'IA"
-                        >
-                          <span className={isRegeneratingAi ? 'spin-icon' : ''}>🔄</span>
-                          <span>{isRegeneratingAi ? 'Génération IA...' : 'Régénérer IA'}</span>
-                        </button>
-                      )}
-                    </div>
+                    ) : (
+                      <button
+                        className="btn-ai-regenerate"
+                        onClick={regenerateAiRecommendation}
+                        disabled={isRegeneratingAi || !!activeSessionId}
+                        title="Demander une autre séance générée par l'IA"
+                      >
+                        <span className={isRegeneratingAi ? 'spin-icon' : ''}>
+                          <Icon name="refresh" size={16} />
+                        </span>
+                        <span>{isRegeneratingAi ? 'Génération IA...' : 'Régénérer IA'}</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               ) : (
                 <div className="bento-ai-rec">
                   <div>
-                    <div className="bento-badge">
-                      <span className="ai-dot-pulse"></span>
-                      <span>Coach IA • Prêt</span>
+                    <div className="bento-ai-head">
+                      <div className="bento-badge">
+                        <span className="ai-dot-pulse" />
+                        <span>Coach IA • Prêt</span>
+                      </div>
                     </div>
                     <h2>Votre Coach IA s'active...</h2>
                     <p className="rec-text">
                       L'intelligence artificielle est prête à concevoir votre prochaine séance sur-mesure. Cliquez sur Régénérer pour solliciter le coach dès maintenant !
                     </p>
                   </div>
-                  <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
-                    <button
-                      className="btn-volt"
-                      style={{ flex: 1 }}
-                      onClick={regenerateAiRecommendation}
-                      disabled={isRegeneratingAi}
-                    >
-                      <span className={isRegeneratingAi ? 'spin-icon' : ''}>⚡</span>
+                  <div className="bento-ai-actions">
+                    <button className="btn-primary" onClick={regenerateAiRecommendation} disabled={isRegeneratingAi}>
+                      <span className={isRegeneratingAi ? 'spin-icon' : ''}>
+                        <Icon name="sparkle" size={16} />
+                      </span>
                       <span>{isRegeneratingAi ? 'Génération en cours...' : "Générer ma séance avec l'IA"}</span>
                     </button>
-                    <button className="btn-glass" onClick={startNewWorkout}>
-                      + Séance libre
+                    <button className="btn-secondary" onClick={startNewWorkout}>
+                      <Icon name="plus" size={16} />
+                      Séance libre
                     </button>
                   </div>
                 </div>
@@ -1347,22 +1420,24 @@ function App() {
                 <div className="bento-stat-card">
                   <div className="stat-header">
                     <span className="stat-label">Séances (7j)</span>
-                    <span className="stat-icon">🔥</span>
+                    <span className="stat-icon">
+                      <Icon name="flame" size={18} />
+                    </span>
                   </div>
-                  <div className="stat-number" style={{ color: 'var(--accent-volt)' }}>
-                    {dashboardStats.workoutsThisWeek ?? 0}
-                  </div>
+                  <div className="stat-number">{dashboardStats.workoutsThisWeek ?? 0}</div>
                   <div className="stat-footer">Fréquence d'entraînement</div>
                 </div>
 
                 <div className="bento-stat-card">
                   <div className="stat-header">
                     <span className="stat-label">Volume total (7j)</span>
-                    <span className="stat-icon">⚡</span>
+                    <span className="stat-icon">
+                      <Icon name="weight" size={18} />
+                    </span>
                   </div>
-                  <div className="stat-number" style={{ color: 'var(--accent-cyan)' }}>
+                  <div className="stat-number">
                     {dashboardStats.weekVolume ? `${dashboardStats.weekVolume.toLocaleString()}` : '0'}
-                    <span style={{ fontSize: '1rem', color: 'var(--text-muted)', marginLeft: '4px' }}>kg</span>
+                    <span className="stat-unit">kg</span>
                   </div>
                   <div className="stat-footer">Tonnage cumulé soulevé</div>
                 </div>
@@ -1370,11 +1445,13 @@ function App() {
                 <div className="bento-stat-card">
                   <div className="stat-header">
                     <span className="stat-label">Poids corporel</span>
-                    <span className="stat-icon">⚖️</span>
+                    <span className="stat-icon">
+                      <Icon name="user" size={18} />
+                    </span>
                   </div>
-                  <div className="stat-number" style={{ color: 'var(--accent-purple)' }}>
+                  <div className="stat-number">
                     {profile.weight || '--'}
-                    <span style={{ fontSize: '1rem', color: 'var(--text-muted)', marginLeft: '4px' }}>kg</span>
+                    <span className="stat-unit">kg</span>
                   </div>
                   <div className="stat-footer">Dernière pesée enregistrée</div>
                 </div>
@@ -1382,316 +1459,336 @@ function App() {
                 <div className="bento-stat-card">
                   <div className="stat-header">
                     <span className="stat-label">Indice IMC</span>
-                    <span className="stat-icon">🧬</span>
-                  </div>
-                  <div className="stat-number" style={{ color: 'var(--accent-coral)' }}>
-                    {bmi || '--'}
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: '6px' }}>
-                      {bmi ? (bmi < 25 ? '(Normal)' : '(Surpoids)') : ''}
+                    <span className="stat-icon">
+                      <Icon name="activity" size={18} />
                     </span>
+                  </div>
+                  <div className="stat-number">
+                    {bmi || '--'}
+                    {bmi && <span className="stat-unit">{bmi < 25 ? '(Normal)' : '(Surpoids)'}</span>}
                   </div>
                   <div className="stat-footer">Ratio taille / poids corporel</div>
                 </div>
               </div>
             </div>
-
           </div>
         )}
 
         {/* ================= TAB 2: WORKOUT LOGGER ================= */}
         {activeTab === 'logger' && (
           <div>
-            <div className={`header flex-between${activeSessionId ? '' : ' logger-header-idle'}`}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                  <h1>{activeSessionId ? (activeRoutineName || 'Séance en direct') : 'Aucune séance active'}</h1>
-                  {activeSessionId && (
-                    <div className="workout-timer-chip">
-                      <span>⏱️</span> {formatDuration(elapsedSeconds)}
-                    </div>
-                  )}
-                </div>
-                <p>
-                  {activeSessionId
-                    ? 'Saisissez vos charges et répétitions. Cochez chaque série pour déclencher le repos.'
-                    : 'Démarrez une nouvelle séance pour commencer à enregistrer vos performances.'}
-                </p>
-              </div>
-
-              {activeSessionId ? (
-                <button className="btn-neon" onClick={finishWorkout}>
-                  ✓ Terminer et Enregistrer
-                </button>
-              ) : (
-                <button className="btn-neon" onClick={startNewWorkout}>
-                  + Démarrer une séance
-                </button>
-              )}
-            </div>
-
             {activeSessionId ? (
-              <div className="workout-logger">
+              <div className={`session${showRestTimer ? ' has-rest-drawer' : ''}`}>
                 {/* Active Test Week Session Notice */}
                 {activeTestStep && (
-                  <div className="active-session-test-banner">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <span style={{ fontSize: '1.5rem' }}>🧪</span>
+                  <div className="session-notice">
+                    <div className="session-notice-text">
+                      <Icon name="flask" size={20} />
                       <div>
-                        <strong style={{ color: 'var(--accent-cyan)', fontSize: '0.92rem', display: 'block' }}>
-                          SÉANCE DU PROTOCOLE DE CALIBRATION ATHLÈTE
-                        </strong>
-                        <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                        <strong>Séance du protocole de calibration athlète</strong>
+                        <span>
                           Donnez le maximum avec une technique propre. Vos charges réelles et répétitions sont mesurées pour calibrer vos futurs cycles IA.
                         </span>
                       </div>
                     </div>
-                    <button
-                      className="btn-glass"
-                      style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem', whiteSpace: 'nowrap' }}
-                      onClick={() => setIsTestWeekModalOpen(true)}
-                    >
+                    <button className="btn-small" onClick={() => setIsTestWeekModalOpen(true)}>
                       Protocole
                     </button>
                   </div>
                 )}
 
+                {/* Session header + live telemetry */}
+                <section className="session-hero">
+                  <div className="session-hero-top">
+                    <div className="session-hero-text">
+                      <div className="session-hero-tags">
+                        <span className="tag-live">
+                          <span className="ping-dot" aria-hidden="true" />
+                          Séance en cours
+                        </span>
+                        <span className="session-hero-kicker">{sessionKicker}</span>
+                      </div>
+                      <h1>{activeRoutineName || 'Séance libre'}</h1>
+                      <p>Saisissez vos charges et répétitions. Validez chaque série pour déclencher le repos.</p>
+                    </div>
+                    <div className="session-hero-actions">
+                      {!showRestTimer && (
+                        <button
+                          className="btn-secondary"
+                          onClick={() => startRestTimer(false)}
+                          title="Ouvrir le chronomètre de repos"
+                          aria-label="Ouvrir le chronomètre de repos"
+                        >
+                          <Icon name="hourglass" size={18} />
+                          <span className="btn-label">Repos</span>
+                        </button>
+                      )}
+                      <button className="btn-secondary" onClick={scrollToAddExercise} aria-label="Ajouter un exercice">
+                        <Icon name="plus" size={18} />
+                        <span className="btn-label">Ajouter un exercice</span>
+                      </button>
+                      <button className="btn-primary" onClick={finishWorkout}>
+                        <Icon name="flag" size={18} />
+                        Terminer la séance
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="telemetry">
+                    <div className="metric">
+                      <span className="metric-label">
+                        <Icon name="timer" size={14} />
+                        Chrono total
+                      </span>
+                      <span className="metric-value is-clock">
+                        {formatDuration(elapsedSeconds)}
+                        <span className="metric-live" aria-hidden="true" />
+                      </span>
+                    </div>
+                    <div className="metric">
+                      <span className="metric-label">
+                        <Icon name="weight" size={14} />
+                        Volume validé
+                      </span>
+                      <span className="metric-value">
+                        {sessionVolume.toLocaleString('fr-FR')}
+                        <span className="metric-unit">kg</span>
+                      </span>
+                    </div>
+                    <div className="metric">
+                      <span className="metric-label">
+                        <Icon name="checkCircle" size={14} />
+                        Séries validées
+                      </span>
+                      <span className="metric-value">
+                        {completedSets}
+                        <span className="metric-unit">/ {totalSets} séries</span>
+                      </span>
+                    </div>
+                    <div className="metric">
+                      <span className="metric-label">
+                        <Icon name="dumbbell" size={14} />
+                        Exercices finis
+                      </span>
+                      <span className="metric-value is-accent">
+                        {exercisesDone}
+                        <span className="metric-unit">/ {workout.length}</span>
+                      </span>
+                    </div>
+                  </div>
+                </section>
+
                 {/* Rest Timer */}
                 {showRestTimer && (
                   <RestTimer
-                    autoStartSeconds={restTimerSeconds}
+                    key={restTimerRun}
+                    initialSeconds={restDuration}
+                    autoStart={restAutoStart}
+                    onDurationChange={setRestDuration}
                     onClose={() => setShowRestTimer(false)}
                   />
                 )}
 
-                {!showRestTimer && (
-                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <button className="btn-small" onClick={() => setShowRestTimer(true)}>
-                      ⏱️ Ouvrir le chronomètre de repos
-                    </button>
-                  </div>
-                )}
-
-                {/* Workout Exercises */}
-                {workout.map((exercise, eIndex) => (
-                  <div key={exercise.exerciseId + eIndex} className="glass-panel exercise-group">
-                    <div className="exercise-header">
-                      <div>
-                        <h3>{exercise.name}</h3>
-                        <span className="badge-category" style={{ fontSize: '0.75rem' }}>
-                          {exercise.category || 'Général'}
+                <div className="session-layout">
+                  <div className="session-main">
+                    {activeExercise ? (
+                      <ActiveExerciseCard
+                        exercise={activeExercise}
+                        position={activeExerciseIndex + 1}
+                        total={workout.length}
+                        stats={exerciseStats[activeExercise.exerciseId]}
+                        onSetChange={(sIndex, field, value) => updateSet(activeExerciseIndex, sIndex, field, value)}
+                        onToggleSet={(sIndex) => toggleSetCompleted(activeExerciseIndex, sIndex)}
+                        onAddSet={() => addSet(activeExerciseIndex)}
+                        onRemoveSet={(sIndex) => removeSet(activeExerciseIndex, sIndex)}
+                        onCompleteAll={() => completeAllSets(activeExerciseIndex)}
+                        onWarmup={() => openWarmupForExercise(activeExerciseIndex)}
+                        onCalculator={() => openPlateCalculator(activeExercise)}
+                        onRemove={() => removeExerciseFromSession(activeExerciseIndex)}
+                      />
+                    ) : (
+                      <div className="glass-panel session-empty">
+                        <span className="session-empty-icon">
+                          <Icon name="dumbbell" size={26} />
                         </span>
-                      </div>
-                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                        <button
-                          className="btn-small"
-                          title="Générer l'échauffement"
-                          style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', color: '#ffaa00' }}
-                          onClick={() => openWarmupForExercise(eIndex)}
-                        >
-                          🔥 Échauffement
-                        </button>
-                        <button
-                          className="btn-icon"
-                          title="Calculatrice de charge"
-                          onClick={() => openPlateCalculator(exercise)}
-                        >
-                          🧮
-                        </button>
-                        <button
-                          className="btn-icon"
-                          title="Supprimer cet exercice"
-                          onClick={() => removeExerciseFromSession(eIndex)}
-                        >
-                          🗑️
-                        </button>
-                      </div>
-                    </div>
-
-                    {exercise.progressiveTarget && (
-                      <div className="overload-target-chip">
-                        <span>🎯</span> {exercise.progressiveTarget}
+                        <h3>Votre séance est prête</h3>
+                        <p>Ajoutez un premier exercice depuis la bibliothèque pour commencer à enregistrer vos séries.</p>
                       </div>
                     )}
 
-                    <table className="sets-table">
-                      <thead>
-                        <tr>
-                          <th style={{ width: '45px' }}>Série</th>
-                          <th>Charge (kg)</th>
-                          <th>Reps</th>
-                          <th style={{ width: '50px', textAlign: 'center' }}>Validé</th>
-                          <th style={{ width: '40px' }}></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {exercise.sets.map((set, sIndex) => (
-                          <tr key={sIndex}>
-                            <td>
-                              <span className="set-number">{sIndex + 1}</span>
-                            </td>
-                            <td>
-                              <input
-                                type="number"
-                                step="0.5"
-                                className="input-glass"
-                                value={set.weight || ''}
-                                placeholder="0"
-                                onChange={(e) => updateSet(eIndex, sIndex, 'weight', e.target.value)}
-                              />
-                            </td>
-                            <td>
-                              <input
-                                type="number"
-                                className="input-glass"
-                                value={set.reps || ''}
-                                placeholder="0"
-                                onChange={(e) => updateSet(eIndex, sIndex, 'reps', e.target.value)}
-                              />
-                            </td>
-                            <td style={{ textAlign: 'center' }}>
-                              <button
-                                className={`btn-check-set ${set.completed ? 'completed' : ''}`}
-                                onClick={() => toggleSetCompleted(eIndex, sIndex)}
-                                title="Marquer comme validé"
-                              >
-                                ✓
-                              </button>
-                            </td>
-                            <td style={{ textAlign: 'center' }}>
-                              <button
-                                className="btn-icon"
-                                style={{ padding: '0.2rem', color: '#ff5e5e' }}
-                                onClick={() => removeSet(eIndex, sIndex)}
-                                title="Supprimer la série"
-                              >
-                                ✕
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                    {/* Rest of the session */}
+                    {workout.length > 1 && (
+                      <section className="session-queue">
+                        <div className="section-head">
+                          <h3>Suite de la séance</h3>
+                          <span>
+                            {remainingExercises} {remainingExercises > 1 ? 'exercices restants' : 'exercice restant'}
+                          </span>
+                        </div>
+                        {workout.map((ex, eIndex) => {
+                          if (eIndex === activeExerciseIndex) return null;
+                          const doneSets = ex.sets.filter((s) => s.completed).length;
+                          const isDone = ex.sets.length > 0 && doneSets === ex.sets.length;
+                          return (
+                            <button
+                              key={ex.exerciseId + eIndex}
+                              type="button"
+                              className={`queue-item${isDone ? ' is-done' : ''}`}
+                              onClick={() => setFocusedExercise(eIndex)}
+                            >
+                              <span className="queue-tile" aria-hidden="true">
+                                <Icon name={isDone ? 'check' : 'dumbbell'} size={22} />
+                              </span>
+                              <span className="queue-body">
+                                <span className="queue-meta">
+                                  <span>Exercice {eIndex + 1}</span>
+                                  <span className={`badge-category${isDone ? ' is-done-tag' : ''}`}>
+                                    {isDone ? 'Terminé' : `${doneSets}/${ex.sets.length} séries`}
+                                  </span>
+                                </span>
+                                <span className="queue-name">{ex.name}</span>
+                                <span className="queue-detail">{ex.progressiveTarget || describeSets(ex)}</span>
+                              </span>
+                              <span className="queue-cta">
+                                <span>{isDone ? 'Revoir' : 'Ouvrir'}</span>
+                                <Icon name="chevronRight" size={16} />
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </section>
+                    )}
 
-                    <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.6rem' }}>
-                      <button className="btn-small" onClick={() => addSet(eIndex)}>
-                        + Ajouter une série
-                      </button>
-                      <button
-                        className="btn-small"
-                        style={{ color: 'var(--accent-volt)', borderColor: 'rgba(204, 255, 0, 0.3)' }}
-                        onClick={() => {
-                          setWorkout((prev) => {
-                            const copy = [...prev];
-                            copy[eIndex] = {
-                              ...copy[eIndex],
-                              sets: copy[eIndex].sets.map((s) => ({ ...s, completed: true })),
-                            };
-                            return copy;
-                          });
-                          showToast(`Toutes les séries de "${exercise.name}" ont été validées !`, 'info');
-                        }}
-                      >
-                        ✓ Tout valider
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                    {/* Add Exercise */}
+                    <section className="glass-panel session-add" ref={addExerciseRef}>
+                      <h3>Ajouter un exercice à la séance</h3>
+                      <div className="session-add-row">
+                        <select
+                          className="input-glass"
+                          aria-label="Choisir un exercice dans la bibliothèque"
+                          onChange={(e) => {
+                            const ex = exercises.find((x) => x.id === e.target.value);
+                            if (ex) addExerciseToSession(ex);
+                            e.target.value = '';
+                          }}
+                          defaultValue=""
+                        >
+                          <option value="" disabled>
+                            Choisir un exercice parmi la bibliothèque...
+                          </option>
+                          {allCategories.slice(1).map((cat) => (
+                            <optgroup key={cat} label={cat}>
+                              {exercises
+                                .filter((ex) => (ex.category || 'Général') === cat)
+                                .map((ex) => (
+                                  <option key={ex.id} value={ex.id}>
+                                    {ex.name}
+                                  </option>
+                                ))}
+                            </optgroup>
+                          ))}
+                        </select>
 
-                {/* Add Exercise Dropdown */}
-                <div className="glass-panel" style={{ padding: '1.25rem' }}>
-                  <h4 style={{ marginBottom: '0.75rem' }}>+ Ajouter un exercice à la séance :</h4>
-                  <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                    <select
-                      className="input-glass"
-                      style={{ flex: 1, minWidth: '220px', textAlign: 'left' }}
-                      onChange={(e) => {
-                        const ex = exercises.find((x) => x.id === e.target.value);
-                        if (ex) addExerciseToSession(ex);
-                        e.target.value = '';
-                      }}
-                      defaultValue=""
-                    >
-                      <option value="" disabled>
-                        Choisir un exercice parmi la bibliothèque...
-                      </option>
-                      {allCategories.slice(1).map((cat) => (
-                        <optgroup key={cat} label={cat}>
-                          {exercises
-                            .filter((ex) => (ex.category || 'Général') === cat)
-                            .map((ex) => (
-                              <option key={ex.id} value={ex.id}>
-                                {ex.name}
-                              </option>
-                            ))}
-                        </optgroup>
-                      ))}
-                    </select>
+                        <button className="btn-secondary" onClick={() => setIsAddExerciseOpen(true)}>
+                          <Icon name="plus" size={16} />
+                          Créer exercice personnalisé
+                        </button>
+                      </div>
+                    </section>
 
-                    <button className="btn-secondary" onClick={() => setIsAddExerciseOpen(true)}>
-                      + Créer exercice personnalisé
+                    {/* Session Feedback & Notes */}
+                    <section className="glass-panel session-feedback">
+                      <div className="form-group">
+                        <label>RPE de la séance (Effort perçu de 1 à 10) : {sessionRpe}/10</label>
+                        <div className="rpe-selector">
+                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                            <button
+                              key={num}
+                              type="button"
+                              className={`rpe-btn ${sessionRpe === num ? 'active' : ''}`}
+                              onClick={() => setSessionRpe(num)}
+                              aria-pressed={sessionRpe === num}
+                            >
+                              {num}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="form-group">
+                        <label htmlFor="session-notes">Tes notes (facultatif)</label>
+                        <input
+                          id="session-notes"
+                          type="text"
+                          className="input-glass"
+                          placeholder="Sensations, forme, courbatures… ex : bonne congestion, barre facile à 80 kg"
+                          value={sessionNotes}
+                          onChange={(e) => setSessionNotes(e.target.value)}
+                        />
+                      </div>
+                    </section>
+
+                    <button className="btn-primary session-finish" onClick={finishWorkout}>
+                      <Icon name="flag" size={20} />
+                      Terminer et enregistrer la séance
                     </button>
                   </div>
+
+                  <aside className="session-side" aria-label="Analyse de la séance">
+                    {activeExercise && <RecordCard exercise={activeExercise} stats={exerciseStats[activeExercise.exerciseId]} />}
+                    <MuscleFocusCard exercises={workout} />
+                    {sessionTips.length > 0 && (
+                      <section className="glass-panel coach-tips">
+                        <div className="coach-tips-head">
+                          <Icon name="lightbulb" size={18} />
+                          <span>{activeTestStep ? 'Consignes du protocole' : 'Consignes du coach'}</span>
+                        </div>
+                        <ul>
+                          {sessionTips.map((tip, idx) => (
+                            <li key={idx}>{tip}</li>
+                          ))}
+                        </ul>
+                      </section>
+                    )}
+                  </aside>
                 </div>
-
-                {/* Session Feedback & Notes */}
-                <div className="glass-panel">
-                  <div className="form-group">
-                    <label>RPE de la séance (Effort perçu de 1 à 10) : {sessionRpe}/10</label>
-                    <div className="rpe-selector">
-                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
-                        <button
-                          key={num}
-                          type="button"
-                          className={`rpe-btn ${sessionRpe === num ? 'active' : ''}`}
-                          onClick={() => setSessionRpe(num)}
-                        >
-                          {num}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="form-group" style={{ margin: 0 }}>
-                    <label>Tes notes (facultatif)</label>
-                    <input
-                      type="text"
-                      className="input-glass"
-                      placeholder="Sensations, forme, courbatures… ex : bonne congestion, barre facile à 80 kg"
-                      value={sessionNotes}
-                      onChange={(e) => setSessionNotes(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <button
-                  className="btn-neon"
-                  style={{ width: '100%', padding: '1rem', fontSize: '1.1rem' }}
-                  onClick={finishWorkout}
-                >
-                  ✓ Terminer et Enregistrer la séance
-                </button>
               </div>
             ) : (
-              <div className="logger-idle">
-                <CoachChat
-                  onStartWorkout={(coachWorkout) => startRecommendedWorkout(coachWorkout)}
-                  onSaveRoutine={saveCoachWorkoutAsRoutine}
-                  onError={(text) => showToast(text, 'error')}
-                />
-                <div className="glass-panel logger-idle-start">
-                  <span className="logger-idle-emoji">🏋️‍♂️</span>
-                  <h2>Aucun entraînement en cours</h2>
-                  <p>Démarre une séance libre, lance un de tes programmes ou demande une séance au coach.</p>
-                  <div className="logger-idle-actions">
-                    <button className="btn-neon" onClick={startNewWorkout}>
-                      Démarrer une séance libre
-                    </button>
-                    <button className="btn-secondary" onClick={() => setActiveTab('routines')}>
-                      Choisir un programme
-                    </button>
+              <>
+                <div className="header logger-header-idle">
+                  <div>
+                    <h1>Aucune séance active</h1>
+                    <p>Démarrez une nouvelle séance pour commencer à enregistrer vos performances.</p>
+                  </div>
+                  <button className="btn-primary" onClick={startNewWorkout}>
+                    <Icon name="plus" size={18} strokeWidth={2.4} />
+                    Démarrer une séance
+                  </button>
+                </div>
+
+                <div className="logger-idle">
+                  <CoachChat
+                    onStartWorkout={(coachWorkout) => startRecommendedWorkout(coachWorkout)}
+                    onSaveRoutine={saveCoachWorkoutAsRoutine}
+                    onError={(text) => showToast(text, 'error')}
+                  />
+                  <div className="glass-panel logger-idle-start">
+                    <span className="logger-idle-icon">
+                      <Icon name="dumbbell" size={28} />
+                    </span>
+                    <h2>Aucun entraînement en cours</h2>
+                    <p>Démarre une séance libre, lance un de tes programmes ou demande une séance au coach.</p>
+                    <div className="logger-idle-actions">
+                      <button className="btn-primary" onClick={startNewWorkout}>
+                        Démarrer une séance libre
+                      </button>
+                      <button className="btn-secondary" onClick={() => setActiveTab('routines')}>
+                        Choisir un programme
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </>
             )}
           </div>
         )}
@@ -1707,8 +1804,9 @@ function App() {
                 <h1>Programmes d'entraînement</h1>
                 <p>Structurez vos cycles (Push, Pull, Legs, Upper, Lower) pour optimiser vos gains.</p>
               </div>
-              <button className="btn-neon" onClick={() => setIsRoutineModalOpen(true)}>
-                + Nouveau Programme
+              <button className="btn-primary" onClick={() => setIsRoutineModalOpen(true)}>
+                <Icon name="plus" size={18} strokeWidth={2.4} />
+                Nouveau Programme
               </button>
             </div>
 
@@ -1716,63 +1814,50 @@ function App() {
               {routines.map((rt) => (
                 <div key={rt.id} className="glass-panel routine-card">
                   <div>
-                    <div className="flex-between" style={{ marginBottom: '0.75rem' }}>
-                      <h3 style={{ margin: 0 }}>{rt.name}</h3>
+                    <div className="routine-card-head">
+                      <h3>{rt.name}</h3>
                       <button
-                        className="btn-icon"
-                        style={{ color: '#ff5e5e' }}
+                        className="btn-icon is-danger"
                         onClick={() => handleDeleteRoutine(rt.id)}
                         title="Supprimer la routine"
+                        aria-label={`Supprimer le programme ${rt.name}`}
                       >
-                        🗑️
+                        <Icon name="trash" size={18} />
                       </button>
                     </div>
 
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
-                      {rt.exercises?.length || 0} exercices
-                    </p>
+                    <p className="routine-card-count">{rt.exercises?.length || 0} exercices</p>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '1.25rem' }}>
+                    <div className="routine-ex-list">
                       {(rt.exercises || []).map((ex: any) => (
-                        <div
-                          key={ex.id}
-                          className="flex-between"
-                          style={{
-                            background: 'rgba(255,255,255,0.03)',
-                            padding: '0.4rem 0.6rem',
-                            borderRadius: '6px',
-                            fontSize: '0.85rem',
-                          }}
-                        >
+                        <div key={ex.id} className="routine-ex-row">
                           <span>{ex.name}</span>
-                          <span className="badge-category" style={{ fontSize: '0.65rem' }}>
-                            {ex.category || 'Général'}
-                          </span>
+                          <span className="badge-category">{ex.category || 'Général'}</span>
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  <button
-                    className="btn-neon"
-                    style={{ width: '100%' }}
-                    onClick={() => startRoutineWorkout(rt)}
-                  >
-                    ▶ Lancer l'entraînement
+                  <button className="btn-primary routine-launch" onClick={() => startRoutineWorkout(rt)}>
+                    <Icon name="play" size={16} filled strokeWidth={1.5} />
+                    Lancer l'entraînement
                   </button>
                 </div>
               ))}
             </div>
 
             {routines.length === 0 && (
-              <div className="glass-panel flex-center" style={{ flexDirection: 'column', padding: '3rem', textAlign: 'center' }}>
-                <span style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>📋</span>
+              <div className="glass-panel empty-panel">
+                <span className="empty-panel-icon">
+                  <Icon name="clipboard" size={26} />
+                </span>
                 <h3>Aucun programme créé pour le moment</h3>
-                <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+                <p>
                   Créez des routines personnalisées pour pré-remplir automatiquement vos séances et appliquer la surcharge progressive.
                 </p>
-                <button className="btn-neon" onClick={() => setIsRoutineModalOpen(true)}>
-                  + Créer mon premier programme
+                <button className="btn-primary" onClick={() => setIsRoutineModalOpen(true)}>
+                  <Icon name="plus" size={18} strokeWidth={2.4} />
+                  Créer mon premier programme
                 </button>
               </div>
             )}
@@ -1789,7 +1874,8 @@ function App() {
               </div>
               {history.length > 0 && (
                 <button className="btn-secondary" onClick={exportHistoryCSV} title="Exporter l'historique au format CSV">
-                  📥 Exporter en CSV
+                  <Icon name="download" size={18} />
+                  Exporter en CSV
                 </button>
               )}
             </div>
@@ -1805,103 +1891,91 @@ function App() {
                 });
               });
 
-              const sessionTitle = session.title
-                ? `${session.testWeekStep ? '🧪' : session.routine ? '📋' : '⚡'} ${session.title}`
+              const sessionTitle = session.title || session.routine?.name || 'Séance libre';
+              const sessionTag = session.testWeekStep
+                ? 'Semaine test'
                 : session.routine
-                ? `📋 ${session.routine.name}`
-                : 'Séance libre';
+                ? 'Programme'
+                : session.title
+                ? 'Coach IA'
+                : null;
 
               return (
-                <div key={session.id} className="glass-panel" style={{ marginBottom: '1.25rem' }}>
-                  <div className="flex-between" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div key={session.id} className="glass-panel history-card">
+                  <div className="history-head">
                     <div>
-                      <h3 style={{ color: 'var(--accent-volt)', margin: 0 }}>
-                        {sessionTitle} —{' '}
-                        <span style={{ color: 'var(--text-muted)', fontWeight: 500, fontSize: '0.9rem' }}>
-                          {new Date(session.startedAt).toLocaleDateString('fr-FR', {
-                            weekday: 'long',
-                            day: 'numeric',
-                            month: 'long',
-                          })}
+                      <div className="history-title-row">
+                        <h3 className="history-title">{sessionTitle}</h3>
+                        {sessionTag && <span className="badge-pill">{sessionTag}</span>}
+                      </div>
+                      <div className="history-date">
+                        {new Date(session.startedAt).toLocaleDateString('fr-FR', {
+                          weekday: 'long',
+                          day: 'numeric',
+                          month: 'long',
+                        })}
+                      </div>
+                      <div className="history-stats">
+                        <span>
+                          RPE <strong>{session.rpe}/10</strong>
                         </span>
-                      </h3>
-                      <div style={{ display: 'flex', gap: '1rem', marginTop: '0.35rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                        <span>RPE: <strong>{session.rpe}/10</strong></span>
-                        <span>Volume: <strong>{sessionVolume.toLocaleString()} kg</strong></span>
-                        <span>Exercices: <strong>{session.exercises?.length || 0}</strong></span>
+                        <span>
+                          Volume <strong>{sessionVolume.toLocaleString()} kg</strong>
+                        </span>
+                        <span>
+                          Exercices <strong>{session.exercises?.length || 0}</strong>
+                        </span>
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                      <button
-                        className="btn-small"
-                        onClick={() => shareSession(session)}
-                        title="Copier le résumé de la séance"
-                      >
-                        📤 Partager
+                    <div className="history-actions">
+                      <button className="btn-small" onClick={() => shareSession(session)} title="Copier le résumé de la séance">
+                        <Icon name="share" size={16} />
+                        Partager
                       </button>
                       <button
                         className="btn-small"
                         onClick={() => setExpandedHistoryId(isExpanded ? null : session.id)}
+                        aria-expanded={isExpanded}
                       >
                         {isExpanded ? 'Masquer détails' : 'Voir détails'}
+                        <Icon name={isExpanded ? 'chevronUp' : 'chevronDown'} size={16} />
                       </button>
                       <button
-                        className="btn-icon"
-                        style={{ color: '#ff5e5e' }}
+                        className="btn-icon is-danger"
                         onClick={() => handleDeleteSession(session.id)}
                         title="Supprimer la séance"
+                        aria-label="Supprimer la séance"
                       >
-                        🗑️
+                        <Icon name="trash" size={18} />
                       </button>
                     </div>
                   </div>
 
-                  {session.notes && (
-                    <div style={{ marginTop: '0.75rem', fontSize: '0.875rem', fontStyle: 'italic', color: 'var(--text-muted)' }}>
-                      "{session.notes}"
-                    </div>
-                  )}
+                  {session.notes && <div className="history-notes">"{session.notes}"</div>}
 
                   {/* Expanded Exercise and Sets view */}
                   {isExpanded && (
-                    <div style={{ marginTop: '1.25rem', borderTop: 'var(--glass-border)', paddingTop: '1rem' }}>
+                    <div className="history-details">
                       {session.exercises?.length > 0 ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                          {session.exercises.map((exLog: any) => (
-                            <div key={exLog.id} style={{ background: 'rgba(255,255,255,0.03)', padding: '0.75rem 1rem', borderRadius: '8px' }}>
-                              <div className="flex-between" style={{ marginBottom: '0.5rem' }}>
-                                <strong>{exLog.exercise?.name || 'Exercice'}</strong>
-                                <span className="badge-category" style={{ fontSize: '0.7rem' }}>
-                                  {exLog.exercise?.category || 'Général'}
-                                </span>
-                              </div>
-
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                                {exLog.sets?.map((st: any, idx: number) => (
-                                  <span
-                                    key={st.id || idx}
-                                    style={{
-                                      background: st.completed ? 'rgba(32,201,151,0.15)' : 'rgba(255,255,255,0.05)',
-                                      border: st.completed ? '1px solid var(--accent-green)' : '1px solid rgba(255,255,255,0.1)',
-                                      color: st.completed ? 'var(--accent-green)' : 'var(--text-muted)',
-                                      padding: '0.2rem 0.5rem',
-                                      borderRadius: '6px',
-                                      fontSize: '0.8rem',
-                                      fontWeight: 600,
-                                    }}
-                                  >
-                                    S{idx + 1}: {st.weight}kg × {st.reps} {st.completed ? '✓' : ''}
-                                  </span>
-                                ))}
-                              </div>
+                        session.exercises.map((exLog: any) => (
+                          <div key={exLog.id} className="history-exercise">
+                            <div className="history-exercise-head">
+                              <strong>{exLog.exercise?.name || 'Exercice'}</strong>
+                              <span className="badge-category">{exLog.exercise?.category || 'Général'}</span>
                             </div>
-                          ))}
-                        </div>
+
+                            <div className="history-sets">
+                              {exLog.sets?.map((st: any, idx: number) => (
+                                <span key={st.id || idx} className={`history-set${st.completed ? ' is-done' : ''}`}>
+                                  S{idx + 1}: {st.weight}kg × {st.reps} {st.completed ? '✓' : ''}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ))
                       ) : (
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                          Aucun exercice n'a été consigné dans cette séance.
-                        </p>
+                        <p className="muted-note">Aucun exercice n'a été consigné dans cette séance.</p>
                       )}
                     </div>
                   )}
@@ -1910,8 +1984,11 @@ function App() {
             })}
 
             {history.length === 0 && (
-              <div className="glass-panel" style={{ textAlign: 'center', padding: '3rem' }}>
-                <p style={{ color: 'var(--text-muted)' }}>Aucune séance passée enregistrée.</p>
+              <div className="glass-panel empty-panel">
+                <span className="empty-panel-icon">
+                  <Icon name="history" size={26} />
+                </span>
+                <p>Aucune séance passée enregistrée.</p>
               </div>
             )}
           </div>
@@ -1925,8 +2002,9 @@ function App() {
                 <h1>Bibliothèque d'Exercices</h1>
                 <p>Consultez vos records personnels, l'historique et la surcharge progressive suggérée.</p>
               </div>
-              <button className="btn-neon" onClick={() => setIsAddExerciseOpen(true)}>
-                + Nouvel Exercice
+              <button className="btn-primary" onClick={() => setIsAddExerciseOpen(true)}>
+                <Icon name="plus" size={18} strokeWidth={2.4} />
+                Nouvel Exercice
               </button>
             </div>
 
@@ -1947,44 +2025,41 @@ function App() {
             </div>
 
             {/* Search Input */}
-            <div className="glass-panel" style={{ padding: '0.75rem 1rem', marginBottom: '1.5rem' }}>
+            <div className="library-search">
+              <Icon name="search" size={18} />
               <input
-                type="text"
+                type="search"
                 className="input-glass"
-                placeholder="🔍 Rechercher un exercice par nom..."
+                placeholder="Rechercher un exercice par nom..."
+                aria-label="Rechercher un exercice"
                 value={exerciseSearch}
                 onChange={(e) => {
                   setExerciseSearch(e.target.value);
                   setLibraryLimit(LIBRARY_PAGE_SIZE);
                 }}
-                style={{ textAlign: 'left' }}
               />
             </div>
 
             {/* Exercise List */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
+            <div className="library-grid">
               {filteredExercises.slice(0, libraryLimit).map((ex) => (
-                <div
+                <button
                   key={ex.id}
+                  type="button"
                   className="glass-panel exercise-card"
-                  style={{ cursor: 'pointer', transition: 'transform 0.2s', padding: '1.25rem' }}
                   onClick={() => setSelectedExerciseIdForModal(ex.id)}
                 >
-                  <div className="flex-between">
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: '1rem', marginBottom: '0.35rem' }}>
-                        {ex.name}
-                      </div>
-                      <span className="badge-category">{ex.category || 'Général'}</span>
-                    </div>
-                    <span style={{ fontSize: '1.25rem', color: 'var(--accent-orange)' }}>📈</span>
-                  </div>
-                </div>
+                  <span>
+                    <span className="exercise-card-name">{ex.name}</span>
+                    <span className="badge-category">{ex.category || 'Général'}</span>
+                  </span>
+                  <Icon name="trendingUp" size={20} className="exercise-card-icon" />
+                </button>
               ))}
             </div>
 
             {filteredExercises.length > libraryLimit && (
-              <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
+              <div className="load-more">
                 <button className="btn-secondary" onClick={() => setLibraryLimit((l) => l + LIBRARY_PAGE_SIZE)}>
                   Afficher plus ({filteredExercises.length - libraryLimit} restants)
                 </button>
@@ -1992,9 +2067,7 @@ function App() {
             )}
 
             {filteredExercises.length === 0 && (
-              <p style={{ color: 'var(--text-muted)', textAlign: 'center', marginTop: '2rem' }}>
-                Aucun exercice trouvé correspondant à vos critères.
-              </p>
+              <p className="muted-note empty-note">Aucun exercice trouvé correspondant à vos critères.</p>
             )}
           </div>
         )}
@@ -2008,15 +2081,16 @@ function App() {
                 <p>Gérez vos mensurations, vos préférences d'entraînement et vos options.</p>
               </div>
               <button className="btn-secondary" onClick={handleLogout}>
-                🚪 Déconnexion
+                <Icon name="logout" size={18} />
+                Déconnexion
               </button>
             </div>
 
-            <div className="glass-panel" style={{ maxWidth: '600px' }}>
+            <div className="glass-panel profile-panel">
               <form onSubmit={saveProfile}>
                 <div className="form-group">
-                  <label>Identifiant du compte</label>
-                  <input type="text" value={profile.user?.username || ''} readOnly disabled style={{ opacity: 0.7 }} />
+                  <label htmlFor="profile-username">Identifiant du compte</label>
+                  <input id="profile-username" type="text" value={profile.user?.username || ''} readOnly disabled />
                 </div>
 
                 <div className="form-group">
@@ -2028,11 +2102,11 @@ function App() {
                 </div>
 
                 {bmi && (
-                  <div className="highlight-box" style={{ marginBottom: '1.5rem' }}>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Indice de Masse Corporelle (IMC)</div>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--accent-green)' }}>
+                  <div className="highlight-box profile-bmi">
+                    <div className="eyebrow">Indice de Masse Corporelle (IMC)</div>
+                    <div className="profile-bmi-value">
                       {bmi} kg/m²{' '}
-                      <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                      <span>
                         {bmi < 18.5
                           ? '(Insuffisance pondérale)'
                           : bmi < 25
@@ -2045,51 +2119,53 @@ function App() {
                   </div>
                 )}
 
-                <div className="form-group" style={{ marginTop: '1.25rem', marginBottom: '1.5rem' }}>
-                  <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 600 }}>
-                    🎯 Programme d'entraînement principal
-                  </label>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+                <div className="form-group profile-goal">
+                  <label>Programme d'entraînement principal</label>
+                  <p className="profile-goal-help">
                     Changer de programme adapte immédiatement les objectifs (charges, répétitions, temps de repos) de vos prochaines séances recommandées :
                   </p>
                   <div className="goal-selector-grid">
-                    {GOAL_OPTIONS.map((g) => (
-                      <div
-                        key={g.id}
-                        className={`goal-card-option ${g.className} ${(profile.goal || 'BODYBUILDING') === g.id ? 'selected' : ''}`}
-                        onClick={() => setProfile({ ...profile, goal: g.id })}
-                      >
-                        <div className="goal-card-icon">{g.icon}</div>
-                        <div className="goal-card-content">
-                          <div className="goal-card-title">
-                            <span>{g.name}</span>
-                            {(profile.goal || 'BODYBUILDING') === g.id && (
-                              <span style={{ fontSize: '0.75rem', color: 'var(--accent-orange)' }}>● Actif</span>
-                            )}
-                          </div>
-                          <div className="goal-card-desc">{g.desc}</div>
-                          <div className="goal-card-specs">
-                            {g.badge} | ⏱ {g.rest}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                    {GOAL_OPTIONS.map((g) => {
+                      const isSelected = (profile.goal || 'BODYBUILDING') === g.id;
+                      return (
+                        <button
+                          type="button"
+                          key={g.id}
+                          className={`goal-card-option ${isSelected ? 'selected' : ''}`}
+                          onClick={() => setProfile({ ...profile, goal: g.id })}
+                          aria-pressed={isSelected}
+                        >
+                          <span className="goal-card-icon">
+                            <Icon name={g.icon} size={20} />
+                          </span>
+                          <span className="goal-card-content">
+                            <span className="goal-card-title">
+                              <span>{g.name}</span>
+                              {isSelected && <span className="goal-card-active">● Actif</span>}
+                            </span>
+                            <span className="goal-card-desc">{g.desc}</span>
+                            <span className="goal-card-specs">
+                              {g.badge} | {g.rest}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
                 <div className="form-group">
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <label className="checkbox-row">
                     <input
                       type="checkbox"
                       checked={autoRestEnabled}
                       onChange={(e) => setAutoRestEnabled(e.target.checked)}
-                      style={{ width: 'auto' }}
                     />
                     <span>Démarrer automatiquement le chronomètre de repos après chaque série validée (✓)</span>
                   </label>
                 </div>
 
-                <button type="submit" className="btn-neon" style={{ width: '100%' }}>
+                <button type="submit" className="btn-primary profile-save">
                   Enregistrer les modifications
                 </button>
               </form>

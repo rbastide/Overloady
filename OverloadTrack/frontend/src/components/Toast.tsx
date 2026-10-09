@@ -1,4 +1,5 @@
 import React from 'react';
+import { Icon } from './Icons';
 
 export interface ToastMessage {
   id: string;
@@ -11,18 +12,20 @@ interface ToastProps {
   onDismiss: (id: string) => void;
 }
 
+const TOAST_ICONS = { success: 'checkCircle', error: 'alert', info: 'info' } as const;
+
 export const ToastContainer: React.FC<ToastProps> = ({ toasts, onDismiss }) => {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="toast-container">
+    <div className="toast-container" role="status" aria-live="polite">
       {toasts.map((toast) => (
-        <div 
-          key={toast.id} 
+        <div
+          key={toast.id}
           className={`toast-item toast-${toast.type}`}
           onClick={() => onDismiss(toast.id)}
         >
-          <span>{toast.type === 'success' ? '✅' : toast.type === 'error' ? '❌' : 'ℹ️'}</span>
+          <Icon name={TOAST_ICONS[toast.type]} size={20} />
           <span>{toast.text}</span>
         </div>
       ))}
