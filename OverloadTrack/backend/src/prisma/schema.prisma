@@ -30,6 +30,7 @@ model Profile {
   bodyFat     Float?   // optional, in %
   testWeekCompleted Boolean @default(false)
   testWeekProgress  Int     @default(0)
+  testWeekSkipped   Boolean @default(false) // the athlete declined the calibration: no test UI at all
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

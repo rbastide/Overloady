@@ -104,6 +104,8 @@ function App() {
   const [showPassword, setShowPassword] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [signupGoal, setSignupGoal] = useState<'FORCE' | 'BODYBUILDING' | 'ENDURANCE'>('BODYBUILDING');
+  // Calibration week asked at sign-up: without it, no test sessions at all
+  const [signupCalibration, setSignupCalibration] = useState<boolean>(true);
   const [confirmPassword, setConfirmPassword] = useState('');
   // Sign-up: 1 = account, 2 = athlete profile used to calibrate the test week and the AI coach
   const [signupStep, setSignupStep] = useState<1 | 2>(1);
@@ -150,6 +152,7 @@ function App() {
   const [sessionTips, setSessionTips] = useState<string[]>([]);
   const addExerciseRef = useRef<HTMLElement>(null);
   const [isAbandonOpen, setIsAbandonOpen] = useState<boolean>(false);
+  const [isRecalibrateOpen, setIsRecalibrateOpen] = useState<boolean>(false);
   // Session left open when the app was closed, offered back on the next launch
   const [resumeDraft, setResumeDraft] = useState<SessionDraft | null>(null);
 
@@ -361,6 +364,7 @@ function App() {
             username,
             password,
             goal: signupGoal,
+            calibration: signupCalibration,
             ...(withAthleteProfile ? toAthleteProfilePayload(signupAthlete) : {}),
           };
       const res = await api.post(endpoint, payload);
@@ -606,6 +610,19 @@ function App() {
       fetchData();
     } catch (err: any) {
       showToast('Erreur lors de la réinitialisation', 'error');
+    }
+  };
+
+  // From the profile: (re)starts the calibration week, also after declining it at sign-up
+  const startCalibrationFromProfile = async () => {
+    try {
+      await api.post('/workout/test-week/reset');
+      await fetchData();
+      setIsRecalibrateOpen(false);
+      setIsTestWeekModalOpen(true);
+      showToast("Semaine de calibration activée : 3 séances test t'attendent !", 'success');
+    } catch {
+      showToast("Impossible d'activer la calibration", 'error');
     }
   };
 
@@ -1025,7 +1042,9 @@ function App() {
       ? 'Chaque séance, un cran plus loin.'
       : signupStep === 1
       ? 'Définissez votre nouveau standard de progression.'
-      : 'Ton profil athlète calibre tes charges de départ et le coach IA.';
+      : signupCalibration
+      ? 'Ton profil athlète calibre tes charges de départ et le coach IA.'
+      : 'Ton profil athlète règle tes charges de départ et le coach IA.';
     return (
       <div className="auth-shell">
         <ToastContainer toasts={toasts} onDismiss={dismissToast} />
@@ -1163,6 +1182,37 @@ function App() {
                           ))}
                         </div>
                         <span className="auth-hint">{GOAL_OPTIONS.find((g) => g.id === signupGoal)?.desc}</span>
+                      </div>
+                    )}
+
+                    {!isLoginMode && (
+                      <div className="auth-field">
+                        <label>Semaine de calibration</label>
+                        <div className="auth-goal-grid is-two" role="group" aria-label="Semaine de calibration">
+                          {[
+                            { value: true, icon: 'flask' as IconName, name: 'Avec calibration', badge: '3 séances test' },
+                            { value: false, icon: 'bolt' as IconName, name: 'Sans calibration', badge: 'Coach direct' },
+                          ].map((option) => (
+                            <button
+                              type="button"
+                              key={option.name}
+                              className={`auth-goal-option ${signupCalibration === option.value ? 'selected' : ''}`}
+                              onClick={() => setSignupCalibration(option.value)}
+                              aria-pressed={signupCalibration === option.value}
+                            >
+                              <span className="auth-goal-icon">
+                                <Icon name={option.icon} size={18} />
+                              </span>
+                              <span className="auth-goal-name">{option.name}</span>
+                              <span className="auth-goal-badge">{option.badge}</span>
+                            </button>
+                          ))}
+                        </div>
+                        <span className="auth-hint">
+                          {signupCalibration
+                            ? '3 séances test pour mesurer tes charges réelles avant que le coach IA programme tes cycles.'
+                            : 'Pas de séance test : le coach IA programme tes séances tout de suite à partir de ton profil. Tu pourras toujours faire la calibration plus tard depuis ton Profil.'}
+                        </span>
                       </div>
                     )}
                   </>
@@ -1318,7 +1368,7 @@ function App() {
               <div className="bento-hero">
                 <div className="hero-top">
                   <span className="badge-pill">Programme {profile.goal || 'BODYBUILDING'}</span>
-                  {testWeekStatus?.testWeekCompleted && (
+                  {testWeekStatus?.testWeekCompleted && !testWeekStatus.testWeekSkipped && (
                     <button type="button" className="badge-pill is-jade is-clickable" onClick={() => setIsTestWeekModalOpen(true)}>
                       ✓ Profil calibré
                     </button>
@@ -2216,6 +2266,46 @@ function App() {
                   </div>
                 </div>
 
+                {testWeekStatus && (
+                  <div className="form-group">
+                    <label>Semaine de calibration</label>
+                    <div className="highlight-box profile-calibration">
+                      <span className="profile-calibration-icon" aria-hidden="true">
+                        <Icon name="flask" size={18} />
+                      </span>
+                      <div className="profile-calibration-text">
+                        <strong>
+                          {testWeekStatus.testWeekSkipped
+                            ? 'Non faite'
+                            : testWeekStatus.testWeekCompleted
+                            ? 'Calibration terminée'
+                            : `En cours · étape ${testWeekStatus.currentStep}/${testWeekStatus.totalSteps}`}
+                        </strong>
+                        <p>
+                          {testWeekStatus.testWeekSkipped
+                            ? '3 séances test pour mesurer tes charges réelles et affiner les séances du coach IA.'
+                            : testWeekStatus.testWeekCompleted
+                            ? 'Tes charges de référence sont mesurées. Tu peux refaire les tests après une longue pause ou un gros progrès.'
+                            : 'Termine les séances test pour que le coach IA programme tes cycles sur tes vraies charges.'}
+                        </p>
+                      </div>
+                      {testWeekStatus.testWeekSkipped ? (
+                        <button type="button" className="btn-primary" onClick={startCalibrationFromProfile}>
+                          Faire la calibration
+                        </button>
+                      ) : testWeekStatus.testWeekCompleted ? (
+                        <button type="button" className="btn-secondary" onClick={() => setIsRecalibrateOpen(true)}>
+                          Refaire la calibration
+                        </button>
+                      ) : (
+                        <button type="button" className="btn-secondary" onClick={() => setIsTestWeekModalOpen(true)}>
+                          Voir le protocole
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <div className="form-group">
                   <label className="checkbox-row">
                     <input
@@ -2291,6 +2381,16 @@ function App() {
           </div>
         </div>
       </ConfirmDialog>
+
+      <ConfirmDialog
+        isOpen={isRecalibrateOpen}
+        icon="flask"
+        title="Refaire la calibration ?"
+        message="Tes 3 séances test reviennent dans tes prochaines séances. Ton historique et tes records restent intacts."
+        confirmLabel="Refaire la calibration"
+        onConfirm={startCalibrationFromProfile}
+        onCancel={() => setIsRecalibrateOpen(false)}
+      />
 
       {resumeDraft && (
         <ConfirmDialog

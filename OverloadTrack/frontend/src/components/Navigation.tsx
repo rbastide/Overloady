@@ -41,7 +41,7 @@ interface NavigationProps {
   session: { name: string; clock: string } | null;
   displayName: string;
   goal?: string;
-  testWeekStatus: { testWeekCompleted: boolean; testWeekProgress: number } | null;
+  testWeekStatus: { testWeekCompleted: boolean; testWeekSkipped?: boolean; testWeekProgress: number } | null;
   onOpenTestWeek: () => void;
   onOpenPlateCalc: () => void;
   onLogout: () => void;
@@ -61,7 +61,8 @@ export function Navigation({
   const [moreOpen, setMoreOpen] = useState(false);
   const goalLabel = GOAL_LABELS[(goal || 'BODYBUILDING').toUpperCase()] || 'Hypertrophie';
   const initial = (displayName[0] || 'A').toUpperCase();
-  const testWeekLabel = testWeekStatus
+  // Calibration declined: nothing about it in the navigation
+  const testWeekLabel = testWeekStatus && !testWeekStatus.testWeekSkipped
     ? testWeekStatus.testWeekCompleted
       ? 'Calibration terminée'
       : `Semaine test ${testWeekStatus.testWeekProgress}/3`

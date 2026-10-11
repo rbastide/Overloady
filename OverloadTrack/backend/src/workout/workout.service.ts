@@ -1687,6 +1687,7 @@ export class WorkoutService implements OnApplicationBootstrap {
 
     return {
       testWeekCompleted,
+      testWeekSkipped: Boolean((profile as any)?.testWeekSkipped),
       testWeekProgress,
       currentStep,
       totalSteps: 3,
@@ -1753,7 +1754,7 @@ export class WorkoutService implements OnApplicationBootstrap {
   async skipTestWeek(userId: string) {
     await this.prisma.profile.update({
       where: { userId },
-      data: { testWeekCompleted: true, testWeekProgress: 3 } as any,
+      data: { testWeekCompleted: true, testWeekProgress: 3, testWeekSkipped: true } as any,
     });
     this.recommendationCache.delete(userId);
     return { success: true, message: 'Semaine de test validée. Le Coach IA est activé !' };
@@ -1762,7 +1763,7 @@ export class WorkoutService implements OnApplicationBootstrap {
   async resetTestWeek(userId: string) {
     await this.prisma.profile.update({
       where: { userId },
-      data: { testWeekCompleted: false, testWeekProgress: 0 } as any,
+      data: { testWeekCompleted: false, testWeekProgress: 0, testWeekSkipped: false } as any,
     });
     this.recommendationCache.delete(userId);
     return { success: true, message: 'Semaine de test réinitialisée. Prêt pour une nouvelle calibration.' };

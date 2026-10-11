@@ -1085,6 +1085,10 @@ select optgroup {
   gap: 0.5rem;
 }
 
+.auth-goal-grid.is-two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .auth-goal-option {
   display: flex;
   flex-direction: column;
@@ -3130,6 +3134,55 @@ select optgroup {
 
 .profile-save {
   width: 100%;
+}
+
+.profile-calibration {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.profile-calibration-icon {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.profile-calibration-text {
+  flex: 1 1 0; /* stays next to the icon when the button wraps below on mobile */
+  min-width: 0;
+}
+
+.profile-calibration-text strong {
+  color: var(--text-main);
+  font-size: 0.9rem;
+}
+
+.profile-calibration-text p {
+  margin: 0.2rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.profile-calibration > button {
+  flex-shrink: 0;
+}
+
+@media (max-width: 767px) {
+  .profile-calibration {
+    flex-wrap: wrap;
+  }
+
+  .profile-calibration > button {
+    width: 100%;
+  }
 }
 
 /* History */

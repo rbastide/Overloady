@@ -48,6 +48,9 @@ export class AuthService {
       ? data.goal.toUpperCase()
       : 'BODYBUILDING';
 
+    // Calibration is asked at sign-up: declining it opens the AI coach straight away
+    const skipCalibration = data.calibration === false;
+
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
     try {
@@ -64,6 +67,7 @@ export class AuthService {
               experience: normalizeExperience(data.experience) ?? 'BEGINNER',
               bodyFat: normalizeBodyFat(data.bodyFat) ?? null,
               goal,
+              ...(skipCalibration && { testWeekCompleted: true, testWeekProgress: 3, testWeekSkipped: true }),
             } as any
           }
         }
