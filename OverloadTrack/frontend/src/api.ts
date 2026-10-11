@@ -30,6 +30,14 @@ export const hasValidToken = () => {
   }
 };
 
+/**
+ * Fire-and-forget wake-up of the backend (Render free tier) and of the database (Neon scale-to-zero),
+ * sent as soon as the login screen shows so both are ready by the time the form is submitted.
+ */
+export const warmUpBackend = () => {
+  api.get('/health', { params: { db: 1 }, timeout: 90_000 }).catch(() => {});
+};
+
 // The app registers what to do when the API rejects the session (back to the login page).
 let unauthorizedHandler: (() => void) | null = null;
 export const onUnauthorized = (handler: () => void) => {

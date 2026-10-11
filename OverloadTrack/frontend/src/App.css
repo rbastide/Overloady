@@ -1172,6 +1172,27 @@ select optgroup {
   animation: spinSlow 0.7s linear infinite;
 }
 
+.auth-waking {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-top: -0.25rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  animation: bentoEntrance 0.25s ease-out;
+}
+
+.auth-waking-dot {
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  margin-top: 0.35rem;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: softPulse 1.6s ease-in-out infinite;
+}
+
 .auth-switch {
   margin-top: -0.25rem;
   text-align: center;

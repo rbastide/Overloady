@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import api, { hasValidToken, onUnauthorized } from './api';
+import api, { hasValidToken, onUnauthorized, warmUpBackend } from './api';
 import './App.css';
 import './shell.css';
 import './components.css';
@@ -88,6 +88,8 @@ function App() {
   const [signupStep, setSignupStep] = useState<1 | 2>(1);
   const [signupAthlete, setSignupAthlete] = useState<AthleteProfileValue>(toAthleteProfileValue(null));
   const [authError, setAuthError] = useState('');
+  // The login takes long: the backend (Render free tier) is most likely waking up.
+  const [isServerWaking, setIsServerWaking] = useState(false);
 
   // Navigation
   const [activeTab, setActiveTab] = useState<AppTab>('dashboard');
@@ -238,6 +240,9 @@ function App() {
   useEffect(() => {
     if (isAuthenticated) {
       fetchData();
+    } else {
+      // Wake the backend and the database while the athlete types their credentials.
+      warmUpBackend();
     }
   }, [isAuthenticated]);
 
@@ -270,6 +275,7 @@ function App() {
   const submitAuth = async (withAthleteProfile: boolean) => {
     setAuthError('');
     setIsAuthLoading(true);
+    const wakingTimer = setTimeout(() => setIsServerWaking(true), 3000);
     try {
       const endpoint = isLoginMode ? '/auth/login' : '/auth/register';
       const payload = isLoginMode
@@ -291,6 +297,8 @@ function App() {
       if (!isLoginMode && /identifiant|mot de passe/i.test(text)) setSignupStep(1);
       setAuthError(text);
     } finally {
+      clearTimeout(wakingTimer);
+      setIsServerWaking(false);
       setIsAuthLoading(false);
     }
   };
@@ -1056,6 +1064,13 @@ function App() {
                   {isAuthLoading && <span className="auth-spinner" aria-hidden="true" />}
                   {isLoginMode ? 'Se connecter' : signupStep === 1 ? 'Continuer' : 'Créer mon profil'}
                 </button>
+
+                {isServerWaking && (
+                  <p className="auth-waking" role="status">
+                    <span className="auth-waking-dot" aria-hidden="true" />
+                    Réveil du serveur… la première connexion peut prendre jusqu'à une minute.
+                  </p>
+                )}
 
                 {isSignupProfile && (
                   <div className="auth-step-actions">
