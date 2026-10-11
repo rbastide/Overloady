@@ -1,12 +1,23 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
+/**
+ * Puts a routine's exercises in the order the athlete arranged them.
+ * Exercises missing from the order (routines created before it was stored) keep their place at the end.
+ */
+export function orderRoutineExercises<T extends { id: string }>(exercises: T[], exerciseOrder?: string[] | null): T[] {
+  const rank = new Map((exerciseOrder ?? []).map((id, index) => [id, index]));
+  return [...exercises].sort(
+    (a, b) => (rank.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (rank.get(b.id) ?? Number.MAX_SAFE_INTEGER),
+  );
+}
+
 @Injectable()
 export class RoutineService {
   constructor(private prisma: PrismaService) {}
 
   async getRoutines(userId: string) {
-    return this.prisma.routine.findMany({
+    const routines = await this.prisma.routine.findMany({
       where: { userId },
       include: {
         exercises: true,
@@ -14,6 +25,10 @@ export class RoutineService {
       },
       orderBy: { name: 'asc' },
     });
+    return routines.map((routine) => ({
+      ...routine,
+      exercises: orderRoutineExercises(routine.exercises, routine.exerciseOrder),
+    }));
   }
 
   async createRoutine(userId: string, data: { name: string; exerciseIds: string[] }) {
@@ -21,18 +36,21 @@ export class RoutineService {
       throw new BadRequestException('Le nom de la routine est obligatoire.');
     }
 
-    return this.prisma.routine.create({
+    const exerciseIds = Array.from(new Set(data.exerciseIds || []));
+    const routine = await this.prisma.routine.create({
       data: {
         name: data.name.trim(),
         userId,
+        exerciseOrder: exerciseIds,
         exercises: {
-          connect: (data.exerciseIds || []).map((id) => ({ id })),
+          connect: exerciseIds.map((id) => ({ id })),
         },
       },
       include: {
         exercises: true,
       },
     });
+    return { ...routine, exercises: orderRoutineExercises(routine.exercises, routine.exerciseOrder) };
   }
 
   async deleteRoutine(userId: string, routineId: string) {

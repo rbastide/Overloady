@@ -8,6 +8,7 @@ import { PlateCalculatorModal } from './components/PlateCalculatorModal';
 import { ExerciseDetailModal } from './components/ExerciseDetailModal';
 import { AddExerciseModal } from './components/AddExerciseModal';
 import { RoutineModal } from './components/RoutineModal';
+import { ExercisePicker } from './components/ExercisePicker';
 import { ToastContainer, type ToastMessage } from './components/Toast';
 import { WarmupModal } from './components/WarmupModal';
 import { AnalyticsView } from './components/AnalyticsView';
@@ -24,6 +25,7 @@ import {
   type AthleteProfileValue,
 } from './components/AthleteProfileFields';
 import { formatKg } from './lib/loadMath';
+import { createNameMatcher } from './lib/exerciseSearch';
 
 const GOAL_OPTIONS: {
   id: 'FORCE' | 'BODYBUILDING' | 'ENDURANCE';
@@ -631,8 +633,49 @@ function App() {
   const scrollToAddExercise = () => {
     const section = addExerciseRef.current;
     if (!section) return;
-    section.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    section.querySelector('select')?.focus({ preventScroll: true });
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    section.querySelector('input')?.focus({ preventScroll: true });
+  };
+
+  // An exercise already in the session is opened instead of being added a second time
+  const pickSessionExercise = (exercise: any) => {
+    const index = workout.findIndex((ex) => ex.exerciseId === exercise.id);
+    if (index === -1) {
+      addExerciseToSession(exercise);
+      return;
+    }
+    setFocusedExercise(index);
+    showToast(`${exercise.name} est déjà dans la séance`, 'info');
+  };
+
+  const resetActiveSession = () => {
+    setActiveSessionId(null);
+    setActiveRoutineName(null);
+    setActiveTestStep(null);
+    setWorkout([]);
+    setWorkoutStartTime(null);
+    prepareSession();
+  };
+
+  // Abandon: the session is deleted, nothing of it is kept in the history or the records
+  const abandonWorkout = async () => {
+    if (!activeSessionId) return;
+    if (!window.confirm('Abandonner la séance ? Rien ne sera enregistré.')) return;
+
+    try {
+      await api.delete(`/workout/session/${activeSessionId}`);
+    } catch (err: any) {
+      // Already gone on the server: the session can still be closed here
+      if (err.response?.status !== 404) {
+        showToast("Impossible d'abandonner la séance", 'error');
+        return;
+      }
+    }
+    resetActiveSession();
+    setActiveTab('dashboard');
+    showToast('Séance abandonnée', 'info');
+    // A calibration step started and abandoned is available again
+    fetchData();
   };
 
   // Finish and Save Workout
@@ -666,12 +709,7 @@ function App() {
       });
 
       showToast('Séance enregistrée avec succès ! 💪 Vos charges et volume sont synchronisés.', 'success');
-      setActiveSessionId(null);
-      setActiveRoutineName(null);
-      setActiveTestStep(null);
-      setWorkout([]);
-      setWorkoutStartTime(null);
-      prepareSession();
+      resetActiveSession();
       // This session may hold new records: reload the stats next time.
       requestedStats.current.clear();
       setExerciseStats({});
@@ -873,8 +911,9 @@ function App() {
   };
 
   // Filter exercises
+  const matchesSearch = createNameMatcher(exerciseSearch);
   const filteredExercises = exercises.filter((ex) => {
-    const matchSearch = ex.name.toLowerCase().includes(exerciseSearch.toLowerCase());
+    const matchSearch = !matchesSearch || matchesSearch(ex.name);
     const matchCategory = selectedCategory === 'Tous' || ex.category === selectedCategory;
     return matchSearch && matchCategory;
   });
@@ -1506,6 +1545,14 @@ function App() {
                       <Icon name="plus" size={16} />
                       <span className="btn-label">Exercice</span>
                     </button>
+                    <button
+                      className="btn-icon is-danger"
+                      onClick={abandonWorkout}
+                      aria-label="Abandonner la séance"
+                      title="Abandonner la séance"
+                    >
+                      <Icon name="close" size={18} />
+                    </button>
                     <button className="btn-primary" onClick={finishWorkout}>
                       Terminer
                       <Icon name="check" size={16} strokeWidth={2.4} />
@@ -1617,40 +1664,18 @@ function App() {
                     )}
 
                     {/* Add Exercise */}
-                    <section className="session-block" ref={addExerciseRef}>
-                      <span className="eyebrow">Ajouter un exercice</span>
-                      <div className="session-add-row">
-                        <select
-                          className="input-glass"
-                          aria-label="Choisir un exercice dans la bibliothèque"
-                          onChange={(e) => {
-                            const ex = exercises.find((x) => x.id === e.target.value);
-                            if (ex) addExerciseToSession(ex);
-                            e.target.value = '';
-                          }}
-                          defaultValue=""
-                        >
-                          <option value="" disabled>
-                            Choisir un exercice parmi la bibliothèque...
-                          </option>
-                          {allCategories.slice(1).map((cat) => (
-                            <optgroup key={cat} label={cat}>
-                              {exercises
-                                .filter((ex) => (ex.category || 'Général') === cat)
-                                .map((ex) => (
-                                  <option key={ex.id} value={ex.id}>
-                                    {ex.name}
-                                  </option>
-                                ))}
-                            </optgroup>
-                          ))}
-                        </select>
-
-                        <button className="btn-secondary" onClick={() => setIsAddExerciseOpen(true)}>
-                          <Icon name="plus" size={16} />
-                          Exercice personnalisé
+                    <section className="session-block session-picker" ref={addExerciseRef}>
+                      <div className="session-section-head">
+                        <span className="eyebrow">Ajouter un exercice</span>
+                        <button className="link-btn" onClick={() => setIsAddExerciseOpen(true)}>
+                          + Exercice personnalisé
                         </button>
                       </div>
+                      <ExercisePicker
+                        exercises={exercises}
+                        selectedIds={workout.map((ex) => ex.exerciseId)}
+                        onPick={pickSessionExercise}
+                      />
                     </section>
 
                     {/* Session Feedback & Notes */}
@@ -1689,6 +1714,9 @@ function App() {
                     <button className="btn-primary session-finish" onClick={finishWorkout}>
                       <Icon name="flag" size={18} />
                       Terminer et enregistrer la séance
+                    </button>
+                    <button className="btn-ghost session-abandon" onClick={abandonWorkout}>
+                      Abandonner la séance
                     </button>
                   </div>
 

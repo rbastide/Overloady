@@ -10,6 +10,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService, CoachChatMessage } from '../ai/ai.service';
 import { calibrationLoadFactor, describeAthlete, scaleCalibrationLoad } from '../user/athlete-profile';
+import { orderRoutineExercises } from '../routine/routine.service';
 
 const COACH_MAX_MESSAGES = 12;
 const COACH_MAX_MESSAGE_LENGTH = 2000;
@@ -95,7 +96,7 @@ export class WorkoutService implements OnApplicationBootstrap {
 
     // If starting from a routine, pre-fill exercises with progressive overload from past sessions
     if (routine && routine.exercises.length > 0) {
-      for (const ex of routine.exercises) {
+      for (const ex of orderRoutineExercises(routine.exercises, routine.exerciseOrder)) {
         const newExerciseLog = await this.prisma.exerciseLog.create({
           data: {
             sessionId: newSession.id,
@@ -153,9 +154,11 @@ export class WorkoutService implements OnApplicationBootstrap {
       where: { id: newSession.id },
       include: {
         exercises: {
+          // cuid ids grow with insertion: keeps the order the logs were created in
+          orderBy: { id: 'asc' },
           include: {
             exercise: true,
-            sets: true,
+            sets: { orderBy: { id: 'asc' } },
           },
         },
       },
@@ -1074,9 +1077,11 @@ export class WorkoutService implements OnApplicationBootstrap {
       where: { id: newSession.id },
       include: {
         exercises: {
+          // cuid ids grow with insertion: keeps the order the logs were created in
+          orderBy: { id: 'asc' },
           include: {
             exercise: true,
-            sets: true,
+            sets: { orderBy: { id: 'asc' } },
           },
         },
       },

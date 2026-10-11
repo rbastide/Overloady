@@ -56,6 +56,8 @@ model Routine {
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   sessions  WorkoutSession[]
   exercises Exercise[]
+  // Exercise ids in the order the athlete arranged them (the relation itself is unordered)
+  exerciseOrder String[]
 }
 
 model Exercise {

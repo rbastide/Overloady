@@ -2231,15 +2231,8 @@ select optgroup {
   border-top: 1px solid rgba(52, 50, 54, 0.4);
 }
 
-.session-add-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.session-add-row select {
-  flex: 1 1 260px;
-  min-width: 0;
+.session-picker .session-section-head {
+  margin-bottom: 0.75rem;
 }
 
 .session-notes {
@@ -2250,6 +2243,17 @@ select optgroup {
   width: 100%;
   min-height: 52px;
   font-size: 0.875rem;
+}
+
+.session-abandon {
+  align-self: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+}
+
+.session-abandon:hover:not(:disabled) {
+  color: var(--danger);
 }
 
 /* Side insights — the cards are narrow here: the donut legend goes under the chart */

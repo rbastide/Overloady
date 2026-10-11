@@ -970,29 +970,69 @@
   font-size: 0.85rem;
 }
 
-.routine-selected {
+/* Program order: the list is the sequence of the session */
+.routine-order-head {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
-.routine-selected-chip {
-  display: inline-flex;
+.routine-order {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-height: 220px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.routine-order-row {
+  display: flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.45rem 0.75rem;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--accent-line);
-  background: var(--accent-soft);
-  color: var(--text-main);
-  font-size: 0.82rem;
-  font-weight: 600;
-  cursor: pointer;
+  gap: 0.6rem;
+  padding: 0.2rem 0.25rem 0.2rem 0.6rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
 }
 
-.routine-selected-chip > span:last-child {
-  color: var(--text-muted);
-  font-size: 0.7rem;
+.routine-order-num {
+  flex-shrink: 0;
+  width: 1.4rem;
+  color: var(--accent-text);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.routine-order-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.routine-order-actions {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.routine-order-actions .btn-icon {
+  width: 32px;
+  height: 32px;
+}
+
+.routine-order-actions .btn-icon:disabled {
+  opacity: 0.3;
+  cursor: default;
+  background: none;
 }
 
 .routine-groups {
@@ -1163,18 +1203,19 @@
     min-height: 46px;
   }
 
-  /* One swipeable row so a long selection doesn't push the list off screen */
-  .routine-selected {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
-    margin: 0 -0.25rem;
-    padding: 0 0.25rem 0.15rem;
+  /* Short enough that the exercise list stays on screen */
+  .routine-order {
+    max-height: 152px;
   }
 
-  .routine-selected-chip {
-    flex-shrink: 0;
+  .routine-order-row .badge-category {
+    display: none;
   }
+}
+
+/* Session: the picker sits in the page, so its list scrolls within a fixed height */
+.session-picker .routine-picker {
+  max-height: 360px;
 }
 
 /* ==========================================================================
