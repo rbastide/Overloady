@@ -10,6 +10,8 @@ interface ConfirmDialogProps {
   /** Danger: the action destroys something, the confirm button turns red. */
   tone?: 'danger' | 'default';
   icon?: IconName;
+  /** Button focused on open: the safe choice, which is cancel unless the confirm is the safe one. */
+  initialFocus?: 'cancel' | 'confirm';
   /** Extra content between the message and the actions (e.g. what will be lost). */
   children?: React.ReactNode;
   onConfirm: () => void | Promise<void>;
@@ -25,12 +27,14 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   cancelLabel = 'Annuler',
   tone = 'default',
   icon = 'alert',
+  initialFocus = 'cancel',
   children,
   onConfirm,
   onCancel,
 }) => {
   const [busy, setBusy] = useState(false);
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const confirmRef = useRef<HTMLButtonElement>(null);
   // Latest handler, so the key listener survives the parent re-rendering (e.g. every second of a timer)
   const cancelHandler = useRef(onCancel);
   useEffect(() => {
@@ -40,11 +44,11 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   useEffect(() => {
     if (!isOpen) return;
     // The safe choice gets the focus: Enter never destroys anything by accident
-    cancelRef.current?.focus();
+    (initialFocus === 'confirm' ? confirmRef : cancelRef).current?.focus();
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && cancelHandler.current();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [isOpen]);
+  }, [isOpen, initialFocus]);
 
   if (!isOpen) return null;
 
@@ -82,6 +86,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             {cancelLabel}
           </button>
           <button
+            ref={confirmRef}
             type="button"
             className={tone === 'danger' ? 'btn-primary btn-danger' : 'btn-primary'}
             onClick={confirm}

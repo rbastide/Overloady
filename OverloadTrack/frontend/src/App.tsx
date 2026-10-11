@@ -27,6 +27,13 @@ import {
 } from './components/AthleteProfileFields';
 import { formatKg } from './lib/loadMath';
 import { createNameMatcher } from './lib/exerciseSearch';
+import {
+  clearSessionDraft,
+  currentUserId,
+  loadSessionDraft,
+  saveSessionDraft,
+  type SessionDraft,
+} from './lib/sessionDraft';
 
 const GOAL_OPTIONS: {
   id: 'FORCE' | 'BODYBUILDING' | 'ENDURANCE';
@@ -72,6 +79,17 @@ const describeSets = (exercise: ActiveExercise) => {
 };
 
 // The library holds ~900 exercises (wger import): cards are rendered in pages.
+// "18:32" today, "ven. 18:32" within the week, "3 oct." beyond
+const formatDraftStart = (iso: string) => {
+  const date = new Date(iso);
+  const time = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  if (date.toDateString() === new Date().toDateString()) return time;
+  if (Date.now() - date.getTime() < 6 * 24 * 3600 * 1000) {
+    return `${date.toLocaleDateString('fr-FR', { weekday: 'short' })} ${time}`;
+  }
+  return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+};
+
 const LIBRARY_PAGE_SIZE = 60;
 // Programs shown as quick-launch buttons on the dashboard welcome card
 // (phones only display the first HERO_PROGRAMS_MOBILE, see .hero-program in shell.css).
@@ -132,6 +150,8 @@ function App() {
   const [sessionTips, setSessionTips] = useState<string[]>([]);
   const addExerciseRef = useRef<HTMLElement>(null);
   const [isAbandonOpen, setIsAbandonOpen] = useState<boolean>(false);
+  // Session left open when the app was closed, offered back on the next launch
+  const [resumeDraft, setResumeDraft] = useState<SessionDraft | null>(null);
 
   // Rest Timer State
   const [showRestTimer, setShowRestTimer] = useState<boolean>(false);
@@ -241,9 +261,62 @@ function App() {
     onUnauthorized(() => handleLogout());
   }, []);
 
+  // Every change of the running session is saved on the device, so closing the app loses nothing
+  useEffect(() => {
+    if (!activeSessionId || !workoutStartTime) return;
+    const userId = currentUserId();
+    if (!userId) return;
+    saveSessionDraft({
+      userId,
+      sessionId: activeSessionId,
+      routineName: activeRoutineName,
+      testStep: activeTestStep,
+      workout,
+      notes: sessionNotes,
+      rpe: sessionRpe,
+      startedAt: workoutStartTime.toISOString(),
+      tips: sessionTips,
+    });
+  }, [activeSessionId, activeRoutineName, activeTestStep, workout, sessionNotes, sessionRpe, workoutStartTime, sessionTips]);
+
+  // A session saved on the device is offered back, unless it was finished or deleted meanwhile
+  const checkSessionDraft = async () => {
+    const userId = currentUserId();
+    const draft = userId ? loadSessionDraft(userId) : null;
+    if (!draft) return;
+    try {
+      const res = await api.get(`/workout/session/${draft.sessionId}`);
+      if (res.data?.endedAt) {
+        clearSessionDraft(userId);
+        return;
+      }
+    } catch (err: any) {
+      if (err.response?.status === 404) {
+        clearSessionDraft(userId);
+        return;
+      }
+      // Server unreachable: the session is still offered, it will be saved once the server answers
+    }
+    setResumeDraft(draft);
+  };
+
+  const resumeSession = (draft: SessionDraft) => {
+    prepareSession(draft.tips);
+    setActiveSessionId(draft.sessionId);
+    setActiveRoutineName(draft.routineName);
+    setActiveTestStep(draft.testStep);
+    setWorkout(draft.workout);
+    setSessionNotes(draft.notes);
+    setSessionRpe(draft.rpe);
+    setWorkoutStartTime(new Date(draft.startedAt));
+    setActiveTab('logger');
+    setResumeDraft(null);
+  };
+
   useEffect(() => {
     if (isAuthenticated) {
       fetchData();
+      checkSessionDraft();
     } else {
       // Wake the backend and the database while the athlete types their credentials.
       warmUpBackend();
@@ -651,6 +724,7 @@ function App() {
   };
 
   const resetActiveSession = () => {
+    clearSessionDraft(currentUserId());
     setActiveSessionId(null);
     setActiveRoutineName(null);
     setActiveTestStep(null);
@@ -2217,6 +2291,42 @@ function App() {
           </div>
         </div>
       </ConfirmDialog>
+
+      {resumeDraft && (
+        <ConfirmDialog
+          isOpen
+          icon="history"
+          initialFocus="confirm"
+          title="Reprendre ta séance ?"
+          message={`« ${resumeDraft.routineName || 'Séance libre'} » est restée ouverte. Reprends là où tu en étais.`}
+          confirmLabel="Reprendre"
+          cancelLabel="Abandonner"
+          onConfirm={() => resumeSession(resumeDraft)}
+          onCancel={() => {
+            // Abandon goes through its own confirmation, from inside the restored session
+            resumeSession(resumeDraft);
+            setIsAbandonOpen(true);
+          }}
+        >
+          <div className="confirm-dialog-stats">
+            <div>
+              <span>Commencée</span>
+              <strong>{formatDraftStart(resumeDraft.startedAt)}</strong>
+            </div>
+            <div>
+              <span>Séries</span>
+              <strong>
+                {resumeDraft.workout.reduce((n, ex) => n + ex.sets.filter((s) => s.completed).length, 0)}/
+                {resumeDraft.workout.reduce((n, ex) => n + ex.sets.length, 0)}
+              </strong>
+            </div>
+            <div>
+              <span>Exercices</span>
+              <strong>{resumeDraft.workout.length}</strong>
+            </div>
+          </div>
+        </ConfirmDialog>
+      )}
 
       <RoutineModal
         isOpen={isRoutineModalOpen}

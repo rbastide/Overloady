@@ -82,6 +82,11 @@ export class WorkoutController {
     return this.workoutService.finishWorkout(req.user.userId, finishWorkoutDto);
   }
 
+  @Get('session/:id')
+  getSessionStatus(@Request() req: any, @Param('id') sessionId: string) {
+    return this.workoutService.getSessionStatus(req.user.userId, sessionId);
+  }
+
   @Delete('session/:id')
   deleteSession(@Request() req: any, @Param('id') sessionId: string) {
     return this.workoutService.deleteSession(req.user.userId, sessionId);

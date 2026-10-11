@@ -283,6 +283,16 @@ export class WorkoutService implements OnApplicationBootstrap {
     });
   }
 
+  /** Lets the app check that a session saved on the device can still be resumed. */
+  async getSessionStatus(userId: string, sessionId: string) {
+    const session = await this.prisma.workoutSession.findUnique({
+      where: { id: sessionId },
+      select: { id: true, userId: true, startedAt: true, endedAt: true },
+    });
+    if (!session || session.userId !== userId) throw new NotFoundException('Session introuvable');
+    return { id: session.id, startedAt: session.startedAt, endedAt: session.endedAt };
+  }
+
   async deleteSession(userId: string, sessionId: string) {
     const session = await this.prisma.workoutSession.findUnique({
       where: { id: sessionId },
