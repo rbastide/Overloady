@@ -86,20 +86,11 @@ export const RestTimer: React.FC<RestTimerProps> = ({ initialSeconds, autoStart 
 
   return (
     <section className={`rest-timer${isEnded ? ' is-ended' : ''}`} aria-label="Chronomètre de repos">
-      <div className="rest-timer-main">
-        <span className="rest-icon" aria-hidden="true">
-          <Icon name="hourglass" size={24} />
+      <div className="rest-readout">
+        <span className="rest-label">{isEnded ? 'Repos terminé' : isRunning || timeLeft !== initialDuration ? 'Repos' : 'Repos prêt'}</span>
+        <span className="rest-time" role="timer" aria-live="off">
+          {formatTime(timeLeft)}
         </span>
-        <div>
-          <div className="rest-kicker">
-            <strong>{isEnded ? 'Repos terminé' : 'Repos actif'}</strong>
-            <span>· Cible {formatTime(initialDuration)}</span>
-          </div>
-          <div className="rest-clock" role="timer" aria-live="off">
-            <span className="rest-time">{formatTime(timeLeft)}</span>
-            <span className="rest-state">{isEnded ? "C'est reparti" : isRunning ? 'restant' : 'en pause'}</span>
-          </div>
-        </div>
       </div>
 
       <div className="rest-progress">
@@ -113,38 +104,35 @@ export const RestTimer: React.FC<RestTimerProps> = ({ initialSeconds, autoStart 
         >
           <div className="rest-fill" style={{ width: `${progressPercent}%` }} />
         </div>
-        <div className="rest-meta">
-          <div className="rest-presets" role="group" aria-label="Durée du repos">
-            {PRESETS.map((sec) => (
-              <button
-                key={sec}
-                type="button"
-                className={`rest-preset ${initialDuration === sec ? 'active' : ''}`}
-                onClick={() => startWith(sec)}
-              >
-                {formatTime(sec)}
-              </button>
-            ))}
-          </div>
-          <span className="rest-recovered">{Math.round(progressPercent)}% récupéré</span>
+        <div className="rest-presets" role="group" aria-label="Durée du repos">
+          {PRESETS.map((sec) => (
+            <button
+              key={sec}
+              type="button"
+              className={`rest-preset ${initialDuration === sec ? 'active' : ''}`}
+              onClick={() => startWith(sec)}
+              aria-pressed={initialDuration === sec}
+            >
+              {formatTime(sec)}
+            </button>
+          ))}
         </div>
       </div>
 
       <div className="rest-controls">
-        <button type="button" className="rest-btn is-text" onClick={() => adjustTime(-15)}>
-          <span>-15s</span>
+        <button type="button" className="rest-btn" onClick={() => adjustTime(-15)} aria-label="Retirer 15 secondes">
+          -15s
         </button>
-        <button type="button" className="rest-btn is-text" onClick={() => adjustTime(15)}>
-          <span>+15s</span>
+        <button type="button" className="rest-btn" onClick={() => adjustTime(30)} aria-label="Ajouter 30 secondes">
+          +30s
         </button>
-        <button type="button" className="rest-btn is-primary" onClick={toggle} aria-label={toggleLabel} title={toggleLabel}>
-          <Icon name={isRunning ? 'pause' : 'play'} size={18} filled={!isRunning} strokeWidth={isRunning ? 2.4 : 1.5} />
-          <span>{toggleLabel}</span>
+        <button type="button" className="rest-btn is-icon" onClick={toggle} aria-label={toggleLabel} title={toggleLabel}>
+          <Icon name={isRunning ? 'pause' : 'play'} size={15} filled={!isRunning} strokeWidth={isRunning ? 2.4 : 1.5} />
         </button>
         {onClose && (
-          <button type="button" className="rest-btn" onClick={onClose} aria-label="Passer le repos" title="Passer le repos">
+          <button type="button" className="rest-skip" onClick={onClose} aria-label="Passer le repos" title="Passer le repos">
             <span>Passer</span>
-            <Icon name="skipNext" size={18} filled strokeWidth={1.5} />
+            <Icon name="skipNext" size={14} filled strokeWidth={1.5} />
           </button>
         )}
       </div>

@@ -213,6 +213,9 @@ function App() {
         maxWeight: Number(data?.maxWeight) || 0,
         maxEstimated1RM: Number(data?.maxEstimated1RM) || 0,
         lastSet: data?.lastSet ? { weight: Number(data.lastSet.weight) || 0, reps: Number(data.lastSet.reps) || 0 } : null,
+        previousSets: Array.isArray(data?.previousSets)
+          ? data.previousSets.map((s: any) => ({ weight: Number(s.weight) || 0, reps: Number(s.reps) || 0 }))
+          : [],
       },
     }));
   };
@@ -886,7 +889,6 @@ function App() {
       volume + ex.sets.reduce((v, s) => (s.completed ? v + (Number(s.weight) || 0) * (Number(s.reps) || 0) : v), 0),
     0,
   );
-  const exercisesDone = workout.filter(isExerciseDone).length;
   const remainingExercises = workout.filter((ex, i) => i !== activeExerciseIndex && !isExerciseDone(ex)).length;
   const goalName = (GOAL_OPTIONS.find((g) => g.id === (profile.goal || 'BODYBUILDING')) || GOAL_OPTIONS[1]).name.replace(/ \(.*\)/, '');
   const sessionKicker = activeTestStep
@@ -896,229 +898,195 @@ function App() {
   // Render Authentication Screen
   if (!isAuthenticated) {
     const isSignupProfile = !isLoginMode && signupStep === 2;
+    const authSubtitle = isLoginMode
+      ? 'Chaque séance, un cran plus loin.'
+      : signupStep === 1
+      ? 'Définissez votre nouveau standard de progression.'
+      : 'Ton profil athlète calibre tes charges de départ et le coach IA.';
     return (
       <div className="auth-shell">
         <ToastContainer toasts={toasts} onDismiss={dismissToast} />
-        <div className="auth-glow auth-glow-a" aria-hidden="true" />
-        <div className="auth-glow auth-glow-b" aria-hidden="true" />
+        <div className="auth-halo" aria-hidden="true" />
 
-        <main className="auth-column">
-          <header className="auth-brand-row">
-            <div className="auth-brand">
-              <span className="brand-bolt">
-                <Icon name="bolt" size={19} filled strokeWidth={1.4} />
+        <main className="auth-main">
+          <div className={`auth-center${isLoginMode ? '' : ' is-signup'}`}>
+            <header className="auth-brand">
+              <span className="auth-mark" aria-hidden="true">
+                <Icon name="bolt" size={20} filled strokeWidth={1.4} />
               </span>
-              <span className="auth-brand-name">OVERLOADY</span>
-            </div>
-            <span className="auth-badge">
-              <span className="ping-dot" aria-hidden="true" />
-              Coach IA
-            </span>
-          </header>
+              <h1>Overloady</h1>
+              <p>{authSubtitle}</p>
+            </header>
 
-          <section className="auth-intro">
-            <h1 className="auth-headline">
-              Chaque séance,
-              <br />
-              <span>un cran plus loin.</span>
-            </h1>
-            <p>Suivi des charges, surcharge progressive et coach IA pour athlètes exigeants.</p>
-          </section>
-
-          <section className="auth-card">
-            <div className="auth-tabs" role="tablist">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={isLoginMode}
-                className={isLoginMode ? 'active' : ''}
-                onClick={() => switchAuthMode(true)}
-              >
-                Connexion
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={!isLoginMode}
-                className={!isLoginMode ? 'active' : ''}
-                onClick={() => switchAuthMode(false)}
-              >
-                Inscription
-              </button>
-            </div>
-
-            <div className="auth-welcome">
-              <div>
-                {!isLoginMode && <span className="auth-step">Étape {signupStep} / 2</span>}
-                <h2>{isLoginMode ? 'Bon retour 👋' : signupStep === 1 ? 'Créer un compte' : 'Ton profil athlète'}</h2>
-                <p>
-                  {isLoginMode
-                    ? 'Connectez-vous pour reprendre votre progression.'
-                    : signupStep === 1
-                    ? "Choisissez un identifiant et votre objectif, on s'occupe du reste."
-                    : 'Pour calibrer tes charges de départ et le coach IA. Tu pourras le modifier plus tard.'}
-                </p>
-              </div>
-              <span className="auth-welcome-icon" aria-hidden="true">
-                <Icon name={isSignupProfile ? 'user' : 'dumbbell'} size={22} />
-              </span>
-            </div>
-
-            <form onSubmit={handleAuthSubmit} className="auth-form">
+            <section className="auth-card">
               {isSignupProfile ? (
-                <AthleteProfileFields value={signupAthlete} onChange={setSignupAthlete} idPrefix="signup" />
+                <div className="auth-step-head">
+                  <span className="auth-step">Étape 2 / 2 · Profil athlète</span>
+                  <span className="auth-step-note">Modifiable plus tard</span>
+                </div>
               ) : (
-                <>
-                  <div className="auth-field">
-                    <div className="auth-label-row">
+                <div className="auth-tabs" role="tablist">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={isLoginMode}
+                    className={isLoginMode ? 'active' : ''}
+                    onClick={() => switchAuthMode(true)}
+                  >
+                    Connexion
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={!isLoginMode}
+                    className={!isLoginMode ? 'active' : ''}
+                    onClick={() => switchAuthMode(false)}
+                  >
+                    Inscription
+                  </button>
+                </div>
+              )}
+
+              <form onSubmit={handleAuthSubmit} className="auth-form">
+                {isSignupProfile ? (
+                  <AthleteProfileFields value={signupAthlete} onChange={setSignupAthlete} idPrefix="signup" />
+                ) : (
+                  <>
+                    <div className="auth-field">
                       <label htmlFor="auth-username">Identifiant</label>
-                      <span className="auth-label-hint">ex : alex_lifts</span>
-                    </div>
-                    <div className="auth-input-wrap">
-                      <Icon name="user" size={18} className="auth-input-icon" />
                       <input
                         id="auth-username"
+                        className="auth-input"
                         type="text"
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
-                        placeholder="Votre identifiant"
+                        placeholder="alex_lifts"
                         autoComplete="username"
                         autoCapitalize="none"
                         autoCorrect="off"
                         spellCheck={false}
                         required
                       />
+                      {!isLoginMode && (
+                        <span className="auth-hint">3 à 24 caractères : lettres, chiffres, « . », « _ » ou « - ».</span>
+                      )}
                     </div>
-                    {!isLoginMode && (
-                      <span className="auth-hint">3 à 24 caractères : lettres, chiffres, « . », « _ » ou « - ».</span>
-                    )}
-                  </div>
 
-                  <div className="auth-field">
-                    <label htmlFor="auth-password">Mot de passe</label>
-                    <div className="auth-input-wrap">
-                      <Icon name="lock" size={18} className="auth-input-icon" />
-                      <input
-                        id="auth-password"
-                        type={showPassword ? 'text' : 'password'}
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="••••••••"
-                        autoComplete={isLoginMode ? 'current-password' : 'new-password'}
-                        minLength={isLoginMode ? undefined : 6}
-                        required
-                      />
-                      <button
-                        type="button"
-                        className="auth-password-toggle"
-                        onClick={() => setShowPassword(!showPassword)}
-                        aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
-                      >
-                        <Icon name={showPassword ? 'eyeOff' : 'eye'} size={19} />
-                      </button>
-                    </div>
-                    {!isLoginMode && <span className="auth-hint">6 caractères minimum.</span>}
-                  </div>
-
-                  {!isLoginMode && (
                     <div className="auth-field">
-                      <label htmlFor="auth-password-confirm">Confirmer le mot de passe</label>
+                      <label htmlFor="auth-password">Mot de passe</label>
                       <div className="auth-input-wrap">
-                        <Icon name="lock" size={18} className="auth-input-icon" />
+                        <input
+                          id="auth-password"
+                          className="auth-input"
+                          type={showPassword ? 'text' : 'password'}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="••••••••••••"
+                          autoComplete={isLoginMode ? 'current-password' : 'new-password'}
+                          minLength={isLoginMode ? undefined : 6}
+                          required
+                        />
+                        <button
+                          type="button"
+                          className="auth-password-toggle"
+                          onClick={() => setShowPassword(!showPassword)}
+                          aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                        >
+                          <Icon name={showPassword ? 'eyeOff' : 'eye'} size={18} />
+                        </button>
+                      </div>
+                      {!isLoginMode && <span className="auth-hint">6 caractères minimum.</span>}
+                    </div>
+
+                    {!isLoginMode && (
+                      <div className="auth-field">
+                        <label htmlFor="auth-password-confirm">Confirmer le mot de passe</label>
                         <input
                           id="auth-password-confirm"
+                          className="auth-input"
                           type={showPassword ? 'text' : 'password'}
                           value={confirmPassword}
                           onChange={(e) => setConfirmPassword(e.target.value)}
-                          placeholder="••••••••"
+                          placeholder="••••••••••••"
                           autoComplete="new-password"
                           required
                         />
+                        {confirmPassword && (
+                          <span className={`auth-hint ${confirmPassword === password ? 'auth-hint-ok' : 'auth-hint-error'}`}>
+                            {confirmPassword === password ? '✓ Les mots de passe correspondent' : 'Les mots de passe ne correspondent pas'}
+                          </span>
+                        )}
                       </div>
-                      {confirmPassword && (
-                        <span className={`auth-hint ${confirmPassword === password ? 'auth-hint-ok' : 'auth-hint-error'}`}>
-                          {confirmPassword === password ? '✓ Les mots de passe correspondent' : 'Les mots de passe ne correspondent pas'}
-                        </span>
-                      )}
-                    </div>
-                  )}
+                    )}
 
-                  {!isLoginMode && (
-                    <div className="auth-field">
-                      <label>Votre objectif</label>
-                      <div className="auth-goal-grid">
-                        {GOAL_OPTIONS.map((g) => (
-                          <button
-                            type="button"
-                            key={g.id}
-                            className={`auth-goal-option ${signupGoal === g.id ? 'selected' : ''}`}
-                            onClick={() => setSignupGoal(g.id)}
-                          >
-                            <span className="auth-goal-icon">
-                              <Icon name={g.icon} size={20} />
-                            </span>
-                            <span className="auth-goal-name">{g.name.replace(/ \(.*\)/, '')}</span>
-                            <span className="auth-goal-badge">{g.badge.split(' • ')[0]}</span>
-                          </button>
-                        ))}
+                    {!isLoginMode && (
+                      <div className="auth-field">
+                        <label>Votre objectif</label>
+                        <div className="auth-goal-grid">
+                          {GOAL_OPTIONS.map((g) => (
+                            <button
+                              type="button"
+                              key={g.id}
+                              className={`auth-goal-option ${signupGoal === g.id ? 'selected' : ''}`}
+                              onClick={() => setSignupGoal(g.id)}
+                              aria-pressed={signupGoal === g.id}
+                            >
+                              <span className="auth-goal-icon">
+                                <Icon name={g.icon} size={18} />
+                              </span>
+                              <span className="auth-goal-name">{g.name.replace(/ \(.*\)/, '')}</span>
+                              <span className="auth-goal-badge">{g.badge.split(' • ')[0]}</span>
+                            </button>
+                          ))}
+                        </div>
+                        <span className="auth-hint">{GOAL_OPTIONS.find((g) => g.id === signupGoal)?.desc}</span>
                       </div>
-                      <span className="auth-hint">{GOAL_OPTIONS.find((g) => g.id === signupGoal)?.desc}</span>
-                    </div>
-                  )}
-                </>
-              )}
+                    )}
+                  </>
+                )}
 
-              {authError && (
-                <div className="auth-error" role="alert">
-                  <Icon name="alert" size={18} />
-                  <span>{authError}</span>
-                </div>
-              )}
+                {authError && (
+                  <div className="auth-error" role="alert">
+                    <Icon name="alert" size={16} />
+                    <span>{authError}</span>
+                  </div>
+                )}
 
-              <button type="submit" className="btn-primary auth-submit" disabled={isAuthLoading}>
-                {isAuthLoading && <span className="auth-spinner" aria-hidden="true" />}
-                {isLoginMode ? 'Se connecter' : signupStep === 1 ? 'Continuer' : 'Créer mon compte'}
-                {!isAuthLoading && <Icon name="arrowRight" size={18} strokeWidth={2.4} />}
-              </button>
+                <button type="submit" className="btn-primary auth-submit" disabled={isAuthLoading}>
+                  {isAuthLoading && <span className="auth-spinner" aria-hidden="true" />}
+                  {isLoginMode ? 'Se connecter' : signupStep === 1 ? 'Continuer' : 'Créer mon profil'}
+                </button>
 
-              {isSignupProfile && (
-                <div className="auth-step-actions">
-                  <button type="button" className="btn-ghost" onClick={() => setSignupStep(1)} disabled={isAuthLoading}>
-                    ← Retour
+                {isSignupProfile && (
+                  <div className="auth-step-actions">
+                    <button type="button" className="btn-ghost" onClick={() => setSignupStep(1)} disabled={isAuthLoading}>
+                      ← Retour
+                    </button>
+                    <button type="button" className="btn-ghost" onClick={() => submitAuth(false)} disabled={isAuthLoading}>
+                      Passer cette étape
+                    </button>
+                  </div>
+                )}
+              </form>
+
+              {!isSignupProfile && (
+                <p className="auth-switch">
+                  {isLoginMode ? 'Pas encore de compte ?' : 'Déjà un compte ?'}
+                  <button type="button" onClick={() => switchAuthMode(!isLoginMode)}>
+                    {isLoginMode ? 'Créer un profil' : 'Se connecter'}
                   </button>
-                  <button type="button" className="btn-ghost" onClick={() => submitAuth(false)} disabled={isAuthLoading}>
-                    Passer cette étape
-                  </button>
-                </div>
+                </p>
               )}
-            </form>
+            </section>
 
-            <p className="auth-switch">
-              {isLoginMode ? 'Pas encore de compte ?' : 'Déjà un compte ?'}
-              <button type="button" onClick={() => switchAuthMode(!isLoginMode)}>
-                {isLoginMode ? 'Créer un compte' : 'Se connecter'}
-              </button>
-            </p>
-          </section>
-
-          <div className="auth-proof">
-            <div className="auth-proof-tile">
-              <span className="auth-proof-value">
-                +2,5<small>kg</small>
-              </span>
-              <span className="auth-proof-label">Incrément auto</span>
-            </div>
-            <div className="auth-proof-tile">
-              <span className="auth-proof-value">1RM</span>
-              <span className="auth-proof-label">Estimation auto</span>
-            </div>
-            <div className="auth-proof-tile">
-              <span className="auth-proof-value">RPE</span>
-              <span className="auth-proof-label">Effort suivi</span>
+            <div className="auth-signature">
+              <span>Surcharge progressive</span>
+              <span className="auth-signature-dot" aria-hidden="true" />
+              <span>Coach IA</span>
             </div>
           </div>
 
-          <p className="auth-footnote">Surcharge progressive automatisée • Historique complet • Coach IA Atlas</p>
+          <footer className="auth-footer">Overloady • Athletic Studio</footer>
         </main>
       </div>
     );
@@ -1487,101 +1455,70 @@ function App() {
                 {/* Active Test Week Session Notice */}
                 {activeTestStep && (
                   <div className="session-notice">
-                    <div className="session-notice-text">
-                      <Icon name="flask" size={20} />
-                      <div>
-                        <strong>Séance du protocole de calibration athlète</strong>
-                        <span>
-                          Donnez le maximum avec une technique propre. Vos charges réelles et répétitions sont mesurées pour calibrer vos futurs cycles IA.
-                        </span>
-                      </div>
-                    </div>
-                    <button className="btn-small" onClick={() => setIsTestWeekModalOpen(true)}>
+                    <Icon name="flask" size={16} />
+                    <p>
+                      <strong>Calibration athlète.</strong> Donnez le maximum avec une technique propre : vos charges réelles
+                      calibrent vos futurs cycles IA.
+                    </p>
+                    <button className="text-action" onClick={() => setIsTestWeekModalOpen(true)}>
                       Protocole
                     </button>
                   </div>
                 )}
 
-                {/* Session header + live telemetry */}
-                <section className="session-hero">
-                  <div className="session-hero-top">
-                    <div className="session-hero-text">
-                      <div className="session-hero-tags">
-                        <span className="tag-live">
-                          <span className="ping-dot" aria-hidden="true" />
-                          Séance en cours
-                        </span>
-                        <span className="session-hero-kicker">{sessionKicker}</span>
-                      </div>
-                      <h1>{activeRoutineName || 'Séance libre'}</h1>
-                      <p>Saisissez vos charges et répétitions. Validez chaque série pour déclencher le repos.</p>
+                {/* Session header: what is running and how to end it */}
+                <header className="session-head">
+                  <div className="session-head-text">
+                    <div className="session-kicker">
+                      <span className="session-kicker-dot" aria-hidden="true" />
+                      <span>En cours • {sessionKicker}</span>
                     </div>
-                    <div className="session-hero-actions">
-                      {!showRestTimer && (
-                        <button
-                          className="btn-secondary"
-                          onClick={() => startRestTimer(false)}
-                          title="Ouvrir le chronomètre de repos"
-                          aria-label="Ouvrir le chronomètre de repos"
-                        >
-                          <Icon name="hourglass" size={18} />
-                          <span className="btn-label">Repos</span>
-                        </button>
-                      )}
-                      <button className="btn-secondary" onClick={scrollToAddExercise} aria-label="Ajouter un exercice">
-                        <Icon name="plus" size={18} />
-                        <span className="btn-label">Ajouter un exercice</span>
-                      </button>
-                      <button className="btn-primary" onClick={finishWorkout}>
-                        <Icon name="flag" size={18} />
-                        Terminer la séance
-                      </button>
-                    </div>
+                    <h1>{activeRoutineName || 'Séance libre'}</h1>
                   </div>
+                  <div className="session-head-actions">
+                    {!showRestTimer && (
+                      <button
+                        className="btn-secondary"
+                        onClick={() => startRestTimer(false)}
+                        title="Ouvrir le chronomètre de repos"
+                        aria-label="Ouvrir le chronomètre de repos"
+                      >
+                        <Icon name="hourglass" size={16} />
+                        <span className="btn-label">Repos</span>
+                      </button>
+                    )}
+                    <button className="btn-secondary" onClick={scrollToAddExercise} aria-label="Ajouter un exercice" title="Ajouter un exercice">
+                      <Icon name="plus" size={16} />
+                      <span className="btn-label">Exercice</span>
+                    </button>
+                    <button className="btn-primary" onClick={finishWorkout}>
+                      Terminer
+                      <Icon name="check" size={16} strokeWidth={2.4} />
+                    </button>
+                  </div>
+                </header>
 
-                  <div className="telemetry">
-                    <div className="metric">
-                      <span className="metric-label">
-                        <Icon name="timer" size={14} />
-                        Chrono total
-                      </span>
-                      <span className="metric-value is-clock">
-                        {formatDuration(elapsedSeconds)}
-                        <span className="metric-live" aria-hidden="true" />
-                      </span>
-                    </div>
-                    <div className="metric">
-                      <span className="metric-label">
-                        <Icon name="weight" size={14} />
-                        Volume validé
-                      </span>
-                      <span className="metric-value">
-                        {sessionVolume.toLocaleString('fr-FR')}
-                        <span className="metric-unit">kg</span>
-                      </span>
-                    </div>
-                    <div className="metric">
-                      <span className="metric-label">
-                        <Icon name="checkCircle" size={14} />
-                        Séries validées
-                      </span>
-                      <span className="metric-value">
-                        {completedSets}
-                        <span className="metric-unit">/ {totalSets} séries</span>
-                      </span>
-                    </div>
-                    <div className="metric">
-                      <span className="metric-label">
-                        <Icon name="dumbbell" size={14} />
-                        Exercices finis
-                      </span>
-                      <span className="metric-value is-accent">
-                        {exercisesDone}
-                        <span className="metric-unit">/ {workout.length}</span>
-                      </span>
-                    </div>
+                {/* Three key figures */}
+                <div className="session-stats">
+                  <div className="session-stat">
+                    <span className="session-stat-label">Durée</span>
+                    <span className="session-stat-value">{formatDuration(elapsedSeconds)}</span>
                   </div>
-                </section>
+                  <div className="session-stat">
+                    <span className="session-stat-label">Volume</span>
+                    <span className="session-stat-value">
+                      {sessionVolume.toLocaleString('fr-FR')}
+                      <small>kg</small>
+                    </span>
+                  </div>
+                  <div className="session-stat">
+                    <span className="session-stat-label">Séries</span>
+                    <span className="session-stat-value is-accent">
+                      {completedSets}
+                      <small>/ {totalSets}</small>
+                    </span>
+                  </div>
+                </div>
 
                 {/* Rest Timer */}
                 {showRestTimer && (
@@ -1612,9 +1549,9 @@ function App() {
                         onRemove={() => removeExerciseFromSession(activeExerciseIndex)}
                       />
                     ) : (
-                      <div className="glass-panel session-empty">
+                      <div className="session-empty">
                         <span className="session-empty-icon">
-                          <Icon name="dumbbell" size={26} />
+                          <Icon name="dumbbell" size={22} />
                         </span>
                         <h3>Votre séance est prête</h3>
                         <p>Ajoutez un premier exercice depuis la bibliothèque pour commencer à enregistrer vos séries.</p>
@@ -1624,49 +1561,49 @@ function App() {
                     {/* Rest of the session */}
                     {workout.length > 1 && (
                       <section className="session-queue">
-                        <div className="section-head">
-                          <h3>Suite de la séance</h3>
-                          <span>
-                            {remainingExercises} {remainingExercises > 1 ? 'exercices restants' : 'exercice restant'}
+                        <div className="session-section-head">
+                          <span className="eyebrow">Suite du programme</span>
+                          <span className="session-section-count">
+                            {remainingExercises} {remainingExercises > 1 ? 'restants' : 'restant'}
                           </span>
                         </div>
-                        {workout.map((ex, eIndex) => {
-                          if (eIndex === activeExerciseIndex) return null;
-                          const doneSets = ex.sets.filter((s) => s.completed).length;
-                          const isDone = ex.sets.length > 0 && doneSets === ex.sets.length;
-                          return (
-                            <button
-                              key={ex.exerciseId + eIndex}
-                              type="button"
-                              className={`queue-item${isDone ? ' is-done' : ''}`}
-                              onClick={() => setFocusedExercise(eIndex)}
-                            >
-                              <span className="queue-tile" aria-hidden="true">
-                                <Icon name={isDone ? 'check' : 'dumbbell'} size={22} />
-                              </span>
-                              <span className="queue-body">
-                                <span className="queue-meta">
-                                  <span>Exercice {eIndex + 1}</span>
-                                  <span className={`badge-category${isDone ? ' is-done-tag' : ''}`}>
-                                    {isDone ? 'Terminé' : `${doneSets}/${ex.sets.length} séries`}
-                                  </span>
-                                </span>
+                        <div className="queue-list">
+                          {workout.map((ex, eIndex) => {
+                            if (eIndex === activeExerciseIndex) return null;
+                            const doneSets = ex.sets.filter((s) => s.completed).length;
+                            const isDone = ex.sets.length > 0 && doneSets === ex.sets.length;
+                            return (
+                              <button
+                                key={ex.exerciseId + eIndex}
+                                type="button"
+                                className={`queue-item${isDone ? ' is-done' : ''}`}
+                                onClick={() => setFocusedExercise(eIndex)}
+                                title={isDone ? 'Revoir cet exercice' : 'Ouvrir cet exercice'}
+                              >
+                                <span className="queue-index">{String(eIndex + 1).padStart(2, '0')}</span>
                                 <span className="queue-name">{ex.name}</span>
-                                <span className="queue-detail">{ex.progressiveTarget || describeSets(ex)}</span>
-                              </span>
-                              <span className="queue-cta">
-                                <span>{isDone ? 'Revoir' : 'Ouvrir'}</span>
-                                <Icon name="chevronRight" size={16} />
-                              </span>
-                            </button>
-                          );
-                        })}
+                                <span className="queue-detail">
+                                  {isDone ? (
+                                    <>
+                                      <Icon name="check" size={13} strokeWidth={2.6} />
+                                      Terminé
+                                    </>
+                                  ) : doneSets > 0 ? (
+                                    `${doneSets}/${ex.sets.length} séries`
+                                  ) : (
+                                    describeSets(ex)
+                                  )}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </section>
                     )}
 
                     {/* Add Exercise */}
-                    <section className="glass-panel session-add" ref={addExerciseRef}>
-                      <h3>Ajouter un exercice à la séance</h3>
+                    <section className="session-block" ref={addExerciseRef}>
+                      <span className="eyebrow">Ajouter un exercice</span>
                       <div className="session-add-row">
                         <select
                           className="input-glass"
@@ -1696,31 +1633,32 @@ function App() {
 
                         <button className="btn-secondary" onClick={() => setIsAddExerciseOpen(true)}>
                           <Icon name="plus" size={16} />
-                          Créer exercice personnalisé
+                          Exercice personnalisé
                         </button>
                       </div>
                     </section>
 
                     {/* Session Feedback & Notes */}
-                    <section className="glass-panel session-feedback">
-                      <div className="form-group">
-                        <label>RPE de la séance (Effort perçu de 1 à 10) : {sessionRpe}/10</label>
-                        <div className="rpe-selector">
-                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
-                            <button
-                              key={num}
-                              type="button"
-                              className={`rpe-btn ${sessionRpe === num ? 'active' : ''}`}
-                              onClick={() => setSessionRpe(num)}
-                              aria-pressed={sessionRpe === num}
-                            >
-                              {num}
-                            </button>
-                          ))}
-                        </div>
+                    <section className="session-block">
+                      <div className="session-section-head">
+                        <span className="eyebrow">Effort perçu (RPE)</span>
+                        <span className="session-section-count">{sessionRpe}/10</span>
+                      </div>
+                      <div className="rpe-selector" role="group" aria-label="RPE de la séance">
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                          <button
+                            key={num}
+                            type="button"
+                            className={`rpe-btn ${sessionRpe === num ? 'active' : ''}`}
+                            onClick={() => setSessionRpe(num)}
+                            aria-pressed={sessionRpe === num}
+                          >
+                            {num}
+                          </button>
+                        ))}
                       </div>
 
-                      <div className="form-group">
+                      <div className="form-group session-notes">
                         <label htmlFor="session-notes">Tes notes (facultatif)</label>
                         <input
                           id="session-notes"
@@ -1734,7 +1672,7 @@ function App() {
                     </section>
 
                     <button className="btn-primary session-finish" onClick={finishWorkout}>
-                      <Icon name="flag" size={20} />
+                      <Icon name="flag" size={18} />
                       Terminer et enregistrer la séance
                     </button>
                   </div>
@@ -1745,7 +1683,7 @@ function App() {
                     {sessionTips.length > 0 && (
                       <section className="glass-panel coach-tips">
                         <div className="coach-tips-head">
-                          <Icon name="lightbulb" size={18} />
+                          <Icon name="lightbulb" size={16} />
                           <span>{activeTestStep ? 'Consignes du protocole' : 'Consignes du coach'}</span>
                         </div>
                         <ul>

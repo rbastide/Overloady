@@ -12,17 +12,16 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { id: 'dashboard', label: 'Tableau de bord', shortLabel: 'Accueil', icon: 'home' },
-  { id: 'logger', label: 'Séance', shortLabel: 'Séance', icon: 'dumbbell' },
-  { id: 'analytics', label: 'Analytique & PRs', shortLabel: 'Stats', icon: 'chart' },
-  { id: 'history', label: 'Historique', shortLabel: 'Historique', icon: 'history' },
+  { id: 'logger', label: 'Séance active', shortLabel: 'Séance', icon: 'dumbbell' },
   { id: 'routines', label: 'Programmes', shortLabel: 'Programmes', icon: 'clipboard' },
   { id: 'exercises', label: 'Exercices', shortLabel: 'Exercices', icon: 'list' },
+  { id: 'analytics', label: 'Progression', shortLabel: 'Stats', icon: 'chart' },
+  { id: 'history', label: 'Historique', shortLabel: 'Historique', icon: 'history' },
   { id: 'profile', label: 'Profil', shortLabel: 'Profil', icon: 'user' },
 ];
 
-// Bottom bar keeps 4 destinations + the central workout button; the rest lives in the "Plus" sheet.
-const BOTTOM_LEFT: AppTab[] = ['dashboard', 'analytics'];
-const BOTTOM_RIGHT: AppTab[] = ['history'];
+// Phones: 4 destinations in the bottom bar, the rest lives in the "Plus" sheet.
+const BOTTOM_TABS: AppTab[] = ['dashboard', 'logger', 'analytics', 'history'];
 const MORE_TABS: AppTab[] = ['routines', 'exercises', 'profile'];
 // On desktop the profile is reached through the user card at the bottom of the sidebar.
 const SIDEBAR_ITEMS = NAV_ITEMS.filter((item) => item.id !== 'profile');
@@ -90,12 +89,12 @@ export function Navigation({
       {/* ===== Desktop / tablet sidebar ===== */}
       <aside className="sidebar" aria-label="Navigation principale">
         <button type="button" className="sidebar-brand" onClick={() => go('dashboard')}>
-          <span className="brand-bolt">
-            <Icon name="bolt" size={20} filled strokeWidth={1.4} />
+          <span className="brand-mark">
+            <Icon name="bolt" size={18} filled strokeWidth={1.4} />
           </span>
           <span className="sidebar-brand-text sidebar-label">
             <span className="brand-title">OVERLOADY</span>
-            <span className="brand-subtitle">Surcharge progressive</span>
+            <span className="brand-subtitle">Athletic Studio</span>
           </span>
         </button>
 
@@ -110,7 +109,7 @@ export function Navigation({
               title={item.label}
               aria-current={activeTab === item.id ? 'page' : undefined}
             >
-              <Icon name={item.icon} size={20} />
+              <Icon name={item.icon} size={19} />
               <span className="sidebar-label">{item.label}</span>
               {item.id === 'logger' && session && <span className="live-dot" aria-label="Séance en cours" />}
             </button>
@@ -118,6 +117,18 @@ export function Navigation({
         </nav>
 
         <div className="sidebar-footer">
+          {testWeekLabel && (
+            <button
+              type="button"
+              className={`sidebar-status ${testWeekStatus?.testWeekCompleted ? 'is-done' : ''}`}
+              onClick={onOpenTestWeek}
+              title={testWeekLabel}
+            >
+              <span className="sidebar-status-dot" aria-hidden="true" />
+              <span className="sidebar-label">{testWeekLabel}</span>
+              <Icon name="flask" size={15} />
+            </button>
+          )}
           <button
             type="button"
             data-tab="profile"
@@ -132,8 +143,9 @@ export function Navigation({
               <small>{goalLabel}</small>
             </span>
           </button>
-          <button type="button" className="icon-btn danger" onClick={onLogout} title="Déconnexion" aria-label="Déconnexion">
-            <Icon name="logout" size={20} />
+          <button type="button" className="sidebar-link sidebar-logout" onClick={onLogout} title="Déconnexion">
+            <Icon name="logout" size={18} />
+            <span className="sidebar-label">Déconnexion</span>
           </button>
         </div>
       </aside>
@@ -141,42 +153,35 @@ export function Navigation({
       {/* ===== Desktop / tablet top bar: running session + tools ===== */}
       <header className="desk-topbar">
         <div className="desk-topbar-inner">
-          {session ? (
-            <button type="button" className="session-pill" onClick={() => go('logger')} title="Revenir à la séance">
-              <span className="ping-dot" aria-hidden="true" />
-              <span className="session-pill-label">En cours :</span>
-              <span className="session-pill-name">{session.name}</span>
-              <span className="session-pill-sep" aria-hidden="true" />
-              <Icon name="timer" size={15} className="session-pill-icon" />
-              <span className="session-pill-clock">{session.clock}</span>
+          {session && activeTab !== 'logger' ? (
+            <button type="button" className="topbar-session" onClick={() => go('logger')} title="Revenir à la séance">
+              <span className="topbar-session-label">En cours</span>
+              <span className="topbar-session-name">{session.name}</span>
+              <Icon name="chevronRight" size={14} />
             </button>
           ) : (
-            <button type="button" className="session-pill is-idle" onClick={() => go('logger')}>
-              <span className="idle-dot" aria-hidden="true" />
-              <span>Aucune séance en cours</span>
-              {activeTab !== 'logger' && (
-                <span className="session-pill-cta">
-                  Démarrer <Icon name="arrowRight" size={14} />
-                </span>
-              )}
-            </button>
+            <span className="topbar-crumb">{session && activeTab === 'logger' ? session.name : itemById(activeTab).label}</span>
           )}
 
           <div className="desk-topbar-actions">
-            {testWeekLabel && (
-              <button
-                type="button"
-                className={`topbar-chip ${testWeekStatus?.testWeekCompleted ? 'is-done' : 'is-active'}`}
-                onClick={onOpenTestWeek}
-                title={testWeekLabel}
-              >
-                <Icon name="flask" size={16} />
+            {testWeekStatus && !testWeekStatus.testWeekCompleted && (
+              <button type="button" className="topbar-chip is-active" onClick={onOpenTestWeek} title={testWeekLabel || ''}>
+                <Icon name="flask" size={15} />
                 <span>{testWeekLabel}</span>
               </button>
             )}
             <button type="button" className="topbar-chip" onClick={onOpenPlateCalc} title="Calculateur disques & 1RM">
-              <Icon name="calculator" size={16} />
+              <Icon name="calculator" size={15} />
               <span>Disques & 1RM</span>
+            </button>
+            {session && (
+              <button type="button" className="topbar-clock" onClick={() => go('logger')} title="Durée de la séance">
+                <span className="topbar-clock-dot" aria-hidden="true" />
+                <span>{session.clock}</span>
+              </button>
+            )}
+            <button type="button" className="topbar-avatar" onClick={() => go('profile')} aria-label="Profil" title="Profil">
+              <Icon name="user" size={17} />
             </button>
           </div>
         </div>
@@ -185,53 +190,37 @@ export function Navigation({
       {/* ===== Mobile top bar ===== */}
       <header className="mobile-topbar">
         <button type="button" className="mobile-topbar-brand" onClick={() => go('dashboard')} aria-label="Accueil">
-          <span className="brand-bolt">
-            <Icon name="bolt" size={17} filled strokeWidth={1.4} />
+          <span className="brand-mark">
+            <Icon name="bolt" size={15} filled strokeWidth={1.4} />
           </span>
+          <span className="brand-title">OVERLOADY</span>
         </button>
-        <h1 className="mobile-topbar-title">{itemById(activeTab).label}</h1>
         <div className="mobile-topbar-actions">
-          {session && activeTab !== 'logger' && (
-            <button type="button" className="mobile-session-chip" onClick={() => go('logger')} aria-label="Revenir à la séance">
-              <span className="ping-dot" aria-hidden="true" />
-              {session.clock}
+          {session && (
+            <button type="button" className="topbar-clock" onClick={() => go('logger')} aria-label="Revenir à la séance">
+              <span className="topbar-clock-dot" aria-hidden="true" />
+              <span>{session.clock}</span>
             </button>
           )}
           {testWeekStatus && !testWeekStatus.testWeekCompleted && (
-            <button type="button" className="icon-btn info" onClick={onOpenTestWeek} aria-label={testWeekLabel || ''}>
-              <Icon name="flask" size={20} />
+            <button type="button" className="topbar-icon is-info" onClick={onOpenTestWeek} aria-label={testWeekLabel || ''}>
+              <Icon name="flask" size={18} />
               <span className="icon-btn-badge">{testWeekStatus.testWeekProgress}/3</span>
             </button>
           )}
-          <button type="button" className="icon-btn" onClick={onOpenPlateCalc} aria-label="Calculateur disques & 1RM">
-            <Icon name="calculator" size={20} />
+          <button type="button" className="topbar-icon" onClick={onOpenPlateCalc} aria-label="Calculateur disques & 1RM">
+            <Icon name="calculator" size={18} />
           </button>
-          <button type="button" className="avatar avatar-btn" onClick={() => go('profile')} aria-label="Profil">
-            {initial}
+          <button type="button" className="topbar-avatar" onClick={() => go('profile')} aria-label="Profil">
+            <Icon name="user" size={17} />
           </button>
         </div>
       </header>
 
       {/* ===== Mobile bottom tab bar ===== */}
       <nav className="tabbar" aria-label="Navigation">
-        {BOTTOM_LEFT.map((id) => (
-          <TabbarButton key={id} item={itemById(id)} active={activeTab === id} onClick={() => go(id)} />
-        ))}
-        <button
-          type="button"
-          data-tab="logger"
-          className={`tabbar-main ${activeTab === 'logger' ? 'active' : ''}`}
-          onClick={() => go('logger')}
-          aria-label="Séance"
-        >
-          <span className="tabbar-main-circle">
-            <Icon name="dumbbell" size={26} strokeWidth={2.2} />
-            {session && <span className="live-dot" />}
-          </span>
-          <span className="tabbar-label">Séance</span>
-        </button>
-        {BOTTOM_RIGHT.map((id) => (
-          <TabbarButton key={id} item={itemById(id)} active={activeTab === id} onClick={() => go(id)} />
+        {BOTTOM_TABS.map((id) => (
+          <TabbarButton key={id} item={itemById(id)} active={activeTab === id} live={id === 'logger' && !!session} onClick={() => go(id)} />
         ))}
         <button
           type="button"
@@ -240,7 +229,7 @@ export function Navigation({
           aria-haspopup="dialog"
           aria-expanded={moreOpen}
         >
-          <Icon name="menu" />
+          <Icon name="menu" size={20} />
           <span className="tabbar-label">Plus</span>
         </button>
       </nav>
@@ -269,7 +258,7 @@ export function Navigation({
                     className={`sheet-item ${activeTab === id ? 'active' : ''}`}
                     onClick={() => go(id)}
                   >
-                    <Icon name={item.icon} />
+                    <Icon name={item.icon} size={20} />
                     <span>{item.label}</span>
                     <Icon name="chevronRight" size={18} className="sheet-chevron" />
                   </button>
@@ -280,13 +269,13 @@ export function Navigation({
             <div className="sheet-group">
               {testWeekLabel && (
                 <button type="button" className="sheet-item" onClick={() => runAndClose(onOpenTestWeek)}>
-                  <Icon name="flask" />
+                  <Icon name="flask" size={20} />
                   <span>{testWeekLabel}</span>
                   <Icon name="chevronRight" size={18} className="sheet-chevron" />
                 </button>
               )}
               <button type="button" className="sheet-item" onClick={() => runAndClose(onOpenPlateCalc)}>
-                <Icon name="calculator" />
+                <Icon name="calculator" size={20} />
                 <span>Calculateur disques & 1RM</span>
                 <Icon name="chevronRight" size={18} className="sheet-chevron" />
               </button>
@@ -294,7 +283,7 @@ export function Navigation({
 
             <div className="sheet-group">
               <button type="button" className="sheet-item danger" onClick={() => runAndClose(onLogout)}>
-                <Icon name="logout" />
+                <Icon name="logout" size={20} />
                 <span>Déconnexion</span>
               </button>
             </div>
@@ -305,7 +294,17 @@ export function Navigation({
   );
 }
 
-function TabbarButton({ item, active, onClick }: { item: NavItem; active: boolean; onClick: () => void }) {
+function TabbarButton({
+  item,
+  active,
+  live,
+  onClick,
+}: {
+  item: NavItem;
+  active: boolean;
+  live: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
       type="button"
@@ -314,7 +313,10 @@ function TabbarButton({ item, active, onClick }: { item: NavItem; active: boolea
       onClick={onClick}
       aria-current={active ? 'page' : undefined}
     >
-      <Icon name={item.icon} />
+      <span className="tabbar-icon">
+        <Icon name={item.icon} size={20} />
+        {live && <span className="live-dot" aria-label="Séance en cours" />}
+      </span>
       <span className="tabbar-label">{item.shortLabel}</span>
     </button>
   );

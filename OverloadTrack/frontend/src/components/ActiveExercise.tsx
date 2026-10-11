@@ -21,6 +21,8 @@ export interface ExerciseStats {
   maxWeight: number;
   maxEstimated1RM: number;
   lastSet: { weight: number; reps: number } | null;
+  /** Sets done on this exercise during the latest session, in logging order. */
+  previousSets: { weight: number; reps: number }[];
 }
 
 interface StepperProps {
@@ -41,7 +43,7 @@ function Stepper({ value, step, label, decimal = false, onChange }: StepperProps
   return (
     <div className="stepper">
       <button type="button" onClick={() => nudge(-1)} aria-label={`${label} : -${formatKg(step)}`}>
-        <Icon name="minus" size={18} strokeWidth={2.4} />
+        <Icon name="minus" size={14} strokeWidth={2.4} />
       </button>
       <input
         type="number"
@@ -53,7 +55,7 @@ function Stepper({ value, step, label, decimal = false, onChange }: StepperProps
         onChange={(e) => onChange(e.target.value)}
       />
       <button type="button" onClick={() => nudge(1)} aria-label={`${label} : +${formatKg(step)}`}>
-        <Icon name="plus" size={18} strokeWidth={2.4} />
+        <Icon name="plus" size={14} strokeWidth={2.4} />
       </button>
     </div>
   );
@@ -111,43 +113,40 @@ export function ActiveExerciseCard({
   const plateSet = exercise.sets[activeSetIndex] ?? exercise.sets[exercise.sets.length - 1];
   const plateHint =
     equipment === 'barbell' && plateSet ? describePlates(Number(plateSet.weight), barWeightFor(exercise.name)) : null;
+  const previousSets = stats?.previousSets ?? [];
 
   return (
-    <section className="glass-panel exercise-focus" aria-label={`Exercice en cours : ${exercise.name}`}>
+    <section className="exercise-focus" aria-label={`Exercice en cours : ${exercise.name}`}>
       <header className="exercise-focus-head">
-        <span className="exercise-tile" aria-hidden="true">
-          <Icon name="dumbbell" size={28} />
-        </span>
         <div className="exercise-focus-body">
           <div className="exercise-focus-meta">
-            <span className="exercise-position">
-              Exercice {position} / {total}
+            <span>
+              Exercice {position} sur {total}
             </span>
-            <span className="exercise-cat">{exercise.category || 'Général'}</span>
+            {/* Each separator travels with its item, so a wrapped line never ends on a dangling "•" */}
+            {exercise.category && (
+              <span className="meta-item">
+                <span className="meta-sep" aria-hidden="true">•</span>
+                {exercise.category}
+              </span>
+            )}
+            {stats && (
+              <span className={`meta-item${stats.lastSet ? ' exercise-last' : ''}`}>
+                <span className="meta-sep" aria-hidden="true">•</span>
+                {stats.lastSet
+                  ? `Dernier passage : ${formatKg(stats.lastSet.weight)} kg × ${stats.lastSet.reps}`
+                  : 'Première séance'}
+              </span>
+            )}
           </div>
           <h2 className="exercise-focus-title">{exercise.name}</h2>
-          {stats && (
-            <div className="exercise-history">
-              <Icon name="history" size={15} />
-              {stats.lastSet ? (
-                <span>
-                  Dernière séance :{' '}
-                  <strong>
-                    {formatKg(stats.lastSet.weight)} kg × {stats.lastSet.reps} reps
-                  </strong>
-                </span>
-              ) : (
-                <span>Première séance sur cet exercice</span>
-              )}
-            </div>
-          )}
         </div>
         <div className="exercise-tools">
           <button type="button" className="icon-btn" onClick={onWarmup} title="Générer l'échauffement" aria-label="Générer l'échauffement">
-            <Icon name="flame" size={19} />
+            <Icon name="flame" size={18} />
           </button>
           <button type="button" className="icon-btn" onClick={onCalculator} title="Calculatrice de charge" aria-label="Calculatrice de charge">
-            <Icon name="calculator" size={19} />
+            <Icon name="calculator" size={18} />
           </button>
           <button
             type="button"
@@ -156,98 +155,129 @@ export function ActiveExerciseCard({
             title="Retirer l'exercice de la séance"
             aria-label="Retirer l'exercice de la séance"
           >
-            <Icon name="trash" size={19} />
+            <Icon name="trash" size={18} />
           </button>
         </div>
       </header>
 
       {exercise.progressiveTarget && (
-        <div className="engine-banner">
-          <span className="engine-icon" aria-hidden="true">
-            <Icon name="target" size={22} />
-          </span>
-          <div className="engine-text">
-            <div className="engine-kicker">
-              <strong>Moteur Overloady</strong>
-              <span>Surcharge progressive</span>
-            </div>
-            <p>{exercise.progressiveTarget}</p>
-          </div>
+        <div className="engine-line">
+          <Icon name="target" size={15} />
+          <span className="engine-label">Objectif</span>
+          <p>{exercise.progressiveTarget}</p>
         </div>
       )}
 
       <div className="set-table">
         <div className="set-row set-head" aria-hidden="true">
-          <span>Série</span>
+          <span>
+            <span className="label-long">Série</span>
+            <span className="label-short">#</span>
+          </span>
+          <span>
+            <span className="label-long">Précédent</span>
+            <span className="label-short">Préc.</span>
+          </span>
           <span>Charge (kg)</span>
           <span>Reps</span>
-          <span>Valider</span>
-          <span />
+          <span>Statut</span>
         </div>
 
         {exercise.sets.map((set, sIndex) => {
           const isActive = sIndex === activeSetIndex;
           const n = sIndex + 1;
+          const previous = previousSets[sIndex];
           return (
             <div key={sIndex} className={`set-row${set.completed ? ' is-done' : ''}${isActive ? ' is-active' : ''}`}>
-              <span className="set-index">{n}</span>
-              {isActive ? (
-                <Stepper
-                  value={set.weight}
-                  step={DEFAULT_STEP[equipment]}
-                  decimal
-                  label={`Charge série ${n}`}
-                  onChange={(v) => onSetChange(sIndex, 'weight', v)}
-                />
-              ) : (
-                <input
-                  className="set-input"
-                  type="number"
-                  inputMode="decimal"
-                  step="0.5"
-                  value={set.weight || ''}
-                  placeholder="0"
-                  aria-label={`Charge série ${n}`}
-                  onChange={(e) => onSetChange(sIndex, 'weight', e.target.value)}
-                />
-              )}
-              {isActive ? (
-                <Stepper
-                  value={set.reps}
-                  step={1}
-                  label={`Répétitions série ${n}`}
-                  onChange={(v) => onSetChange(sIndex, 'reps', v)}
-                />
-              ) : (
-                <input
-                  className="set-input"
-                  type="number"
-                  inputMode="numeric"
-                  value={set.reps || ''}
-                  placeholder="0"
-                  aria-label={`Répétitions série ${n}`}
-                  onChange={(e) => onSetChange(sIndex, 'reps', e.target.value)}
-                />
-              )}
-              <button
-                type="button"
-                className="set-check"
-                onClick={() => onToggleSet(sIndex)}
-                aria-pressed={set.completed}
-                aria-label={set.completed ? `Annuler la validation de la série ${n}` : `Valider la série ${n}`}
-                title={set.completed ? 'Annuler la validation' : 'Valider la série'}
-              >
-                <Icon name="check" size={isActive ? 26 : 20} strokeWidth={2.6} />
-              </button>
-              <button
-                type="button"
-                className="set-remove"
-                onClick={() => onRemoveSet(sIndex)}
-                aria-label={`Supprimer la série ${n}`}
-                title="Supprimer la série"
-              >
-                <Icon name="close" size={15} />
-              </button>
+              <div className="set-label">
+                <span className="set-index">{n}</span>
+                {isActive && <span className="set-active-tag">Active</span>}
+              </div>
+              <span className="set-prev">
+                {previous ? (
+                  <>
+                    {formatKg(previous.weight)}
+                    <span className="set-prev-unit"> kg</span> × {previous.reps}
+                  </>
+                ) : (
+                  '—'
+                )}
+              </span>
+              <div className="set-cell">
+                {isActive ? (
+                  <Stepper
+                    value={set.weight}
+                    step={DEFAULT_STEP[equipment]}
+                    decimal
+                    label={`Charge série ${n}`}
+                    onChange={(v) => onSetChange(sIndex, 'weight', v)}
+                  />
+                ) : (
+                  <input
+                    className="set-input"
+                    type="number"
+                    inputMode="decimal"
+                    step="0.5"
+                    value={set.weight || ''}
+                    placeholder="0"
+                    aria-label={`Charge série ${n}`}
+                    onChange={(e) => onSetChange(sIndex, 'weight', e.target.value)}
+                  />
+                )}
+              </div>
+              <div className="set-cell">
+                {isActive ? (
+                  <Stepper
+                    value={set.reps}
+                    step={1}
+                    label={`Répétitions série ${n}`}
+                    onChange={(v) => onSetChange(sIndex, 'reps', v)}
+                  />
+                ) : (
+                  <input
+                    className="set-input"
+                    type="number"
+                    inputMode="numeric"
+                    value={set.reps || ''}
+                    placeholder="0"
+                    aria-label={`Répétitions série ${n}`}
+                    onChange={(e) => onSetChange(sIndex, 'reps', e.target.value)}
+                  />
+                )}
+              </div>
+              <div className="set-status">
+                <button
+                  type="button"
+                  className="set-remove"
+                  onClick={() => onRemoveSet(sIndex)}
+                  aria-label={`Supprimer la série ${n}`}
+                  title="Supprimer la série"
+                >
+                  <Icon name="close" size={13} />
+                </button>
+                {isActive ? (
+                  <button
+                    type="button"
+                    className="set-validate"
+                    onClick={() => onToggleSet(sIndex)}
+                    aria-label={`Valider la série ${n}`}
+                  >
+                    <span>Valider</span>
+                    <Icon name="check" size={16} strokeWidth={2.6} />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="set-check"
+                    onClick={() => onToggleSet(sIndex)}
+                    aria-pressed={set.completed}
+                    aria-label={set.completed ? `Annuler la validation de la série ${n}` : `Valider la série ${n}`}
+                    title={set.completed ? 'Annuler la validation' : 'Valider la série'}
+                  >
+                    {set.completed ? <Icon name="check" size={15} strokeWidth={2.6} /> : <span className="set-check-dot" />}
+                  </button>
+                )}
+              </div>
             </div>
           );
         })}
@@ -257,13 +287,13 @@ export function ActiveExerciseCard({
 
       <footer className="exercise-focus-foot">
         <div className="exercise-focus-foot-actions">
-          <button type="button" className="btn-small" onClick={onAddSet}>
-            <Icon name="plus" size={17} />
+          <button type="button" className="text-action" onClick={onAddSet}>
+            <Icon name="plus" size={15} />
             Ajouter une série
           </button>
           {exercise.sets.length > 0 && !allDone && (
-            <button type="button" className="btn-small" onClick={onCompleteAll}>
-              <Icon name="checkCircle" size={17} />
+            <button type="button" className="text-action" onClick={onCompleteAll}>
+              <Icon name="checkCircle" size={15} />
               Tout valider
             </button>
           )}
