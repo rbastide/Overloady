@@ -1660,3 +1660,110 @@
   margin-top: 1rem;
   flex-wrap: wrap;
 }
+
+/* ==========================================================================
+   Confirm dialog — in-app replacement for window.confirm
+   ========================================================================== */
+.confirm-dialog {
+  max-width: 420px;
+  text-align: center;
+}
+
+.confirm-dialog-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 1rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.confirm-dialog.is-danger .confirm-dialog-icon {
+  border-color: var(--danger-line);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.confirm-dialog h2 {
+  margin: 0;
+}
+
+.confirm-dialog-message {
+  margin: 0.5rem auto 0;
+  max-width: 32ch;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* What the action throws away, in the session's own telemetry style */
+.confirm-dialog-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 1.25rem;
+  padding: 0.85rem 0;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: var(--bg-inset);
+}
+
+.confirm-dialog-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+  padding: 0 0.5rem;
+  border-left: 1px solid var(--line);
+}
+
+.confirm-dialog-stats > div:first-child {
+  border-left: none;
+}
+
+.confirm-dialog-stats span {
+  color: var(--text-dim);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.confirm-dialog-stats strong {
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.confirm-dialog-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  margin-top: 1.5rem;
+}
+
+.btn-primary.btn-danger {
+  background: var(--danger);
+  color: var(--accent-ink);
+  box-shadow: 0 2px 12px rgba(255, 180, 171, 0.18);
+}
+
+.btn-primary.btn-danger:hover:not(:disabled) {
+  background: #ffc8c1;
+}
+
+@media (max-width: 767px) {
+  /* Thumb reach: the destructive action sits on top, the safe one closest to the edge */
+  .confirm-dialog-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .confirm-dialog-actions .btn-secondary {
+    order: 1;
+  }
+}

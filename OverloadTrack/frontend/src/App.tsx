@@ -9,6 +9,7 @@ import { ExerciseDetailModal } from './components/ExerciseDetailModal';
 import { AddExerciseModal } from './components/AddExerciseModal';
 import { RoutineModal } from './components/RoutineModal';
 import { ExercisePicker } from './components/ExercisePicker';
+import { ConfirmDialog } from './components/ConfirmDialog';
 import { ToastContainer, type ToastMessage } from './components/Toast';
 import { WarmupModal } from './components/WarmupModal';
 import { AnalyticsView } from './components/AnalyticsView';
@@ -130,6 +131,7 @@ function App() {
   // Coaching cues of the running session (AI tips, coach notes or test protocol).
   const [sessionTips, setSessionTips] = useState<string[]>([]);
   const addExerciseRef = useRef<HTMLElement>(null);
+  const [isAbandonOpen, setIsAbandonOpen] = useState<boolean>(false);
 
   // Rest Timer State
   const [showRestTimer, setShowRestTimer] = useState<boolean>(false);
@@ -660,7 +662,6 @@ function App() {
   // Abandon: the session is deleted, nothing of it is kept in the history or the records
   const abandonWorkout = async () => {
     if (!activeSessionId) return;
-    if (!window.confirm('Abandonner la séance ? Rien ne sera enregistré.')) return;
 
     try {
       await api.delete(`/workout/session/${activeSessionId}`);
@@ -671,6 +672,7 @@ function App() {
         return;
       }
     }
+    setIsAbandonOpen(false);
     resetActiveSession();
     setActiveTab('dashboard');
     showToast('Séance abandonnée', 'info');
@@ -1547,7 +1549,7 @@ function App() {
                     </button>
                     <button
                       className="btn-icon is-danger"
-                      onClick={abandonWorkout}
+                      onClick={() => setIsAbandonOpen(true)}
                       aria-label="Abandonner la séance"
                       title="Abandonner la séance"
                     >
@@ -1715,7 +1717,7 @@ function App() {
                       <Icon name="flag" size={18} />
                       Terminer et enregistrer la séance
                     </button>
-                    <button className="btn-ghost session-abandon" onClick={abandonWorkout}>
+                    <button className="btn-ghost session-abandon" onClick={() => setIsAbandonOpen(true)}>
                       Abandonner la séance
                     </button>
                   </div>
@@ -2186,6 +2188,35 @@ function App() {
           showToast(`Exercice "${newEx.name}" créé avec succès !`);
         }}
       />
+
+      <ConfirmDialog
+        isOpen={isAbandonOpen && activeSessionId !== null}
+        tone="danger"
+        icon="flag"
+        title="Abandonner la séance ?"
+        message="Elle sera supprimée : rien n'ira dans ton historique, tes records ni ta progression."
+        confirmLabel="Abandonner"
+        cancelLabel="Continuer la séance"
+        onConfirm={abandonWorkout}
+        onCancel={() => setIsAbandonOpen(false)}
+      >
+        <div className="confirm-dialog-stats">
+          <div>
+            <span>Durée</span>
+            <strong>{formatDuration(elapsedSeconds)}</strong>
+          </div>
+          <div>
+            <span>Séries</span>
+            <strong>
+              {completedSets}/{totalSets}
+            </strong>
+          </div>
+          <div>
+            <span>Volume</span>
+            <strong>{sessionVolume.toLocaleString('fr-FR')} kg</strong>
+          </div>
+        </div>
+      </ConfirmDialog>
 
       <RoutineModal
         isOpen={isRoutineModalOpen}
