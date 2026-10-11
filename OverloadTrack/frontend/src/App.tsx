@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import api, { hasValidToken, onUnauthorized, warmUpBackend } from './api';
+import api, { clearToken, hasValidToken, onUnauthorized, setToken, warmUpBackend } from './api';
 import './App.css';
 import './shell.css';
 import './components.css';
@@ -368,7 +368,7 @@ function App() {
             ...(withAthleteProfile ? toAthleteProfilePayload(signupAthlete) : {}),
           };
       const res = await api.post(endpoint, payload);
-      localStorage.setItem('token', res.data.access_token);
+      setToken(res.data.access_token);
       setIsAuthenticated(true);
       showToast(isLoginMode ? 'Connexion réussie !' : 'Compte créé avec succès ! Bienvenue sur Overloady.');
     } catch (err: any) {
@@ -406,7 +406,7 @@ function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
+    clearToken();
     setIsAuthenticated(false);
     setActiveSessionId(null);
     setWorkout([]);

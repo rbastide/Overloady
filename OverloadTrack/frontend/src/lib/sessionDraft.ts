@@ -1,4 +1,5 @@
 import type { ActiveExercise } from '../components/ActiveExercise';
+import { getToken } from '../api';
 
 /**
  * The running session, saved on the device at every change: the sets are only sent to the
@@ -22,7 +23,7 @@ const STORAGE_PREFIX = 'overloady.activeSession.';
 /** The signed-in athlete, read from the stored token: a draft only comes back to its owner. */
 export const currentUserId = (): string | null => {
   try {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (!token) return null;
     const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
     return typeof payload.sub === 'string' ? payload.sub : null;

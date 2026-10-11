@@ -15,17 +15,54 @@ const api = axios.create({
   baseURL,
 });
 
+/**
+ * The login lives in sessionStorage: it survives a reload of the tab, but every new visit
+ * (new tab, browser or app reopened) starts on the login page.
+ */
+const TOKEN_KEY = 'token';
+
+// Logins kept by older versions in localStorage would skip the login page: dropped once.
+try {
+  localStorage.removeItem(TOKEN_KEY);
+} catch {
+  // Storage unavailable: nothing was kept there either.
+}
+
+export const getToken = (): string | null => {
+  try {
+    return sessionStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+};
+
+export const setToken = (token: string) => {
+  try {
+    sessionStorage.setItem(TOKEN_KEY, token);
+  } catch {
+    // Storage unavailable (private mode): the login only lasts until the next reload.
+  }
+};
+
+export const clearToken = () => {
+  try {
+    sessionStorage.removeItem(TOKEN_KEY);
+  } catch {
+    // Nothing to clear.
+  }
+};
+
 /** A stored token only counts if it is a JWT that has not expired yet. */
 export const hasValidToken = () => {
-  const token = localStorage.getItem('token');
+  const token = getToken();
   if (!token) return false;
   try {
     const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
     const isValid = !payload.exp || payload.exp * 1000 > Date.now();
-    if (!isValid) localStorage.removeItem('token');
+    if (!isValid) clearToken();
     return isValid;
   } catch {
-    localStorage.removeItem('token');
+    clearToken();
     return false;
   }
 };
@@ -45,7 +82,7 @@ export const onUnauthorized = (handler: () => void) => {
 };
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  const token = getToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -57,7 +94,7 @@ api.interceptors.response.use(
   (error) => {
     // A 401 on an authenticated call means the session is gone; a failed login keeps its own message.
     if (error.response?.status === 401 && error.config?.headers?.Authorization) {
-      localStorage.removeItem('token');
+      clearToken();
       unauthorizedHandler?.();
     }
     return Promise.reject(error);
