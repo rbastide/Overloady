@@ -2,13 +2,13 @@
    COMPONENT STYLES — analytics, modals, coach chat, routine builder, calculator, profile
    ========================================================================== */
 
-/* Data visualisation series, validated for the dark card surface (#18171a):
+/* Data visualisation series, validated for the dark card surface (#181c21):
    slots 1-3 pass the all-pairs CVD and normal-vision checks; "other" is the neutral remainder. */
 :root {
-  --series-1: #c08523;
-  --series-2: #33a07a;
-  --series-3: #9a7ac2;
-  --series-other: #6b665f;
+  --series-1: #7ca99a;
+  --series-2: #d4a373;
+  --series-3: #7e9cb9;
+  --series-other: #4b535c;
 }
 
 /* ---------- KPI stat cards (Analytique, fiche exercice) ---------- */
@@ -32,7 +32,7 @@
 .stat-card .value {
   font-family: var(--font-display);
   font-size: 1.85rem;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.1;
   letter-spacing: -0.03em;
   color: var(--text-main);
@@ -68,7 +68,7 @@
   gap: 0.5rem;
   margin-bottom: 1.25rem;
   font-size: 1.1rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .panel-title svg {
@@ -188,7 +188,7 @@
   margin: 0.2rem 0 0.1rem;
   font-family: var(--font-display);
   font-size: 1.35rem;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: -0.02em;
 }
 
@@ -217,7 +217,7 @@
 
 .badge-card.is-unlocked {
   border-color: var(--jade-line);
-  background: linear-gradient(135deg, rgba(94, 131, 117, 0.12), transparent 60%), var(--bg-card);
+  background: linear-gradient(135deg, rgba(124, 169, 154, 0.12), transparent 60%), var(--bg-card);
 }
 
 .badge-card-head {
@@ -272,7 +272,7 @@
 .focus-card-head h3 {
   margin-top: 0.15rem;
   font-size: 1.2rem;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .focus-card-head svg {
@@ -319,7 +319,7 @@
 .focus-center strong {
   font-family: var(--font-display);
   font-size: 1.75rem;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1;
   letter-spacing: -0.03em;
 }
@@ -404,7 +404,7 @@
   position: relative;
   padding: 2rem;
   background: var(--bg-card);
-  border: 1px solid rgba(246, 243, 237, 0.1);
+  border: 1px solid rgba(224, 226, 234, 0.1);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-pop);
   animation: bentoEntrance 0.25s var(--ease-out);
@@ -597,9 +597,9 @@
   border-radius: var(--radius-lg);
   display: grid;
   place-items: center;
-  color: #281900;
-  background: linear-gradient(135deg, #e5a93c, #704812);
-  box-shadow: 0 0 16px rgba(229, 169, 60, 0.3);
+  color: #0c2821;
+  background: linear-gradient(135deg, #7ca99a, #3b6659);
+  box-shadow: 0 0 16px rgba(124, 169, 154, 0.3);
 }
 
 .coach-head-text {
@@ -749,7 +749,7 @@
 
 .coach-workout {
   background: var(--bg-sidebar);
-  border: 1px solid rgba(229, 169, 60, 0.2);
+  border: 1px solid rgba(124, 169, 154, 0.2);
   border-radius: var(--radius-lg);
   padding: 1rem 1.1rem;
 }
@@ -849,7 +849,7 @@
   gap: 0.6rem;
   padding: 0.85rem 1rem;
   border-top: 1px solid var(--line);
-  background: rgba(14, 13, 15, 0.5);
+  background: rgba(12, 40, 33, 0.5);
 }
 
 .coach-input textarea {
@@ -860,7 +860,7 @@
   field-sizing: content;
   padding: 0.7rem 1rem;
   border-radius: var(--radius-lg);
-  border: 1px solid #28272c;
+  border: 1px solid #252a32;
   background: var(--bg-inset);
   color: var(--text-main);
   font-size: 16px; /* below 16px iOS Safari zooms on focus */
@@ -1060,7 +1060,7 @@
 }
 
 .routine-group.active {
-  background: rgba(229, 169, 60, 0.14);
+  background: rgba(124, 169, 154, 0.14);
   border-color: var(--accent-line);
   color: var(--accent-text);
 }
@@ -1134,7 +1134,7 @@
 }
 
 .routine-tile.selected {
-  background: rgba(229, 169, 60, 0.08);
+  background: rgba(124, 169, 154, 0.08);
   border-color: var(--accent-line);
 }
 
@@ -1325,7 +1325,7 @@
 }
 
 .calc-chip.active {
-  background: rgba(229, 169, 60, 0.14);
+  background: rgba(124, 169, 154, 0.14);
   border-color: var(--accent-line);
   color: var(--accent-text);
 }
@@ -1367,7 +1367,7 @@
   color: var(--accent-text);
   font-family: var(--font-display);
   font-size: 2.1rem;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.15;
   letter-spacing: -0.03em;
 }
@@ -1528,7 +1528,7 @@
   height: 48px;
   padding: 0 0.9rem;
   border-radius: var(--radius-md);
-  border: 1px solid #28272c;
+  border: 1px solid #252a32;
   background: var(--bg-inset);
   color: var(--text-main);
   font-size: 16px;
@@ -1554,7 +1554,7 @@
   gap: 0.15rem;
   padding: 0.7rem 0.75rem;
   border-radius: var(--radius-md);
-  border: 1px solid #28272c;
+  border: 1px solid #252a32;
   background: var(--bg-inset);
   color: var(--text-main);
   text-align: left;
@@ -1563,7 +1563,7 @@
 }
 
 .athlete-experience-option:hover {
-  border-color: #35333a;
+  border-color: #2f353e;
 }
 
 .athlete-experience-option.selected {

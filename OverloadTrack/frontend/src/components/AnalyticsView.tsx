@@ -164,15 +164,15 @@ export const AnalyticsView: React.FC = () => {
                 <svg className="chart-svg" viewBox="0 0 400 200" role="img" aria-label="Volume total par semaine">
                   <defs>
                     <linearGradient id="barGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                      <stop offset="0%" stopColor="#e5a93c" />
-                      <stop offset="100%" stopColor="#e5a93c" stopOpacity="0.18" />
+                      <stop offset="0%" stopColor="#7ca99a" />
+                      <stop offset="100%" stopColor="#7ca99a" stopOpacity="0.18" />
                     </linearGradient>
                   </defs>
 
                   {/* Grid lines */}
-                  <line x1="40" y1="30" x2="380" y2="30" stroke="rgba(246,243,237,0.06)" />
-                  <line x1="40" y1="95" x2="380" y2="95" stroke="rgba(246,243,237,0.06)" />
-                  <line x1="40" y1="160" x2="380" y2="160" stroke="rgba(246,243,237,0.18)" />
+                  <line x1="40" y1="30" x2="380" y2="30" stroke="rgba(224, 226, 234,0.06)" />
+                  <line x1="40" y1="95" x2="380" y2="95" stroke="rgba(224, 226, 234,0.06)" />
+                  <line x1="40" y1="160" x2="380" y2="160" stroke="rgba(224, 226, 234,0.18)" />
 
                   {weeklyTrends.map((w: any, idx: number) => {
                     const barWidth = Math.min(35, 300 / weeklyTrends.length);

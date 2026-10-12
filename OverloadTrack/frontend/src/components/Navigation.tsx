@@ -15,7 +15,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'logger', label: 'Séance active', shortLabel: 'Séance', icon: 'dumbbell' },
   { id: 'routines', label: 'Programmes', shortLabel: 'Programmes', icon: 'clipboard' },
   { id: 'exercises', label: 'Exercices', shortLabel: 'Exercices', icon: 'list' },
-  { id: 'analytics', label: 'Progression', shortLabel: 'Stats', icon: 'chart' },
+  { id: 'analytics', label: 'Progression', shortLabel: 'Progression', icon: 'chart' },
   { id: 'history', label: 'Historique', shortLabel: 'Historique', icon: 'history' },
   { id: 'profile', label: 'Profil', shortLabel: 'Profil', icon: 'user' },
 ];
@@ -90,12 +90,10 @@ export function Navigation({
       {/* ===== Desktop / tablet sidebar ===== */}
       <aside className="sidebar" aria-label="Navigation principale">
         <button type="button" className="sidebar-brand" onClick={() => go('dashboard')}>
-          <span className="brand-mark">
-            <Icon name="bolt" size={18} filled strokeWidth={1.4} />
-          </span>
+          <span className="brand-dot" aria-hidden="true" />
           <span className="sidebar-brand-text sidebar-label">
-            <span className="brand-title">OVERLOADY</span>
-            <span className="brand-subtitle">Athletic Studio</span>
+            <span className="brand-title">Overloady</span>
+            <span className="brand-subtitle">Surcharge progressive</span>
           </span>
         </button>
 
@@ -191,10 +189,8 @@ export function Navigation({
       {/* ===== Mobile top bar ===== */}
       <header className="mobile-topbar">
         <button type="button" className="mobile-topbar-brand" onClick={() => go('dashboard')} aria-label="Accueil">
-          <span className="brand-mark">
-            <Icon name="bolt" size={15} filled strokeWidth={1.4} />
-          </span>
-          <span className="brand-title">OVERLOADY</span>
+          <span className="brand-dot" aria-hidden="true" />
+          <span className="brand-title">Overloady</span>
         </button>
         <div className="mobile-topbar-actions">
           {session && (
@@ -230,7 +226,7 @@ export function Navigation({
           aria-haspopup="dialog"
           aria-expanded={moreOpen}
         >
-          <Icon name="menu" size={20} />
+          <Icon name="menu" size={22} />
           <span className="tabbar-label">Plus</span>
         </button>
       </nav>
@@ -315,7 +311,7 @@ function TabbarButton({
       aria-current={active ? 'page' : undefined}
     >
       <span className="tabbar-icon">
-        <Icon name={item.icon} size={20} />
+        <Icon name={item.icon} size={22} />
         {live && <span className="live-dot" aria-label="Séance en cours" />}
       </span>
       <span className="tabbar-label">{item.shortLabel}</span>

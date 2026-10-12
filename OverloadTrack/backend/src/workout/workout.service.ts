@@ -393,7 +393,12 @@ export class WorkoutService implements OnApplicationBootstrap {
       (s) => new Date(s.startedAt) >= oneWeekAgo,
     );
 
+    const twoWeeksAgo = new Date();
+    twoWeeksAgo.setDate(now.getDate() - 14);
+
     let weekVolume = 0;
+    // Volume of the 7 days before: the dashboard compares both weeks as its progressive overload signal
+    let previousWeekVolume = 0;
     let totalVolumeAllTime = 0;
 
     for (const session of allSessions) {
@@ -406,8 +411,11 @@ export class WorkoutService implements OnApplicationBootstrap {
         }
       }
       totalVolumeAllTime += sessionVolume;
-      if (new Date(session.startedAt) >= oneWeekAgo) {
+      const startedAt = new Date(session.startedAt);
+      if (startedAt >= oneWeekAgo) {
         weekVolume += sessionVolume;
+      } else if (startedAt >= twoWeeksAgo) {
+        previousWeekVolume += sessionVolume;
       }
     }
 
@@ -415,6 +423,12 @@ export class WorkoutService implements OnApplicationBootstrap {
       totalWorkouts: allSessions.length,
       workoutsThisWeek: weekSessions.length,
       weekVolume: Math.round(weekVolume),
+      previousWeekVolume: Math.round(previousWeekVolume),
+      // Percentage, one decimal; null when there is no previous week to compare with
+      weekVolumeDelta:
+        previousWeekVolume > 0
+          ? Math.round(((weekVolume - previousWeekVolume) / previousWeekVolume) * 1000) / 10
+          : null,
       totalVolumeAllTime: Math.round(totalVolumeAllTime),
       recentSessionsCount: allSessions.length,
     };

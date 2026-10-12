@@ -83,6 +83,22 @@ const describeSets = (exercise: ActiveExercise) => {
   return `${exercise.sets.length} × ${first.reps}${first.weight > 0 ? ` · ${formatKg(first.weight)} kg` : ''}`;
 };
 
+// Training cycle named on the dashboard greeting ("Cycle Hypertrophie").
+const GOAL_CYCLE_LABELS: Record<string, string> = {
+  FORCE: 'Force',
+  BODYBUILDING: 'Hypertrophie',
+  ENDURANCE: 'Endurance',
+};
+
+// Target of a recommended exercise from its first set, e.g. "82,5 kg × 8 reps".
+const describeTarget = (exercise: { sets?: { weight?: number; reps?: number }[] }) => {
+  const first = exercise.sets?.[0];
+  if (!first) return 'Charge à définir';
+  const reps = Number(first.reps) || 0;
+  const weight = Number(first.weight) || 0;
+  return weight > 0 ? `${formatKg(weight)} kg × ${reps} reps` : `Poids du corps × ${reps} reps`;
+};
+
 // The library holds ~900 exercises (wger import): cards are rendered in pages.
 // "18:32" today, "ven. 18:32" within the week, "3 oct." beyond
 const formatDraftStart = (iso: string) => {
@@ -97,7 +113,7 @@ const formatDraftStart = (iso: string) => {
 
 const LIBRARY_PAGE_SIZE = 60;
 // Programs shown as quick-launch buttons on the dashboard welcome card
-// (phones only display the first HERO_PROGRAMS_MOBILE, see .hero-program in shell.css).
+// (phones only display the first HERO_PROGRAMS_MOBILE, see .program-row in shell.css).
 const HERO_PROGRAMS_MAX = 6;
 const HERO_PROGRAMS_MOBILE = 3;
 
@@ -132,7 +148,8 @@ function App() {
   const [isStartingRec, setIsStartingRec] = useState<boolean>(false);
   const [isRegeneratingAi, setIsRegeneratingAi] = useState<boolean>(false);
   const [isRegenerateOpen, setIsRegenerateOpen] = useState<boolean>(false);
-  const [showAiExercisesPreview, setShowAiExercisesPreview] = useState<boolean>(true);
+  // Coach advice of the recommended session (rationale, tips, per-exercise reasons), folded by default
+  const [showAiExercisesPreview, setShowAiExercisesPreview] = useState<boolean>(false);
 
   // Test Week Calibration State
   const [testWeekStatus, setTestWeekStatus] = useState<any>(null);
@@ -1043,6 +1060,11 @@ function App() {
     0,
   );
   const remainingExercises = workout.filter((ex, i) => i !== activeExerciseIndex && !isExerciseDone(ex)).length;
+  // Dashboard: validated volume of the last 7 days against the 7 days before
+  const weekVolume = Number(dashboardStats.weekVolume) || 0;
+  const volumeDelta: number | null = typeof dashboardStats.weekVolumeDelta === 'number' ? dashboardStats.weekVolumeDelta : null;
+  const overloadTrend = volumeDelta === null ? null : volumeDelta > 2 ? 'up' : volumeDelta < -2 ? 'down' : 'flat';
+
   const goalName = (GOAL_OPTIONS.find((g) => g.id === (profile.goal || 'BODYBUILDING')) || GOAL_OPTIONS[1]).name.replace(/ \(.*\)/, '');
   const sessionKicker = activeTestStep
     ? `Semaine test · étape ${activeTestStep}/3`
@@ -1279,7 +1301,7 @@ function App() {
             </div>
           </div>
 
-          <footer className="auth-footer">Overloady • Athletic Studio</footer>
+          <footer className="auth-footer">Overloady</footer>
         </main>
       </div>
     );
@@ -1305,35 +1327,44 @@ function App() {
 
       {/* Main Content Area */}
       <main className="main-content">
-        {/* ================= TAB 1: BENTO DASHBOARD ================= */}
+        {/* ================= TAB 1: DASHBOARD ================= */}
         {activeTab === 'dashboard' && (
-          <div>
-            {/* Protocole Semaine Test Athlète */}
+          <div className="home">
+            <section className="home-greeting">
+              <h1>Bonjour {displayName}</h1>
+              <p>
+                <span>Cycle {GOAL_CYCLE_LABELS[profile.goal || 'BODYBUILDING'] || 'Hypertrophie'}</span>
+                <span aria-hidden="true">·</span>
+                <span className="home-date">
+                  {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+                </span>
+                {testWeekStatus?.testWeekCompleted && !testWeekStatus.testWeekSkipped && (
+                  <button type="button" className="home-chip" onClick={() => setIsTestWeekModalOpen(true)}>
+                    <Icon name="check" size={12} strokeWidth={2.6} />
+                    Profil calibré
+                  </button>
+                )}
+              </p>
+            </section>
+
+            {/* Calibration week */}
             {testWeekStatus && !testWeekStatus.testWeekCompleted && (
-              <div className="test-week-banner">
-                <div className="test-week-banner-top">
-                  <span className="test-badge-glow">
-                    <Icon name="flask" size={14} />
-                    Semaine de test athlète • {testWeekStatus.testWeekProgress}/{testWeekStatus.totalSteps} complété
+              <section className="home-card calib-card">
+                <div className="home-card-head">
+                  <span className="home-card-label">
+                    <Icon name="flask" size={15} />
+                    Semaine de calibration
                   </span>
-                  <div className="test-week-banner-actions">
-                    <button className="btn-small" onClick={() => setIsTestWeekModalOpen(true)}>
-                      <Icon name="clipboard" size={16} />
-                      Voir le protocole des tests
-                    </button>
-                    <button className="btn-text-danger" onClick={handleSkipTestWeek} title="Passer directement au Coach IA">
-                      Passer
-                    </button>
-                  </div>
+                  <span className="home-card-meta">
+                    {testWeekStatus.testWeekProgress}/{testWeekStatus.totalSteps} séances
+                  </span>
+                </div>
+                <div>
+                  <h2 className="home-card-title">Phase d'évaluation initiale</h2>
+                  <p className="home-card-text">Calibrez vos charges de référence avant de lancer le coach IA.</p>
                 </div>
 
-                <div className="test-week-banner-title">
-                  <h2>Phase d'Évaluation Initiale (1 Semaine)</h2>
-                  <span>Calibrez vos charges de travail de référence avant de lancer l'IA</span>
-                </div>
-
-                {/* 3 Step Cards */}
-                <div className="test-week-steps-row">
+                <div className="calib-steps">
                   {testWeekStatus.sessions?.map((sess: any) => {
                     const isCompleted = sess.status === 'completed';
                     const isCurrent = sess.status === 'current';
@@ -1341,22 +1372,23 @@ function App() {
                       <button
                         type="button"
                         key={sess.step}
-                        className={`test-step-mini-card ${sess.status}`}
+                        className={`calib-step ${sess.status}`}
                         onClick={() => setIsTestWeekModalOpen(true)}
                       >
-                        <div className="step-card-header">
-                          <span className="step-status">{isCompleted ? '✓ Validé' : isCurrent ? 'En cours' : 'À venir'}</span>
-                          <span className="step-day">{sess.dayName}</span>
-                        </div>
-                        <div className="step-card-title">{sess.name}</div>
-                        <div className="step-card-focus">{sess.focus}</div>
+                        <span className="calib-step-head">
+                          <span className="calib-step-status">
+                            {isCompleted ? '✓ Validée' : isCurrent ? 'En cours' : 'À venir'}
+                          </span>
+                          <span>{sess.dayName}</span>
+                        </span>
+                        <span className="calib-step-name">{sess.name}</span>
+                        <span className="calib-step-focus">{sess.focus}</span>
                       </button>
                     );
                   })}
                 </div>
 
-                {/* Action button */}
-                <div className="test-week-banner-cta">
+                <div className="home-actions">
                   <button
                     className="btn-primary"
                     onClick={() => handleStartTestWeekSession(testWeekStatus.currentStep)}
@@ -1367,274 +1399,292 @@ function App() {
                       ? 'Lancement...'
                       : activeSessionId
                       ? 'Séance déjà en cours'
-                      : `Lancer la Séance Test ${testWeekStatus.currentStep} (${testWeekStatus.sessions?.[testWeekStatus.currentStep - 1]?.name || 'Test'})`}
+                      : `Lancer la séance test ${testWeekStatus.currentStep}`}
                   </button>
                   <button className="btn-secondary" onClick={() => setIsTestWeekModalOpen(true)}>
-                    Détail des 3 séances
+                    <Icon name="clipboard" size={16} />
+                    Protocole
+                  </button>
+                  <button className="text-action" onClick={handleSkipTestWeek} title="Passer directement au Coach IA">
+                    Passer
                   </button>
                 </div>
-              </div>
+              </section>
             )}
 
-            <div className="bento-grid">
-              {/* Bento 1: compact welcome + program quick launch (grows with the number of programs) */}
-              <div className="bento-hero">
-                <div className="hero-top">
-                  <span className="badge-pill">Programme {profile.goal || 'BODYBUILDING'}</span>
-                  {testWeekStatus?.testWeekCompleted && !testWeekStatus.testWeekSkipped && (
-                    <button type="button" className="badge-pill is-jade is-clickable" onClick={() => setIsTestWeekModalOpen(true)}>
-                      ✓ Profil calibré
-                    </button>
-                  )}
-                  <span className="hero-date">
-                    {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
-                  </span>
-                </div>
-                <h1>Bonjour, {displayName} 👋</h1>
-
-                <div className="hero-programs">
-                  <div className="hero-programs-head">
-                    <span>Vos programmes ({routines.length})</span>
-                    {routines.length > HERO_PROGRAMS_MOBILE && (
-                      <button className="link-btn" onClick={() => setActiveTab('routines')}>
-                        Tout voir
-                      </button>
-                    )}
+            <div className="home-grid">
+              <div className="home-col">
+                {/* Next session: the AI coach recommendation */}
+                <section className="home-section home-next">
+                  <div className="home-section-head">
+                    <h2>Prochaine séance</h2>
+                    <span>
+                      {!nextRecommendation
+                        ? 'Coach IA'
+                        : nextRecommendation.isTestWeek
+                        ? `Semaine test · étape ${nextRecommendation.testStep}/${nextRecommendation.totalTestSteps}`
+                        : nextRecommendation.aiGenerated
+                        ? 'Coach IA'
+                        : 'Surcharge calculée'}
+                    </span>
                   </div>
-                  {routines.length > 0 ? (
-                    <div className="hero-program-list">
-                      {routines.slice(0, HERO_PROGRAMS_MAX).map((rt) => (
-                        <button key={rt.id} className="hero-program" onClick={() => startRoutineWorkout(rt)} title={`Lancer ${rt.name}`}>
-                          <span className="hero-program-play">
-                            <Icon name="play" size={12} filled strokeWidth={1.5} />
-                          </span>
-                          <span className="hero-program-name">{rt.name}</span>
-                          <span className="hero-program-meta">{rt.exercises?.length || 0} exos</span>
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="hero-programs-empty">Aucun programme pour l'instant (ex : Push / Pull / Legs).</p>
-                  )}
-                </div>
 
-                <div className="bento-actions">
-                  <button className="btn-primary" onClick={startNewWorkout}>
-                    <Icon name="plus" size={18} strokeWidth={2.4} />
-                    Séance libre
-                  </button>
-                  <button className="btn-secondary" onClick={() => setIsRoutineModalOpen(true)}>
-                    <Icon name="plus" size={18} />
-                    Nouveau programme
-                  </button>
-                </div>
-              </div>
-
-              {/* Bento 2: AI Coach Recommended Workout */}
-              {nextRecommendation ? (
-                <div className="bento-ai-rec">
-                  <div>
-                    <div className="bento-ai-head">
-                      <div className="bento-badge">
-                        <span className="ai-dot-pulse" />
-                        <span>
-                          {nextRecommendation.isTestWeek
-                            ? `Semaine test • Étape ${nextRecommendation.testStep}/${nextRecommendation.totalTestSteps}`
-                            : nextRecommendation.aiGenerated
-                            ? 'Coach IA connecté'
-                            : 'Surcharge calculée'}{' '}
-                          • {nextRecommendation.goalDetails?.label || nextRecommendation.goal}
-                        </span>
+                  {nextRecommendation ? (
+                    <div className="home-card next-card">
+                      <div>
+                        <h3 className="next-title">{nextRecommendation.title}</h3>
+                        <p className="next-sub">
+                          {[
+                            nextRecommendation.focusMuscle,
+                            nextRecommendation.goalDetails?.repTarget,
+                            nextRecommendation.goalDetails?.restTarget && `repos ${nextRecommendation.goalDetails.restTarget}`,
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </p>
                       </div>
-                      {nextRecommendation.aiModel && <span className="bento-ai-model">{nextRecommendation.aiModel}</span>}
-                    </div>
 
-                    <h2>{nextRecommendation.title}</h2>
-                    <p className="rec-text">{nextRecommendation.rationale}</p>
-
-                    <div className="bento-chips-row">
-                      <div className="bento-chip">
-                        <strong>Focus :</strong> {nextRecommendation.focusMuscle}
-                      </div>
-                      <div className="bento-chip">
-                        <strong>Cible :</strong> {nextRecommendation.goalDetails?.repTarget}
-                      </div>
-                      <div className="bento-chip">
-                        <strong>Repos :</strong> {nextRecommendation.goalDetails?.restTarget}
-                      </div>
-                    </div>
-
-                    {/* AI Coach Tips */}
-                    {nextRecommendation.coachingTips && nextRecommendation.coachingTips.length > 0 && (
-                      <div className="ai-tips-container">
-                        <div className="ai-tips-title">
-                          <Icon name="lightbulb" size={14} />
-                          <span>Consignes clés du coach IA</span>
-                        </div>
-                        <ul className="ai-tips-list">
-                          {nextRecommendation.coachingTips.map((tip: string, idx: number) => (
-                            <li key={idx} className="ai-tip-item">{tip}</li>
+                      {nextRecommendation.exercises?.length > 0 && (
+                        <ul className="next-list">
+                          {nextRecommendation.exercises.map((ex: any, idx: number) => (
+                            <li key={idx} className="next-item">
+                              <div className="next-item-text">
+                                <p className="next-item-name">{ex.name}</p>
+                                <p className="next-item-detail">{describeTarget(ex)}</p>
+                              </div>
+                              <span className="next-item-sets">{ex.sets?.length || 3} séries</span>
+                            </li>
                           ))}
                         </ul>
-                      </div>
-                    )}
+                      )}
 
-                    {/* AI Exercises Preview Toggle */}
-                    {nextRecommendation.exercises && nextRecommendation.exercises.length > 0 && (
-                      <div>
+                      {(nextRecommendation.rationale ||
+                        nextRecommendation.coachingTips?.length > 0 ||
+                        nextRecommendation.exercises?.some((ex: any) => ex.reason || ex.targetAdvice)) && (
+                        <div className="next-details">
+                          <button
+                            type="button"
+                            className="next-details-toggle"
+                            onClick={() => setShowAiExercisesPreview((prev) => !prev)}
+                            aria-expanded={showAiExercisesPreview}
+                          >
+                            <span>Conseils du coach</span>
+                            <Icon name={showAiExercisesPreview ? 'chevronUp' : 'chevronDown'} size={16} />
+                          </button>
+
+                          {showAiExercisesPreview && (
+                            <div className="next-details-body">
+                              {nextRecommendation.rationale && <p className="next-rationale">{nextRecommendation.rationale}</p>}
+                              {nextRecommendation.coachingTips?.length > 0 && (
+                                <ul className="next-tips">
+                                  {nextRecommendation.coachingTips.map((tip: string, idx: number) => (
+                                    <li key={idx}>{tip}</li>
+                                  ))}
+                                </ul>
+                              )}
+                              {nextRecommendation.exercises?.some((ex: any) => ex.reason || ex.targetAdvice) && (
+                                <dl className="next-reasons">
+                                  {nextRecommendation.exercises
+                                    .filter((ex: any) => ex.reason || ex.targetAdvice)
+                                    .map((ex: any, idx: number) => (
+                                      <div key={idx}>
+                                        <dt>{ex.name}</dt>
+                                        {ex.targetAdvice && <dd className="next-advice">{ex.targetAdvice}</dd>}
+                                        {ex.reason && <dd>{ex.reason}</dd>}
+                                      </div>
+                                    ))}
+                                </dl>
+                              )}
+                              {nextRecommendation.aiModel && <p className="next-model">{nextRecommendation.aiModel}</p>}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="next-actions">
                         <button
-                          type="button"
-                          className="ai-preview-toggle"
-                          onClick={() => setShowAiExercisesPreview((prev) => !prev)}
-                          aria-expanded={showAiExercisesPreview}
+                          className="btn-primary"
+                          onClick={() => startRecommendedWorkout()}
+                          disabled={isStartingRec || !!activeSessionId || isRegeneratingAi}
                         >
-                          <span>{nextRecommendation.exercises.length} exercices prescrits</span>
-                          <span>
-                            {showAiExercisesPreview ? 'Masquer' : 'Voir le détail'}
-                            <Icon name={showAiExercisesPreview ? 'chevronUp' : 'chevronDown'} size={14} />
-                          </span>
+                          {!isStartingRec && !activeSessionId && <Icon name="play" size={16} filled strokeWidth={1.5} />}
+                          {isStartingRec
+                            ? 'Lancement en cours...'
+                            : activeSessionId
+                            ? 'Séance déjà en cours'
+                            : nextRecommendation.isTestWeek
+                            ? `Commencer le test (étape ${nextRecommendation.testStep}/${nextRecommendation.totalTestSteps})`
+                            : 'Commencer la séance'}
                         </button>
-
-                        {showAiExercisesPreview && (
-                          <div className="ai-exercises-preview">
-                            {nextRecommendation.exercises.map((ex: any, idx: number) => (
-                              <div key={idx} className="ai-ex-preview-item">
-                                <div className="ai-ex-header">
-                                  <span className="ai-ex-name">{ex.name}</span>
-                                  <span className="ai-ex-badge">{ex.sets?.length || 3} séries</span>
-                                </div>
-                                {ex.reason && <div className="ai-ex-reason">"{ex.reason}"</div>}
-                                {ex.targetAdvice && <div className="ai-ex-advice">{ex.targetAdvice}</div>}
-                              </div>
-                            ))}
-                          </div>
+                        {nextRecommendation.isTestWeek ? (
+                          <button
+                            className="btn-secondary"
+                            onClick={() => setIsTestWeekModalOpen(true)}
+                            title="Consulter le protocole de la semaine de test"
+                          >
+                            <Icon name="clipboard" size={16} />
+                            Détail des tests
+                          </button>
+                        ) : (
+                          <button
+                            className="btn-secondary"
+                            onClick={() => setIsRegenerateOpen(true)}
+                            disabled={isRegeneratingAi || !!activeSessionId}
+                            title="Demander une autre séance générée par l'IA"
+                          >
+                            <span className={isRegeneratingAi ? 'spin-icon' : ''}>
+                              <Icon name="refresh" size={16} />
+                            </span>
+                            {isRegeneratingAi ? 'Génération…' : 'Régénérer'}
+                          </button>
                         )}
                       </div>
-                    )}
-                  </div>
-
-                  <div className="bento-ai-actions">
-                    <button
-                      className="btn-primary"
-                      onClick={() => startRecommendedWorkout()}
-                      disabled={isStartingRec || !!activeSessionId || isRegeneratingAi}
-                    >
-                      {!isStartingRec && !activeSessionId && <Icon name="play" size={16} filled strokeWidth={1.5} />}
-                      {isStartingRec
-                        ? 'Lancement en cours...'
-                        : activeSessionId
-                        ? 'Séance déjà en cours'
-                        : nextRecommendation.isTestWeek
-                        ? `Démarrer le Test (Étape ${nextRecommendation.testStep}/${nextRecommendation.totalTestSteps})`
-                        : 'Démarrer cette séance'}
-                    </button>
-                    {nextRecommendation.isTestWeek ? (
-                      <button
-                        className="btn-secondary"
-                        onClick={() => setIsTestWeekModalOpen(true)}
-                        title="Consulter le protocole de la semaine de test"
-                      >
-                        <Icon name="clipboard" size={16} />
-                        Détail tests
-                      </button>
-                    ) : (
-                      <button
-                        className="btn-ai-regenerate"
-                        onClick={() => setIsRegenerateOpen(true)}
-                        disabled={isRegeneratingAi || !!activeSessionId}
-                        title="Demander une autre séance générée par l'IA"
-                      >
-                        <span className={isRegeneratingAi ? 'spin-icon' : ''}>
-                          <Icon name="refresh" size={16} />
-                        </span>
-                        <span>{isRegeneratingAi ? 'Génération IA...' : 'Régénérer IA'}</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="bento-ai-rec">
-                  <div>
-                    <div className="bento-ai-head">
-                      <div className="bento-badge">
-                        <span className="ai-dot-pulse" />
-                        <span>Coach IA • Prêt</span>
+                    </div>
+                  ) : (
+                    <div className="home-card next-card">
+                      <div>
+                        <h3 className="next-title">Votre coach IA est prêt</h3>
+                        <p className="next-sub">Il conçoit votre prochaine séance à partir de votre historique et de votre objectif.</p>
+                      </div>
+                      <div className="next-actions">
+                        <button className="btn-primary" onClick={() => regenerateAiRecommendation()} disabled={isRegeneratingAi}>
+                          <span className={isRegeneratingAi ? 'spin-icon' : ''}>
+                            <Icon name="sparkle" size={16} />
+                          </span>
+                          {isRegeneratingAi ? 'Génération en cours...' : 'Générer ma séance'}
+                        </button>
+                        <button className="btn-secondary" onClick={startNewWorkout}>
+                          <Icon name="plus" size={16} />
+                          Séance libre
+                        </button>
                       </div>
                     </div>
-                    <h2>Votre Coach IA s'active...</h2>
-                    <p className="rec-text">
-                      L'intelligence artificielle est prête à concevoir votre prochaine séance sur-mesure. Cliquez sur Régénérer pour solliciter le coach dès maintenant !
-                    </p>
+                  )}
+                </section>
+
+                {/* Programs: one tap to start */}
+                <section className="home-section home-programs">
+                  <div className="home-section-head">
+                    <h2>Vos programmes</h2>
+                    {routines.length > HERO_PROGRAMS_MOBILE ? (
+                      <button className="link-btn" onClick={() => setActiveTab('routines')}>
+                        Tout voir ({routines.length})
+                      </button>
+                    ) : (
+                      <span>{routines.length}</span>
+                    )}
                   </div>
-                  <div className="bento-ai-actions">
-                    <button className="btn-primary" onClick={() => regenerateAiRecommendation()} disabled={isRegeneratingAi}>
-                      <span className={isRegeneratingAi ? 'spin-icon' : ''}>
-                        <Icon name="sparkle" size={16} />
+                  <div className="home-card programs-card">
+                    {routines.length > 0 ? (
+                      <div className="program-list">
+                        {routines.slice(0, HERO_PROGRAMS_MAX).map((rt) => (
+                          <button key={rt.id} className="program-row" onClick={() => startRoutineWorkout(rt)} title={`Lancer ${rt.name}`}>
+                            <span className="program-row-name">{rt.name}</span>
+                            <span className="program-row-meta">{rt.exercises?.length || 0} exercices</span>
+                            <Icon name="play" size={14} filled strokeWidth={1.5} className="program-row-play" />
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="home-card-text">Aucun programme pour l'instant (ex : Push / Pull / Legs).</p>
+                    )}
+                    <div className="home-actions">
+                      <button className="btn-secondary" onClick={startNewWorkout}>
+                        <Icon name="plus" size={16} />
+                        Séance libre
+                      </button>
+                      <button className="btn-secondary" onClick={() => setIsRoutineModalOpen(true)}>
+                        <Icon name="plus" size={16} />
+                        Nouveau programme
+                      </button>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div className="home-col">
+                {/* Progressive overload: this week's validated volume against the week before */}
+                <section className="home-card overload-card">
+                  <div className="home-card-head">
+                    <span className="home-card-label">Surcharge progressive</span>
+                    {overloadTrend && (
+                      <span className={`trend-chip is-${overloadTrend}`}>
+                        <Icon name={overloadTrend === 'down' ? 'activity' : 'trendingUp'} size={14} />
+                        {overloadTrend === 'up' ? 'En hausse' : overloadTrend === 'down' ? 'En baisse' : 'Stable'}
                       </span>
-                      <span>{isRegeneratingAi ? 'Génération en cours...' : "Générer ma séance avec l'IA"}</span>
-                    </button>
-                    <button className="btn-secondary" onClick={startNewWorkout}>
-                      <Icon name="plus" size={16} />
-                      Séance libre
-                    </button>
+                    )}
                   </div>
-                </div>
-              )}
+                  <div className="overload-value">
+                    {volumeDelta !== null ? (
+                      <>
+                        <strong>
+                          {volumeDelta > 0 ? '+' : ''}
+                          {volumeDelta.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %
+                        </strong>
+                        <span>vs semaine dernière</span>
+                      </>
+                    ) : (
+                      <>
+                        <strong>{weekVolume > 0 ? weekVolume.toLocaleString('fr-FR') : '—'}</strong>
+                        <span>{weekVolume > 0 ? 'kg cette semaine' : 'à mesurer'}</span>
+                      </>
+                    )}
+                  </div>
+                  <p className="home-card-text">
+                    {volumeDelta !== null
+                      ? `${weekVolume.toLocaleString('fr-FR')} kg validés sur les 7 derniers jours, contre ${Number(
+                          dashboardStats.previousWeekVolume || 0,
+                        ).toLocaleString('fr-FR')} kg la semaine précédente.`
+                      : weekVolume > 0
+                      ? 'Pas encore de semaine précédente à comparer : la tendance apparaîtra la semaine prochaine.'
+                      : 'Terminez une séance pour commencer à mesurer votre progression.'}
+                  </p>
+                </section>
 
-              {/* Bento 3: 4 Stat Tiles */}
-              <div className="bento-stats">
-                <div className="bento-stat-card">
-                  <div className="stat-header">
-                    <span className="stat-label">Séances (7j)</span>
-                    <span className="stat-icon">
-                      <Icon name="flame" size={18} />
-                    </span>
+                {/* Weekly summary */}
+                <section className="home-section home-week">
+                  <div className="home-section-head">
+                    <h2>Résumé hebdomadaire</h2>
                   </div>
-                  <div className="stat-number">{dashboardStats.workoutsThisWeek ?? 0}</div>
-                  <div className="stat-footer">Fréquence d'entraînement</div>
-                </div>
-
-                <div className="bento-stat-card">
-                  <div className="stat-header">
-                    <span className="stat-label">Volume total (7j)</span>
-                    <span className="stat-icon">
-                      <Icon name="weight" size={18} />
-                    </span>
+                  <div className="week-grid">
+                    <div className="home-card week-stat">
+                      <span className="week-stat-label">Séances</span>
+                      <div>
+                        <span className="week-stat-value">{dashboardStats.workoutsThisWeek ?? 0}</span>
+                        <p className="week-stat-foot">7 derniers jours</p>
+                      </div>
+                    </div>
+                    <div className="home-card week-stat">
+                      <span className="week-stat-label">Volume</span>
+                      <div>
+                        <span className="week-stat-value">
+                          {weekVolume.toLocaleString('fr-FR')}
+                          <small>kg</small>
+                        </span>
+                        <p className="week-stat-foot">Tonnage validé</p>
+                      </div>
+                    </div>
+                    <div className="home-card week-stat">
+                      <span className="week-stat-label">Poids corporel</span>
+                      <div>
+                        <span className="week-stat-value">
+                          {profile.weight || '—'}
+                          <small>kg</small>
+                        </span>
+                        <p className="week-stat-foot">Dernière pesée</p>
+                      </div>
+                    </div>
+                    <div className="home-card week-stat">
+                      <span className="week-stat-label">IMC</span>
+                      <div>
+                        <span className="week-stat-value">{bmi ? bmi.toLocaleString('fr-FR') : '—'}</span>
+                        <p className={`week-stat-foot${bmi && bmi < 25 ? ' is-good' : ''}`}>
+                          {bmi ? (bmi < 25 ? 'Corpulence normale' : 'Surpoids') : 'Taille et poids requis'}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="stat-number">
-                    {dashboardStats.weekVolume ? `${dashboardStats.weekVolume.toLocaleString()}` : '0'}
-                    <span className="stat-unit">kg</span>
-                  </div>
-                  <div className="stat-footer">Tonnage cumulé soulevé</div>
-                </div>
-
-                <div className="bento-stat-card">
-                  <div className="stat-header">
-                    <span className="stat-label">Poids corporel</span>
-                    <span className="stat-icon">
-                      <Icon name="user" size={18} />
-                    </span>
-                  </div>
-                  <div className="stat-number">
-                    {profile.weight || '--'}
-                    <span className="stat-unit">kg</span>
-                  </div>
-                  <div className="stat-footer">Dernière pesée enregistrée</div>
-                </div>
-
-                <div className="bento-stat-card">
-                  <div className="stat-header">
-                    <span className="stat-label">Indice IMC</span>
-                    <span className="stat-icon">
-                      <Icon name="activity" size={18} />
-                    </span>
-                  </div>
-                  <div className="stat-number">
-                    {bmi || '--'}
-                    {bmi && <span className="stat-unit">{bmi < 25 ? '(Normal)' : '(Surpoids)'}</span>}
-                  </div>
-                  <div className="stat-footer">Ratio taille / poids corporel</div>
-                </div>
+                </section>
               </div>
             </div>
           </div>

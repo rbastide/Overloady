@@ -53,7 +53,7 @@
   transition-duration: 0.08s;
 }
 
-/* ---------- Primary: amber sheen sweeping across on hover ---------- */
+/* ---------- Primary: soft sheen sweeping across on hover ---------- */
 .btn-primary {
   position: relative;
   overflow: hidden;
@@ -85,7 +85,7 @@
 @media (hover: hover) {
   .btn-primary:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow: 0 8px 22px -6px rgba(229, 169, 60, 0.55);
+    box-shadow: 0 8px 22px -6px rgba(124, 169, 154, 0.55);
   }
 
   .btn-primary:hover:not(:disabled)::after {
@@ -123,7 +123,7 @@
 
   .coach-chip:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px -6px rgba(229, 169, 60, 0.45);
+    box-shadow: 0 4px 12px -6px rgba(124, 169, 154, 0.45);
   }
 
   .sidebar-link:hover svg {
@@ -131,7 +131,7 @@
   }
 
   /* Cards rise towards the pointer */
-  .bento-stat-card,
+  .week-stat,
   .routine-card,
   .record-card {
     transition:
@@ -140,11 +140,11 @@
       transform 0.3s var(--ease-out);
   }
 
-  .bento-stat-card:hover,
+  .week-stat:hover,
   .routine-card:hover,
   .record-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 14px 30px -14px rgba(0, 0, 0, 0.85);
+    transform: translateY(-2px);
+    box-shadow: 0 14px 30px -14px rgba(0, 0, 0, 0.6);
   }
 
   .routine-tile:hover {
@@ -188,7 +188,7 @@
   animation: checkPop 0.35s var(--ease-spring);
 }
 
-/* A validated set: the check pops and the row flashes amber */
+/* A validated set: the check pops and the row flashes sage */
 .set-row.is-done .set-check {
   animation: checkPop 0.4s var(--ease-spring);
 }
@@ -198,30 +198,25 @@
 }
 
 /* ---------- Entrances ---------- */
-/* Dashboard tiles arrive one after another */
-.bento-grid > *,
-.bento-stats > * {
+/* Dashboard islands arrive one after another, slowly */
+.home > *,
+.week-grid > * {
   animation: bentoEntrance 0.5s var(--ease-out) both;
 }
 
-.bento-grid > :nth-child(2),
-.bento-stats > :nth-child(2) {
+.home > :nth-child(2),
+.week-grid > :nth-child(2) {
   animation-delay: 0.06s;
 }
 
-.bento-grid > :nth-child(3),
-.bento-stats > :nth-child(3) {
+.home > :nth-child(3),
+.week-grid > :nth-child(3) {
   animation-delay: 0.12s;
 }
 
-.bento-grid > :nth-child(4),
-.bento-stats > :nth-child(4) {
+.home > :nth-child(n + 4),
+.week-grid > :nth-child(n + 4) {
   animation-delay: 0.18s;
-}
-
-.bento-grid > :nth-child(n + 5),
-.bento-stats > :nth-child(n + 5) {
-  animation-delay: 0.24s;
 }
 
 /* Modals spring up, toasts slide in from the side */
@@ -320,10 +315,10 @@
 
 @keyframes rowFlash {
   from {
-    box-shadow: inset 0 0 0 100vmax rgba(229, 169, 60, 0.12);
+    box-shadow: inset 0 0 0 100vmax rgba(124, 169, 154, 0.12);
   }
   to {
-    box-shadow: inset 0 0 0 100vmax rgba(229, 169, 60, 0);
+    box-shadow: inset 0 0 0 100vmax rgba(124, 169, 154, 0);
   }
 }
 
