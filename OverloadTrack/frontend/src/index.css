@@ -92,6 +92,39 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* High contrast (Profil, or the system "increase contrast" setting): the same slate world with
+   brighter ink, firmer hairlines and deeper wells, for bright gyms and outdoor sessions */
+:root[data-contrast='high'] {
+  --bg-canvas: #0a0c0f;
+  --bg-base: #0b0e12;
+  --bg-sidebar: #0a0c0f;
+  --bg-card: #161a20;
+  --bg-card-hover: #1d222a;
+  --bg-raised: #232931;
+  --bg-raised-hover: #2d343e;
+  --bg-inset: #06080b;
+  --bg-modal: #1d242d;
+
+  --line: rgba(255, 255, 255, 0.14);
+  --line-strong: rgba(255, 255, 255, 0.24);
+  --line-warm: rgba(122, 132, 146, 0.55);
+
+  --accent: #8fc2b1;
+  --accent-bright: #bde9da;
+  --accent-text: #bde9da;
+  --accent-line: rgba(143, 194, 177, 0.6);
+  --jade-text: #bde9da;
+  --pr-text: #ffd3a8;
+  --pr-line: rgba(212, 163, 115, 0.55);
+  --rest-text: #c6def6;
+  --rest-line: rgba(126, 156, 185, 0.55);
+
+  --text-main: #f5f6f9;
+  --text-secondary: #e4e7ec;
+  --text-muted: #c4c9d0;
+  --text-dim: #9ea5ae;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;

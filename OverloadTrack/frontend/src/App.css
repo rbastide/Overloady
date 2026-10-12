@@ -394,6 +394,14 @@ select optgroup {
   margin-top: 0.15rem;
 }
 
+.checkbox-hint {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
 /* ==========================================================================
    DASHBOARD — calm thematic islands: greeting, next session, overload, week
    Phones: one column (today, overload, week, programs) · ≥1024px: two columns
@@ -4362,6 +4370,53 @@ select optgroup {
   flex-shrink: 0;
   border-radius: 50%;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+/* ==========================================================================
+   HIGH CONTRAST — the hairlines and wells drawn with fixed values in this file
+   ========================================================================== */
+:root[data-contrast='high'] .set-row {
+  border-bottom-color: rgba(255, 255, 255, 0.12);
+  color: rgba(196, 201, 208, 0.75);
+}
+
+:root[data-contrast='high'] .set-row.set-head,
+:root[data-contrast='high'] .session-head,
+:root[data-contrast='high'] .session-queue,
+:root[data-contrast='high'] .session-block,
+:root[data-contrast='high'] .today-lift,
+:root[data-contrast='high'] .next-details,
+:root[data-contrast='high'] .program-row {
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+:root[data-contrast='high'] .session-stat {
+  border-left-color: rgba(255, 255, 255, 0.16);
+}
+
+:root[data-contrast='high'] .set-input:hover,
+:root[data-contrast='high'] .stepper input,
+:root[data-contrast='high'] .rpe-selector,
+:root[data-contrast='high'] .view-switch,
+:root[data-contrast='high'] .tab-pill-container,
+:root[data-contrast='high'] .input-glass,
+:root[data-contrast='high'] .form-group input,
+:root[data-contrast='high'] .form-group select {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+:root[data-contrast='high'] .set-check-dot,
+:root[data-contrast='high'] .gym-dot::before {
+  background: #4b535c;
+}
+
+:root[data-contrast='high'] .meta-sep {
+  color: #6b737c;
+}
+
+:root[data-contrast='high'] .rest-tide-fill {
+  background: rgba(126, 156, 185, 0.18);
+  border-top-color: rgba(198, 222, 246, 0.6);
 }
 
 /* ==========================================================================

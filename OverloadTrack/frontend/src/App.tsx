@@ -25,6 +25,7 @@ import { GymFocus } from './components/GymFocus';
 import { ConsistencyHeatmap } from './components/ConsistencyHeatmap';
 import { GlossaryTerm, RPE_MEANINGS } from './components/Glossary';
 import { RecapModal } from './components/RecapModal';
+import { readHighContrast, setHighContrast } from './lib/contrast';
 import {
   AthleteProfileFields,
   toAthleteProfilePayload,
@@ -214,6 +215,8 @@ function App() {
   // Remounts the timer so each validated set starts a fresh countdown.
   const [restTimerRun, setRestTimerRun] = useState<number>(0);
   const [autoRestEnabled, setAutoRestEnabled] = useState<boolean>(true);
+  // Device setting: brighter ink and firmer hairlines for bright gyms and outdoor sessions
+  const [highContrast, setHighContrastState] = useState<boolean>(readHighContrast);
 
   // Modals
   const [isPlateCalcOpen, setIsPlateCalcOpen] = useState(false);
@@ -2542,6 +2545,26 @@ function App() {
                       onChange={(e) => setAutoRestEnabled(e.target.checked)}
                     />
                     <span>Lancer le chronomètre de repos à chaque série validée</span>
+                  </label>
+                </div>
+
+                <div className="form-group">
+                  <label className="checkbox-row">
+                    <input
+                      type="checkbox"
+                      checked={highContrast}
+                      onChange={(e) => {
+                        setHighContrast(e.target.checked);
+                        setHighContrastState(e.target.checked);
+                      }}
+                    />
+                    <span>
+                      Contraste élevé
+                      <span className="checkbox-hint">
+                        Texte plus clair et filets plus nets, pour les salles très éclairées ou dehors. Sur cet appareil,
+                        appliqué tout de suite.
+                      </span>
+                    </span>
                   </label>
                 </div>
 
