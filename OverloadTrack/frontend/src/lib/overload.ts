@@ -78,6 +78,31 @@ export function resolveSetTarget(
   return progressFrom(previous, exercise.name, goal, stats?.lastRpe).target;
 }
 
+/** Heaviest set of a list, the most reps breaking ties: what "last time" means for a movement. */
+export const topSet = (sets: SetTarget[]): SetTarget | null =>
+  sets.reduce<SetTarget | null>(
+    (top, s) => (!top || s.weight > top.weight || (s.weight === top.weight && s.reps > top.reps) ? s : top),
+    null,
+  );
+
+export type GapTone = 'up' | 'down' | 'same' | 'new';
+
+const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? 's' : ''}`;
+const kg = (n: number) => `${String(Math.round(n * 100) / 100).replace('.', ',')} kg`;
+
+/** What the target asks compared with last time: "+2,5 kg", "+1 rep", "Même charge"... */
+export function describeGap(target: SetTarget | null, previous: SetTarget | null): { label: string; tone: GapTone } | null {
+  if (!target) return null;
+  if (!previous) return { label: 'Première fois', tone: 'new' };
+  const weightGap = Math.round((target.weight - previous.weight) * 100) / 100;
+  if (weightGap > 0) return { label: `+${kg(weightGap)}`, tone: 'up' };
+  if (weightGap < 0) return { label: `−${kg(-weightGap)}`, tone: 'down' };
+  const repGap = target.reps - previous.reps;
+  if (repGap > 0) return { label: `+${plural(repGap, 'rep')}`, tone: 'up' };
+  if (repGap < 0) return { label: `−${plural(-repGap, 'rep')}`, tone: 'down' };
+  return { label: 'Même charge', tone: 'same' };
+}
+
 /** Empty fields take their ghost value: what is validated is what is shown. */
 export function fillFromTarget<T extends { weight: number; reps: number }>(set: T, target: SetTarget | null): T {
   if (!target) return set;

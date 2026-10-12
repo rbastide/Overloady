@@ -396,7 +396,7 @@ select optgroup {
 
 /* ==========================================================================
    DASHBOARD — calm thematic islands: greeting, next session, overload, week
-   Phones: one column (overload, next session, week, programs) · ≥1024px: two columns
+   Phones: one column (today, overload, week, programs) · ≥1024px: two columns
    ========================================================================== */
 .home {
   max-width: 1080px;
@@ -558,49 +558,106 @@ select optgroup {
   line-height: 1.5;
 }
 
-.next-list {
+/* Aujourd'hui: the key lifts, what to lift on each and the gap with last time */
+.today-lifts {
   list-style: none;
+  display: flex;
+  flex-direction: column;
 }
 
-.next-item {
+.today-lift {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.625rem 0;
+  padding: 0.75rem 0;
   border-bottom: 1px solid rgba(37, 42, 50, 0.6);
 }
 
-.next-item:first-child {
+.today-lift:first-child {
   padding-top: 0;
 }
 
-.next-item:last-child {
+.today-lift:last-child {
   padding-bottom: 0;
   border-bottom: none;
 }
 
-.next-item-text {
+.today-lift-text {
   min-width: 0;
 }
 
-.next-item-name {
+.today-lift-name {
   color: var(--text-main);
   font-size: 0.875rem;
   font-weight: 500;
+  overflow-wrap: anywhere;
 }
 
-.next-item-detail {
-  color: var(--text-muted);
-  font-size: 0.75rem;
-}
-
-.next-item-sets {
+.today-lift-sets {
   flex-shrink: 0;
   color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.today-lift-target {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
+}
+
+.today-lift-load {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.2rem;
+  color: var(--text-main);
   font-family: var(--font-mono);
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.today-lift-load small {
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 0.6875rem;
+  font-weight: 500;
+}
+
+.today-lift-times {
+  margin: 0 0.1rem 0 0.2rem;
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+.today-gap {
+  color: var(--text-muted);
   font-size: 0.75rem;
   font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.today-gap.is-up {
+  color: var(--accent-bright);
+  font-family: var(--font-mono);
+}
+
+/* A lighter target than last time reads warm, never alarming */
+.today-gap.is-down {
+  color: var(--pr-text);
+  font-family: var(--font-mono);
+}
+
+.today-more {
+  margin-top: -0.5rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
 }
 
 .next-details {
@@ -956,11 +1013,12 @@ select optgroup {
     display: contents;
   }
 
-  .overload-card {
+  /* Aujourd'hui leads: the athlete knows what to lift before anything else */
+  .home-next {
     order: 1;
   }
 
-  .home-next {
+  .overload-card {
     order: 2;
   }
 

@@ -28,7 +28,7 @@ import {
   type AthleteProfileValue,
 } from './components/AthleteProfileFields';
 import { formatKg } from './lib/loadMath';
-import { fillFromTarget, resolveSetTarget, toTarget } from './lib/overload';
+import { describeGap, fillFromTarget, resolveSetTarget, toTarget, topSet, type SetTarget } from './lib/overload';
 import { createNameMatcher } from './lib/exerciseSearch';
 import {
   clearSessionDraft,
@@ -95,15 +95,6 @@ const GOAL_CYCLE_LABELS: Record<string, string> = {
   ENDURANCE: 'Endurance',
 };
 
-// Target of a recommended exercise from its first set, e.g. "82,5 kg × 8 reps".
-const describeTarget = (exercise: { sets?: { weight?: number; reps?: number }[] }) => {
-  const first = exercise.sets?.[0];
-  if (!first) return 'Charge à définir';
-  const reps = Number(first.reps) || 0;
-  const weight = Number(first.weight) || 0;
-  return weight > 0 ? `${formatKg(weight)} kg × ${reps} reps` : `Poids du corps × ${reps} reps`;
-};
-
 // The library holds ~900 exercises (wger import): cards are rendered in pages.
 // "18:32" today, "ven. 18:32" within the week, "3 oct." beyond
 const formatDraftStart = (iso: string) => {
@@ -115,6 +106,9 @@ const formatDraftStart = (iso: string) => {
   }
   return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 };
+
+// Key lifts of the "Aujourd'hui" card: their target and the gap with last time
+const TODAY_KEY_LIFTS = 3;
 
 const LIBRARY_PAGE_SIZE = 60;
 // Programs shown as quick-launch buttons on the dashboard welcome card
@@ -280,15 +274,26 @@ function App() {
     }));
   };
 
-  useEffect(() => {
-    if (!activeExerciseId || requestedStats.current.has(activeExerciseId)) return;
-    requestedStats.current.add(activeExerciseId);
+  const loadStats = (exerciseId: string) => {
+    if (!exerciseId || requestedStats.current.has(exerciseId)) return;
+    requestedStats.current.add(exerciseId);
     api
-      .get(`/workout/stats/${activeExerciseId}`)
-      .then((res) => rememberStats(activeExerciseId, res.data))
-      // Allow a retry the next time this exercise is opened.
-      .catch(() => requestedStats.current.delete(activeExerciseId));
+      .get(`/workout/stats/${exerciseId}`)
+      .then((res) => rememberStats(exerciseId, res.data))
+      // Allow a retry the next time this exercise is shown.
+      .catch(() => requestedStats.current.delete(exerciseId));
+  };
+
+  useEffect(() => {
+    if (activeExerciseId) loadStats(activeExerciseId);
   }, [activeExerciseId]);
+
+  // The "Aujourd'hui" card compares the key lifts of the next session with last time
+  useEffect(() => {
+    (nextRecommendation?.exercises || [])
+      .slice(0, TODAY_KEY_LIFTS)
+      .forEach((ex: any) => typeof ex.exerciseId === 'string' && loadStats(ex.exerciseId));
+  }, [nextRecommendation]);
 
   // Expired or rejected session: straight back to the login page.
   useEffect(() => {
@@ -1442,7 +1447,7 @@ function App() {
                 {/* Next session: the AI coach recommendation */}
                 <section className="home-section home-next">
                   <div className="home-section-head">
-                    <h2>Prochaine séance</h2>
+                    <h2>Aujourd'hui</h2>
                     <span>
                       {!nextRecommendation
                         ? 'Coach IA'
@@ -1470,17 +1475,54 @@ function App() {
                       </div>
 
                       {nextRecommendation.exercises?.length > 0 && (
-                        <ul className="next-list">
-                          {nextRecommendation.exercises.map((ex: any, idx: number) => (
-                            <li key={idx} className="next-item">
-                              <div className="next-item-text">
-                                <p className="next-item-name">{ex.name}</p>
-                                <p className="next-item-detail">{describeTarget(ex)}</p>
-                              </div>
-                              <span className="next-item-sets">{ex.sets?.length || 3} séries</span>
-                            </li>
-                          ))}
+                        <ul className="today-lifts">
+                          {nextRecommendation.exercises.slice(0, TODAY_KEY_LIFTS).map((ex: any, idx: number) => {
+                            const planned = (ex.sets || []).map(toTarget).filter(Boolean) as SetTarget[];
+                            const target = topSet(planned);
+                            const stats = exerciseStats[ex.exerciseId];
+                            // No gap until the history of the movement has loaded
+                            const gap = stats ? describeGap(target, topSet(stats.previousSets)) : null;
+                            return (
+                              <li key={idx} className="today-lift">
+                                <div className="today-lift-text">
+                                  <p className="today-lift-name">{ex.name}</p>
+                                  <p className="today-lift-sets">
+                                    {ex.sets?.length || 3} séries
+                                    {target && target.weight === 0 ? ' · poids du corps' : ''}
+                                  </p>
+                                </div>
+                                {target ? (
+                                  <div className="today-lift-target">
+                                    <span className="today-lift-load">
+                                      {target.weight > 0 && (
+                                        <>
+                                          {formatKg(target.weight)}
+                                          <small>kg</small>
+                                          <span className="today-lift-times">×</span>
+                                        </>
+                                      )}
+                                      {target.reps}
+                                      {target.weight === 0 && <small>reps</small>}
+                                    </span>
+                                    {gap && <span className={`today-gap is-${gap.tone}`}>{gap.label}</span>}
+                                  </div>
+                                ) : (
+                                  <span className="today-lift-sets">Charge à définir</span>
+                                )}
+                              </li>
+                            );
+                          })}
                         </ul>
+                      )}
+
+                      {nextRecommendation.exercises?.length > TODAY_KEY_LIFTS && (
+                        <p className="today-more">
+                          Puis{' '}
+                          {nextRecommendation.exercises
+                            .slice(TODAY_KEY_LIFTS)
+                            .map((ex: any) => ex.name)
+                            .join(', ')}
+                        </p>
                       )}
 
                       {(nextRecommendation.rationale ||
