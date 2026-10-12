@@ -3,6 +3,7 @@ import api, { clearToken, hasValidToken, onUnauthorized, setToken, warmUpBackend
 import './App.css';
 import './shell.css';
 import './components.css';
+import './motion.css';
 import { RestTimer } from './components/RestTimer';
 import { PlateCalculatorModal } from './components/PlateCalculatorModal';
 import { ExerciseDetailModal } from './components/ExerciseDetailModal';
