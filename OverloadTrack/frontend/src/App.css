@@ -2010,6 +2010,19 @@ select optgroup {
   background: var(--accent);
 }
 
+.plan-source {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.plan-source .source-dot {
+  margin-right: 0.4rem;
+  vertical-align: 0;
+}
+
 /* "Moteur Overloady" banner, kept for the exercise detail window */
 .engine-banner {
   display: flex;

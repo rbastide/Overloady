@@ -540,7 +540,7 @@ function App() {
         showToast(`Séance « ${res.data.title} » prête`, 'success');
       } else if (instructions) {
         // The fallback engine can't read the request: say so rather than pretend it was applied
-        showToast("Le Coach IA n'a pas répondu : séance réajustée automatiquement, sans ta demande. Réessaie dans un instant.", 'error');
+        showToast("Atlas n'a pas répondu : séance recalculée en local, sans ta demande. Réessaie dans un instant.", 'error');
       } else {
         showToast('Séance réajustée selon ta surcharge progressive', 'success');
       }
@@ -1485,15 +1485,26 @@ function App() {
                 <section className="home-section home-next">
                   <div className="home-section-head">
                     <h2>Aujourd'hui</h2>
-                    <span>
-                      {!nextRecommendation
-                        ? 'Coach IA'
-                        : nextRecommendation.isTestWeek
-                        ? `Semaine test · étape ${nextRecommendation.testStep}/${nextRecommendation.totalTestSteps}`
-                        : nextRecommendation.aiGenerated
-                        ? 'Coach IA'
-                        : 'Surcharge calculée'}
-                    </span>
+                    {/* Who made the session, said honestly: Atlas, or the local engine when Atlas did not answer */}
+                    {nextRecommendation?.isTestWeek ? (
+                      <span className="plan-source">
+                        <span className="source-dot is-protocol" aria-hidden="true" />
+                        Protocole · étape {nextRecommendation.testStep}/{nextRecommendation.totalTestSteps}
+                      </span>
+                    ) : nextRecommendation && !nextRecommendation.aiGenerated ? (
+                      <span
+                        className="plan-source"
+                        title="Atlas n'a pas répondu : cette séance vient du calcul de surcharge local. Régénère pour lui redemander."
+                      >
+                        <span className="source-dot is-engine" aria-hidden="true" />
+                        Calcul local
+                      </span>
+                    ) : (
+                      <span className="plan-source" title={nextRecommendation ? 'Séance préparée par Atlas, ton coach IA' : undefined}>
+                        <span className="source-dot is-atlas" aria-hidden="true" />
+                        Atlas
+                      </span>
+                    )}
                   </div>
 
                   {nextRecommendation ? (
