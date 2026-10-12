@@ -935,6 +935,107 @@ select optgroup {
   color: var(--accent-bright);
 }
 
+/* ---------- Regularity heatmap: twelve weeks, one cell per day ---------- */
+.heatmap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.heatmap-summary {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.4rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.heatmap-summary strong {
+  color: var(--text-main);
+  font-size: 1.125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.heatmap-grid {
+  display: grid;
+  grid-template-columns: 26px repeat(12, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.heatmap-row {
+  display: contents;
+}
+
+.heatmap-month,
+.heatmap-day {
+  overflow: hidden;
+  color: var(--text-dim);
+  font-size: 0.625rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.heatmap-month {
+  padding-bottom: 3px;
+}
+
+.heatmap-day {
+  align-self: center;
+}
+
+.heatmap-cell {
+  display: block;
+  aspect-ratio: 1;
+  border-radius: 3px;
+  background: var(--bg-inset);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+
+/* Sage only: training done is progress (one tint, stronger with the volume) */
+.heatmap-cell.is-l1 {
+  background: rgba(124, 169, 154, 0.3);
+}
+
+.heatmap-cell.is-l2 {
+  background: rgba(124, 169, 154, 0.58);
+}
+
+.heatmap-cell.is-l3 {
+  background: var(--accent);
+}
+
+.heatmap-cell.is-future {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.025);
+}
+
+.heatmap-cell.is-today {
+  box-shadow: inset 0 0 0 1px var(--accent-bright);
+}
+
+.heatmap-legend {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  color: var(--text-dim);
+  font-size: 0.625rem;
+}
+
+.heatmap-legend .heatmap-cell {
+  width: 10px;
+}
+
+.heatmap-legend span:first-child {
+  margin-right: 3px;
+}
+
+.heatmap-legend span:last-child {
+  margin-left: 3px;
+}
+
 /* ---------- Calibration week ---------- */
 .calib-card {
   gap: 1rem;
@@ -1026,8 +1127,12 @@ select optgroup {
     order: 3;
   }
 
-  .home-programs {
+  .home-streak {
     order: 4;
+  }
+
+  .home-programs {
+    order: 5;
   }
 }
 

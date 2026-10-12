@@ -22,6 +22,7 @@ import { CoachChat, type CoachWorkout } from './components/CoachChat';
 import { ActiveExerciseCard, type ActiveExercise, type ActiveSet, type ExerciseStats } from './components/ActiveExercise';
 import { MuscleFocusCard, RecordCard } from './components/SessionInsights';
 import { GymFocus } from './components/GymFocus';
+import { ConsistencyHeatmap } from './components/ConsistencyHeatmap';
 import {
   AthleteProfileFields,
   toAthleteProfilePayload,
@@ -1779,6 +1780,16 @@ function App() {
                       </div>
                     </div>
                   </div>
+                  </div>
+                </section>
+
+                {/* Regularity: the last twelve weeks, day by day */}
+                <section className="home-section home-streak">
+                  <div className="home-section-head">
+                    <h2>Régularité</h2>
+                  </div>
+                  <div className="home-card">
+                    <ConsistencyHeatmap sessions={history} />
                   </div>
                 </section>
               </div>
