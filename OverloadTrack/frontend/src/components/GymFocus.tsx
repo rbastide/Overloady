@@ -1,8 +1,8 @@
-import { useRef, type TouchEvent } from 'react';
+import { useRef, useState, type TouchEvent } from 'react';
 import { Icon } from './Icons';
-import { Stepper, TargetNote, beatsRecord, type ActiveExercise, type ExerciseStats } from './ActiveExercise';
+import { Stepper, TargetNote, type ActiveExercise, type ExerciseStats } from './ActiveExercise';
 import { DEFAULT_STEP, detectEquipment, formatKg } from '../lib/loadMath';
-import { resolveSetTarget } from '../lib/overload';
+import { beatsRecord, resolveSetTarget } from '../lib/overload';
 
 interface GymFocusProps {
   workout: ActiveExercise[];
@@ -53,13 +53,10 @@ export function GymFocus({
 
   const nextPending = workout.findIndex((ex, i) => i !== index && ex.sets.some((s) => !s.completed));
 
-  // The new exercise slides in from the side it came from
-  const shownIndex = useRef(index);
-  const direction = useRef<'next' | 'prev' | null>(null);
-  if (shownIndex.current !== index) {
-    direction.current = index > shownIndex.current ? 'next' : 'prev';
-    shownIndex.current = index;
-  }
+  // The new exercise slides in from the side it came from (state adjusted while rendering)
+  const [shown, setShown] = useState<{ index: number; direction: 'next' | 'prev' | null }>({ index, direction: null });
+  if (shown.index !== index) setShown({ index, direction: index > shown.index ? 'next' : 'prev' });
+  const direction = shown.index !== index ? (index > shown.index ? 'next' : 'prev') : shown.direction;
 
   const go = (to: number) => {
     if (to >= 0 && to < total && to !== index) onNavigate(to);
@@ -131,7 +128,7 @@ export function GymFocus({
 
       <div
         key={index}
-        className={`gym-stage${direction.current ? ` from-${direction.current}` : ''}`}
+        className={`gym-stage${direction ? ` from-${direction}` : ''}`}
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
       >

@@ -78,6 +78,13 @@ export function resolveSetTarget(
   return progressFrom(previous, exercise.name, goal, stats?.lastRpe).target;
 }
 
+/**
+ * Record live: a validated set heavier than the best ever lifted on this exercise.
+ * Not on a first session, where every set would be one.
+ */
+export const beatsRecord = (set: { weight: number; completed: boolean }, stats?: ExerciseStats) =>
+  !!stats && stats.maxWeight > 0 && set.completed && set.weight > stats.maxWeight;
+
 /** Heaviest set of a list, the most reps breaking ties: what "last time" means for a movement. */
 export const topSet = (sets: SetTarget[]): SetTarget | null =>
   sets.reduce<SetTarget | null>(

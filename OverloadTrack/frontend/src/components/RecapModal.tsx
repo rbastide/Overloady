@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './Icons';
-import { buildRecap, drawRecap, shareRecapImage } from '../lib/recap';
+import { buildRecap, drawRecap, shareRecapImage, type SessionRecap } from '../lib/recap';
 
 interface RecapModalProps {
   /** Finished session to sum up; null closes the window. */
@@ -15,7 +15,8 @@ interface RecapModalProps {
 /** End-of-session card in story format, shared as an image. */
 export function RecapModal({ session, history, onClose, onCopyText, onResult }: RecapModalProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  // The image drawn for the recap on screen: a preview of another session is never shown
+  const [drawn, setDrawn] = useState<{ recap: SessionRecap; url: string } | null>(null);
   const [isSharing, setIsSharing] = useState(false);
   const recap = useMemo(() => (session ? buildRecap(session, history) : null), [session, history]);
   const closeHandler = useRef(onClose);
@@ -28,9 +29,8 @@ export function RecapModal({ session, history, onClose, onCopyText, onResult }: 
     let cancelled = false;
     const canvas = canvasRef.current ?? document.createElement('canvas');
     canvasRef.current = canvas;
-    setPreview(null);
     drawRecap(canvas, recap).then(() => {
-      if (!cancelled) setPreview(canvas.toDataURL('image/png'));
+      if (!cancelled) setDrawn({ recap, url: canvas.toDataURL('image/png') });
     });
     return () => {
       cancelled = true;
@@ -45,6 +45,7 @@ export function RecapModal({ session, history, onClose, onCopyText, onResult }: 
   }, [session]);
 
   if (!session || !recap) return null;
+  const preview = drawn?.recap === recap ? drawn.url : null;
 
   const share = async () => {
     if (!canvasRef.current) return;

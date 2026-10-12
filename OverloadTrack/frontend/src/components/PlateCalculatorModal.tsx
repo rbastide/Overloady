@@ -392,7 +392,8 @@ const PlateStack: React.FC<{ plates: number[] }> = ({ plates }) => {
   const natural = plates.reduce((w, p) => w + plateSpec(p).thickness * PX_PER_MM * 2.6 + gap, 0);
   // Many small plates: thinner, so the stack always fits on the sleeve
   const squeeze = natural > room ? room / natural : 1;
-  let x = sleeveStart + 4;
+  const widths = plates.map((p) => plateSpec(p).thickness * PX_PER_MM * 2.6 * squeeze);
+  const lefts = widths.map((_, i) => sleeveStart + 4 + widths.slice(0, i).reduce((sum, w) => sum + w + gap * squeeze, 0));
 
   return (
     <div className="barbell-container">
@@ -407,10 +408,9 @@ const PlateStack: React.FC<{ plates: number[] }> = ({ plates }) => {
         <rect className="barbell-sleeve" x={sleeveStart - 4} y={center - 9} width={sleeveEnd - sleeveStart + 4} height="18" rx="3" />
         {plates.map((plate, idx) => {
           const spec = plateSpec(plate);
-          const w = (spec.thickness * PX_PER_MM * 2.6) * squeeze;
+          const w = widths[idx];
           const h = spec.diameter * PX_PER_MM;
-          const plateX = x;
-          x += w + gap * squeeze;
+          const plateX = lefts[idx];
           return (
             <g key={idx}>
               <title>{`${formatKg(plate)} kg`}</title>
@@ -421,7 +421,6 @@ const PlateStack: React.FC<{ plates: number[] }> = ({ plates }) => {
                 y={center - 12}
                 width={w}
                 height="24"
-                fill={spec.ink}
               />
               {w >= 16 && h >= 90 && (
                 <text

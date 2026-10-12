@@ -1,7 +1,7 @@
 import React from 'react';
 import { Icon } from './Icons';
 import { BAR_PLATES, DEFAULT_STEP, breakdownPlates, detectEquipment, formatKg } from '../lib/loadMath';
-import { explainTarget, resolveSetTarget, type PlanSource, type SetTarget } from '../lib/overload';
+import { beatsRecord, explainTarget, resolveSetTarget, type PlanSource, type SetTarget } from '../lib/overload';
 
 export interface ActiveSet {
   reps: number;
@@ -73,13 +73,6 @@ export function Stepper({ value, step, label, decimal = false, ghost, className,
     </div>
   );
 }
-
-/**
- * Record live: a validated set heavier than the best ever lifted on this exercise.
- * Not on a first session, where every set would be one.
- */
-export const beatsRecord = (set: ActiveSet, stats?: ExerciseStats) =>
-  !!stats && stats.maxWeight > 0 && set.completed && set.weight > stats.maxWeight;
 
 interface TargetNoteProps {
   exercise: ActiveExercise;

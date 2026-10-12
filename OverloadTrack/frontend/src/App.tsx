@@ -23,7 +23,8 @@ import { ActiveExerciseCard, type ActiveExercise, type ActiveSet, type ExerciseS
 import { MuscleFocusCard, RecordCard } from './components/SessionInsights';
 import { GymFocus } from './components/GymFocus';
 import { ConsistencyHeatmap } from './components/ConsistencyHeatmap';
-import { GlossaryTerm, RPE_MEANINGS } from './components/Glossary';
+import { GlossaryTerm } from './components/Glossary';
+import { RPE_MEANINGS } from './lib/rpe';
 import { RecapModal } from './components/RecapModal';
 import { readHighContrast, setHighContrast } from './lib/contrast';
 import {
@@ -1827,7 +1828,11 @@ function App() {
         {activeTab === 'logger' && (
           <div>
             {activeSessionId ? (
-              <div className={`session${showRestTimer ? ' has-rest-drawer' : ''}`}>
+              <div
+                className={`session${showRestTimer ? ' has-rest-drawer' : ''}${
+                  sessionView === 'gym' && workout.length > 0 ? ' is-gym-view' : ''
+                }`}
+              >
                 {/* Active Test Week Session Notice */}
                 {activeTestStep && (
                   <div className="session-notice">

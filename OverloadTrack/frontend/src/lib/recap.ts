@@ -100,7 +100,8 @@ const X = 96;
 const CONTENT_W = W - X * 2;
 
 const wrap = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number, maxLines: number) => {
-  const words = text.split(/\s+/);
+  // A dash never starts a line: it stays with the word before it
+  const words = text.replace(/ ([—–-]) /g, ' $1 ').split(/ +/);
   const lines: string[] = [];
   let line = '';
   for (const word of words) {
@@ -155,13 +156,19 @@ export async function drawRecap(canvas: HTMLCanvasElement, recap: SessionRecap) 
   ctx.fillText('Overloady', X + 36, 160);
 
   // Title and date
-  ctx.font = `600 80px ${SANS}`;
-  const titleLines = wrap(ctx, recap.title, CONTENT_W, 2);
+  // Large on two lines; a longer name steps down a size rather than losing words
+  let titleSize = 80;
+  ctx.font = `600 ${titleSize}px ${SANS}`;
+  if (wrap(ctx, recap.title, CONTENT_W, 99).length > 2) {
+    titleSize = 64;
+    ctx.font = `600 ${titleSize}px ${SANS}`;
+  }
+  const titleLines = wrap(ctx, recap.title, CONTENT_W, titleSize === 80 ? 2 : 3);
   let y = 330;
   titleLines.forEach((line) => {
     ctx.fillStyle = C.ink;
     ctx.fillText(line, X, y);
-    y += 92;
+    y += Math.round(titleSize * 1.15);
   });
   ctx.font = `400 38px ${SANS}`;
   ctx.fillStyle = C.muted;

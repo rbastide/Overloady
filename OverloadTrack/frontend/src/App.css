@@ -3283,13 +3283,24 @@ select optgroup {
   background: var(--text-main);
 }
 
+/* Gym view: the session chrome steps back, the exercise leads (the clock stays in the top bar) */
+.session.is-gym-view .session-stats {
+  display: none;
+}
+
+.session.is-gym-view .session-head h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* The set being performed: the one lifted card, like the active row of the table */
 .gym-stage {
-  min-height: min(58vh, 520px);
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 1.5rem;
+  gap: 1.25rem;
   padding: 1.5rem 1.25rem;
   border: 1px solid rgba(124, 169, 154, 0.4);
   border-radius: var(--radius-xl);
@@ -3451,11 +3462,8 @@ select optgroup {
   margin-top: -0.25rem;
 }
 
-/* Under the thumb: stays at the bottom of the screen while the stage scrolls */
 .gym-actions {
-  position: sticky;
-  bottom: 1.5rem;
-  z-index: 5;
+  position: relative;
 }
 
 .gym-validate {
@@ -3514,18 +3522,46 @@ select optgroup {
     padding-bottom: 120px;
   }
 
-  /* Gym view: the validate button rides above the tab bar, and above the rest drawer when open */
+  /* Gym view: under the thumb, the validate button rides above the tab bar,
+     and above the rest drawer when open */
   .gym-actions {
+    position: sticky;
     bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 0.75rem);
+    z-index: 5;
   }
 
   .session.has-rest-drawer .gym-actions {
     bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 136px);
   }
 
+  /* The session name stays for screen readers; on screen the exercise is the title */
+  .session.is-gym-view .session-head h1,
+  .session.is-gym-view .session-kicker {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .session.is-gym-view .session-head {
+    gap: 0;
+    padding-bottom: 0.75rem;
+  }
+
+  .gym {
+    gap: 0.75rem;
+  }
+
   .gym-stage {
-    min-height: 54vh;
-    padding: 1.25rem 1rem;
+    gap: 1rem;
+    padding: 1rem;
+  }
+
+  .stepper.stepper-xl button,
+  .stepper.stepper-xl input {
+    height: 60px;
   }
 
   .session-toolbar {
@@ -4346,7 +4382,8 @@ select optgroup {
 
 /* The steel hub at the centre of each plate */
 .barbell-plate-hub {
-  opacity: 0.22;
+  fill: #0f1216;
+  opacity: 0.3;
 }
 
 .barbell-plate-label {
