@@ -1,6 +1,6 @@
 import React from 'react';
 import { Icon } from './Icons';
-import { BAR_PLATES, DEFAULT_STEP, breakdownPlates, detectEquipment, formatKg } from '../lib/loadMath';
+import { BAR_PLATES, DEFAULT_STEP, breakdownPlates, detectEquipment, formatKg, loggingGuide } from '../lib/loadMath';
 import { beatsRecord, explainTarget, resolveSetTarget, type PlanSource, type SetTarget } from '../lib/overload';
 
 export interface ActiveSet {
@@ -65,6 +65,7 @@ export function Stepper({ value, step, label, decimal = false, ghost, className,
         placeholder={ghost !== undefined ? formatKg(ghost) : '0'}
         className={ghost !== undefined ? 'has-ghost' : undefined}
         aria-label={ghost !== undefined ? `${label}, objectif ${formatKg(ghost)}` : label}
+        autoComplete="off"
         onChange={(e) => onChange(e.target.value)}
       />
       <button type="button" onClick={() => nudge(1)} aria-label={`${label} : +${formatKg(step)}`}>
@@ -81,13 +82,17 @@ interface TargetNoteProps {
   goal?: string;
   /** The coach's advice for the exercise (rep range, rest, cue), under the note. */
   advice?: string;
+  /** What to write down for this kind of movement ("Haltères : note le poids d'un seul haltère…"). */
+  rule?: string;
   compact?: boolean;
 }
 
-/** Margin note: who set the target of the set, the gap with last time and why. */
-export function TargetNote({ exercise, setIndex, stats, goal, advice, compact = false }: TargetNoteProps) {
+/** Margin note: who set the target of the set, the gap with last time and why, then how to log it. */
+export function TargetNote({ exercise, setIndex, stats, goal, advice, rule, compact = false }: TargetNoteProps) {
   const note = setIndex >= 0 ? explainTarget(exercise, setIndex, stats, goal) : null;
-  if (!note && !advice) return null;
+  if (!note && !advice && !rule) return null;
+  // "Haltères : note le poids…": the kind of movement leads, the instruction follows
+  const ruleSplit = rule ? rule.indexOf(' : ') : -1;
   return (
     <div className={`target-note${compact ? ' is-compact' : ''}`}>
       {note && (
@@ -104,6 +109,18 @@ export function TargetNote({ exercise, setIndex, stats, goal, advice, compact = 
         </p>
       )}
       {advice && <p className="target-note-advice">{advice}</p>}
+      {rule && (
+        <p className="target-note-rule">
+          {ruleSplit > 0 ? (
+            <>
+              <strong>{rule.slice(0, ruleSplit)}</strong>
+              {rule.slice(ruleSplit)}
+            </>
+          ) : (
+            rule
+          )}
+        </p>
+      )}
     </div>
   );
 }
@@ -166,6 +183,8 @@ export function ActiveExerciseCard({
   const plateWeight = plateSet ? Number(plateSet.weight) || targets[plateIndex]?.weight || 0 : 0;
   const plateHint = equipment === 'barbell' && plateWeight > 0 ? describePlates(plateWeight, barWeightFor(exercise.name)) : null;
   const previousSets = stats?.previousSets ?? [];
+  // What the load and reps fields mean for this movement (one dumbbell, reps per arm…)
+  const guide = loggingGuide(exercise.name);
 
   return (
     <section className="exercise-focus" aria-label={`Exercice en cours : ${exercise.name}`}>
@@ -218,6 +237,7 @@ export function ActiveExerciseCard({
         stats={stats}
         goal={goal}
         advice={exercise.progressiveTarget}
+        rule={guide.rule}
       />
 
       <div className="set-table">
@@ -230,8 +250,8 @@ export function ActiveExerciseCard({
             <span className="label-long">Précédent</span>
             <span className="label-short">Préc.</span>
           </span>
-          <span>Charge (kg)</span>
-          <span>Reps</span>
+          <span>{guide.loadHeader}</span>
+          <span>{guide.repsHeader}</span>
           <span>Statut</span>
         </div>
 
@@ -251,6 +271,8 @@ export function ActiveExerciseCard({
                 <span className="set-index">{n}</span>
               </div>
               <span className="set-prev">
+                {/* Phones: the active set leaves the columns, so its previous value says what it is */}
+                {isActive && <span className="set-prev-label">Préc. </span>}
                 {previous ? (
                   <>
                     {formatKg(previous.weight)}
@@ -261,45 +283,58 @@ export function ActiveExerciseCard({
                 )}
               </span>
               <div className="set-cell">
+                {/* Phones: the steppers of the active set move to their own line, labelled */}
+                {isActive && (
+                  <span className="set-cell-label" aria-hidden="true">
+                    {guide.loadHeader}
+                  </span>
+                )}
                 {isActive ? (
                   <Stepper
                     value={set.weight}
                     step={DEFAULT_STEP[equipment]}
                     decimal
                     ghost={target?.weight}
-                    label={`Charge série ${n}`}
+                    label={`${guide.loadLabel}, série ${n}`}
                     onChange={(v) => onSetChange(sIndex, 'weight', v)}
                   />
                 ) : (
                   <input
                     className={`set-input${target ? ' has-ghost' : ''}`}
+                    autoComplete="off"
                     type="number"
                     inputMode="decimal"
                     step="0.5"
                     value={set.weight || ''}
                     placeholder={target ? formatKg(target.weight) : '0'}
-                    aria-label={`Charge série ${n}`}
+                    aria-label={`${guide.loadLabel}, série ${n}`}
                     onChange={(e) => onSetChange(sIndex, 'weight', e.target.value)}
                   />
                 )}
               </div>
               <div className="set-cell">
+                {isActive && (
+                  <span className="set-cell-label" aria-hidden="true">
+                    {guide.repsHeader}
+                  </span>
+                )}
                 {isActive ? (
                   <Stepper
                     value={set.reps}
                     step={1}
                     ghost={target?.reps}
-                    label={`Répétitions série ${n}`}
+                    label={`${guide.repsLabel}, série ${n}`}
                     onChange={(v) => onSetChange(sIndex, 'reps', v)}
                   />
                 ) : (
                   <input
                     className={`set-input${target ? ' has-ghost' : ''}`}
+                    autoComplete="off"
                     type="number"
                     inputMode="numeric"
                     value={set.reps || ''}
                     placeholder={target ? String(target.reps) : '0'}
-                    aria-label={`Répétitions série ${n}`}
+                    aria-label={`${guide.repsLabel}, série ${n}`}
                     onChange={(e) => onSetChange(sIndex, 'reps', e.target.value)}
                   />
                 )}

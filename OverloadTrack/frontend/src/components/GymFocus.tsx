@@ -1,7 +1,7 @@
 import { useRef, useState, type TouchEvent } from 'react';
 import { Icon } from './Icons';
 import { Stepper, TargetNote, type ActiveExercise, type ExerciseStats } from './ActiveExercise';
-import { DEFAULT_STEP, detectEquipment, formatKg } from '../lib/loadMath';
+import { DEFAULT_STEP, detectEquipment, formatKg, loggingGuide } from '../lib/loadMath';
 import { beatsRecord, resolveSetTarget } from '../lib/overload';
 
 interface GymFocusProps {
@@ -40,6 +40,8 @@ export function GymFocus({
   const exercise = workout[index];
   const total = workout.length;
   const equipment = detectEquipment(exercise.name);
+  // Field labels say exactly what to note: one dumbbell, the belt only, reps per arm…
+  const guide = loggingGuide(exercise.name);
   const setIndex = exercise.sets.findIndex((s) => !s.completed);
   const set = exercise.sets[setIndex];
   const n = setIndex + 1;
@@ -144,25 +146,25 @@ export function GymFocus({
             </div>
             <TargetNote exercise={exercise} setIndex={setIndex} stats={stats} goal={goal} compact />
             <div className="gym-field">
-              <span className="gym-field-label">Charge (kg)</span>
+              <span className="gym-field-label">{guide.loadLabel}</span>
               <Stepper
                 className="stepper-xl"
                 value={set.weight}
                 step={DEFAULT_STEP[equipment]}
                 decimal
                 ghost={target?.weight}
-                label={`Charge série ${n}`}
+                label={`${guide.loadLabel}, série ${n}`}
                 onChange={(v) => onSetChange(setIndex, 'weight', v)}
               />
             </div>
             <div className="gym-field">
-              <span className="gym-field-label">Répétitions</span>
+              <span className="gym-field-label">{guide.repsLabel}</span>
               <Stepper
                 className="stepper-xl"
                 value={set.reps}
                 step={1}
                 ghost={target?.reps}
-                label={`Répétitions série ${n}`}
+                label={`${guide.repsLabel}, série ${n}`}
                 onChange={(v) => onSetChange(setIndex, 'reps', v)}
               />
             </div>

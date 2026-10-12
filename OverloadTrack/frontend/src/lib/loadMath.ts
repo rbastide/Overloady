@@ -55,6 +55,64 @@ export function detectEquipment(exerciseName: string): Equipment {
   return 'machine';
 }
 
+/** One arm or one leg at a time: the reps are counted per side. */
+export type Side = 'arm' | 'leg';
+
+export function detectSide(exerciseName: string): Side | null {
+  const name = normalize(exerciseName);
+  if (hasAny(name, ['lunge', 'fente', 'bulgar', 'split squat', 'single leg', 'single-leg', 'une jambe', 'pistol', 'step up', 'step-up'])) {
+    return 'leg';
+  }
+  if (hasAny(name, ['one arm', 'one-arm', 'single arm', 'single-arm', 'un bras', 'unilateral', 'concentration'])) return 'arm';
+  return null;
+}
+
+export interface LoggingGuide {
+  /** Column header of the set table, short. */
+  loadHeader: string;
+  /** Field label of the gym view, explicit. */
+  loadLabel: string;
+  repsHeader: string;
+  repsLabel: string;
+  /** What to write down, in one sentence, shown where the sets are entered. */
+  rule: string;
+}
+
+/**
+ * What to log for a movement: the total on the bar, ONE dumbbell (never the pair), the weight
+ * shown by the machine, only the belt on bodyweight work, and reps per side when one arm or one
+ * leg works at a time. The volume stays load × reps as noted.
+ */
+export function loggingGuide(exerciseName: string): LoggingGuide {
+  const equipment = detectEquipment(exerciseName);
+  const side = detectSide(exerciseName);
+  const sideWord = side === 'leg' ? 'jambe' : 'bras';
+  const perSide = side ? ` Compte les reps par ${sideWord}.` : '';
+
+  const loads: Record<Equipment, [string, string, string]> = {
+    barbell: ['Charge (kg)', 'Charge totale, barre comprise (kg)', `Barre : note la charge totale, barre comprise.${perSide}`],
+    dumbbell: [
+      'Kg / haltère',
+      'Poids d’un haltère (kg)',
+      side === 'arm'
+        ? 'Haltère : note son poids et compte les reps par bras.'
+        : `Haltères : note le poids d’un seul haltère, pas de la paire.${perSide}`,
+    ],
+    machine: ['Charge (kg)', 'Charge affichée (kg)', `Machine : note la charge de la pile, ou les disques chargés.${perSide}`],
+    cable: ['Charge (kg)', 'Charge affichée (kg)', `Poulie : note la charge affichée sur la pile.${perSide}`],
+    bodyweight: ['Lest (kg)', 'Lest ajouté (kg)', `Poids du corps : note seulement le lest ajouté, vide sans lest.${perSide}`],
+  };
+  const [loadHeader, loadLabel, rule] = loads[equipment];
+  return {
+    // Non-breaking spaces: "Kg / haltère" never splits in a narrow column
+    loadHeader: loadHeader.replace(/ \/ /g, '\u00a0/\u00a0'),
+    loadLabel,
+    repsHeader: side ? `Reps\u00a0/\u00a0${sideWord}` : 'Reps',
+    repsLabel: side ? `Répétitions par ${sideWord}` : 'Répétitions',
+    rule,
+  };
+}
+
 export function detectKind(exerciseName: string): MovementKind {
   const name = normalize(exerciseName);
   const isolation = [

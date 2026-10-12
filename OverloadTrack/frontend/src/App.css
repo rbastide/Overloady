@@ -2003,6 +2003,30 @@ select optgroup {
   line-height: 1.5;
 }
 
+/* How to log this movement: one quiet line, the kind of equipment leading */
+.target-note-rule {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.target-note-rule strong {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.target-note-main + .target-note-rule,
+.target-note-advice + .target-note-rule {
+  padding-top: 0.3rem;
+  border-top: 1px solid rgba(37, 42, 50, 0.6);
+}
+
+/* Labels and "Préc." of the active set only show once it leaves the columns (phones) */
+.set-cell-label,
+.set-prev-label {
+  display: none;
+}
+
 /* Where a plan comes from: sage for Atlas, neutral for the local engine and the protocol */
 .source-dot {
   display: inline-block;
@@ -3777,6 +3801,27 @@ select optgroup {
     grid-area: reps;
   }
 
+  /* Each stepper carries its own label: no guessing which one is the load */
+  .set-row.is-active > .set-cell {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.3rem;
+  }
+
+  .set-row.is-active .set-cell-label {
+    display: block;
+    color: var(--text-muted);
+    font-family: var(--font-body);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .set-row.is-active .set-prev-label {
+    display: inline;
+    font-family: var(--font-body);
+  }
+
   .set-row.is-active > .set-status {
     display: contents;
   }
@@ -3789,6 +3834,7 @@ select optgroup {
 
   .set-row.is-active .set-validate {
     grid-area: validate;
+    align-self: end;
     width: 48px;
     height: 46px;
     padding: 0;
