@@ -2817,6 +2817,95 @@ select optgroup {
   font-weight: 600;
 }
 
+.rpe-meaning {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-top: -0.25rem;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+}
+
+.rpe-meaning-value {
+  color: var(--accent-bright);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Glossary: a "?" next to a training word, two lines of definition ---------- */
+.eyebrow-term {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.glossary {
+  position: relative;
+  display: inline-flex;
+  vertical-align: middle;
+}
+
+.glossary-btn {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+/* A 36px touch area around the small mark */
+.glossary-btn::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
+}
+
+.glossary-btn:hover,
+.glossary-btn[aria-expanded='true'] {
+  background: var(--bg-raised);
+  color: var(--text-main);
+}
+
+.glossary-bubble {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: -8px;
+  z-index: 60;
+  width: min(280px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-modal);
+  box-shadow: var(--shadow-pop);
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: 0;
+  text-align: left;
+  text-transform: none;
+  white-space: normal;
+  animation: modalIn 0.18s var(--ease-quart);
+}
+
+.glossary-bubble strong {
+  color: var(--text-main);
+  font-weight: 600;
+}
+
 /* ==========================================================================
    REST TIMER — slim bar under the key figures, frosted drawer on phones
    ========================================================================== */

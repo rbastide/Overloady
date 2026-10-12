@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api';
 import { Icon } from './Icons';
+import { GlossaryTerm } from './Glossary';
 
 interface ExerciseDetailModalProps {
   exerciseId: string | null;
@@ -63,7 +64,10 @@ export const ExerciseDetailModal: React.FC<ExerciseDetailModalProps> = ({
                 </div>
               </div>
               <div className="stat-card">
-                <h3>1RM estimé</h3>
+                <h3>
+                  1RM estimé
+                  <GlossaryTerm term="1rm" />
+                </h3>
                 <div className="value">
                   {stats.maxEstimated1RM > 0 ? `${stats.maxEstimated1RM} kg` : '-'}
                 </div>

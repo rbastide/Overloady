@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Icon } from './Icons';
 import { formatKg } from '../lib/loadMath';
+import { GlossaryTerm } from './Glossary';
 import type { ActiveExercise, ExerciseStats } from './ActiveExercise';
 
 // Same Epley formula as the API's exercise stats, so both 1RM figures can be compared.
@@ -85,7 +86,8 @@ export function RecordCard({ exercise, stats }: { exercise: ActiveExercise; stat
       <div className="record-exercise">{exercise.name}</div>
       <div className="record-value">{formatKg(stats.maxWeight)} kg</div>
       <p className="record-sub">
-        1RM estimé : <strong>{formatKg(stats.maxEstimated1RM)} kg</strong>
+        1RM estimé
+        <GlossaryTerm term="1rm" /> : <strong>{formatKg(stats.maxEstimated1RM)} kg</strong>
       </p>
       <div className={`record-foot${best ? '' : ' is-muted'}`}>
         {best ? (

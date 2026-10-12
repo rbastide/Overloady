@@ -23,6 +23,7 @@ import { ActiveExerciseCard, type ActiveExercise, type ActiveSet, type ExerciseS
 import { MuscleFocusCard, RecordCard } from './components/SessionInsights';
 import { GymFocus } from './components/GymFocus';
 import { ConsistencyHeatmap } from './components/ConsistencyHeatmap';
+import { GlossaryTerm, RPE_MEANINGS } from './components/Glossary';
 import {
   AthleteProfileFields,
   toAthleteProfilePayload,
@@ -1705,7 +1706,10 @@ function App() {
                 {/* Progressive overload: this week's validated volume against the week before */}
                 <section className="home-card overload-card">
                   <div className="home-card-head">
-                    <span className="home-card-label">Surcharge progressive</span>
+                    <span className="home-card-label">
+                      Surcharge progressive
+                      <GlossaryTerm term="overload" />
+                    </span>
                     {overloadTrend && (
                       <span className={`trend-chip is-${overloadTrend}`}>
                         <Icon name={overloadTrend === 'down' ? 'activity' : 'trendingUp'} size={14} />
@@ -2023,7 +2027,10 @@ function App() {
                     {/* Session Feedback & Notes */}
                     <section className="session-block">
                       <div className="session-section-head">
-                        <span className="eyebrow">Effort perçu de la séance (RPE)</span>
+                        <span className="eyebrow eyebrow-term">
+                          Effort perçu de la séance (RPE)
+                          <GlossaryTerm term="rpe" />
+                        </span>
                         <span className="session-section-count">{sessionRpe}/10</span>
                       </div>
                       <div className="rpe-selector" role="group" aria-label="RPE de la séance">
@@ -2034,11 +2041,18 @@ function App() {
                             className={`rpe-btn ${sessionRpe === num ? 'active' : ''}`}
                             onClick={() => setSessionRpe(num)}
                             aria-pressed={sessionRpe === num}
+                            aria-label={`${num} : ${RPE_MEANINGS[num]}`}
+                            title={RPE_MEANINGS[num]}
                           >
                             {num}
                           </button>
                         ))}
                       </div>
+                      {/* The scale in words: reps left in the tank, not a number to decode */}
+                      <p className="rpe-meaning" aria-live="polite">
+                        <span className="rpe-meaning-value">{sessionRpe}</span>
+                        {RPE_MEANINGS[sessionRpe]}
+                      </p>
 
                       <div className="form-group session-notes">
                         <label htmlFor="session-notes">Tes notes (facultatif)</label>
