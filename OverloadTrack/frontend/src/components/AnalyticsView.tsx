@@ -61,65 +61,64 @@ export const AnalyticsView: React.FC = () => {
     <div>
       <div className="header flex-between">
         <div>
-          <h1>Analytique & Records Personnels</h1>
-          <p>Mesurez votre progression globale, votre équilibre musculaire et vos trophées.</p>
+          <h1>Progression</h1>
+          <p>Ton volume, ton équilibre musculaire, tes records et tes trophées.</p>
         </div>
-        <button className="btn-secondary" onClick={fetchAnalytics}>
+        <button className="btn-icon" onClick={fetchAnalytics} aria-label="Actualiser" title="Actualiser">
           <Icon name="refresh" size={18} />
-          Actualiser
         </button>
       </div>
 
       {/* KPI Stats */}
       <div className="dashboard-grid">
-        <div className="glass-panel stat-card">
-          <h3>Volume Total à Vie</h3>
+        <div className="stat-card">
+          <h3>Volume total</h3>
           <div className="value">
             {totalVolume.toLocaleString()} <small>kg</small>
           </div>
         </div>
 
-        <div className="glass-panel stat-card">
-          <h3>Séances Enregistrées</h3>
+        <div className="stat-card">
+          <h3>Séances</h3>
           <div className="value">
             {totalSessions} <small>séances</small>
           </div>
         </div>
 
-        <div className="glass-panel stat-card">
-          <h3>Records Personnels (PRs)</h3>
-          <div className="value is-accent">
+        <div className="stat-card">
+          <h3>Records</h3>
+          <div className="value">
             {personalRecords.length} <small>exercices</small>
           </div>
         </div>
 
-        <div className="glass-panel stat-card">
-          <h3>Trophées Débloqués</h3>
-          <div className="value is-jade">
+        <div className="stat-card">
+          <h3>Trophées</h3>
+          <div className="value">
             {achievements.filter((a: any) => a.unlocked).length} <small>/ {achievements.length}</small>
           </div>
         </div>
       </div>
 
       {/* Sub Tabs Navigation */}
-      <div className="tab-pill-container" style={{ marginBottom: '2rem' }}>
+      <div className="tab-pill-container">
         <button
           className={`tab-pill ${activeSubTab === 'overview' ? 'active' : ''}`}
           onClick={() => setActiveSubTab('overview')}
         >
-          Équilibre & Tendances
+          Équilibre
         </button>
         <button
           className={`tab-pill ${activeSubTab === 'prs' ? 'active' : ''}`}
           onClick={() => setActiveSubTab('prs')}
         >
-          Mur des Records ({personalRecords.length})
+          Records ({personalRecords.length})
         </button>
         <button
           className={`tab-pill ${activeSubTab === 'badges' ? 'active' : ''}`}
           onClick={() => setActiveSubTab('badges')}
         >
-          Trophées & Badges
+          Trophées
         </button>
       </div>
 
@@ -128,10 +127,7 @@ export const AnalyticsView: React.FC = () => {
         <div className="analytics-grid">
           {/* Muscle Distribution */}
           <div className="glass-panel">
-            <h3 className="panel-title">
-              <Icon name="dumbbell" size={20} />
-              Répartition du Volume par Muscle
-            </h3>
+            <h3 className="panel-title">Volume par groupe musculaire</h3>
             {muscleDistribution.length > 0 ? (
               <div className="muscle-bars">
                 {muscleDistribution.map((item: any) => (
@@ -149,26 +145,16 @@ export const AnalyticsView: React.FC = () => {
                 ))}
               </div>
             ) : (
-              <p className="muted-note">Complétez votre premier entraînement pour voir la répartition.</p>
+              <p className="muted-note">Termine une première séance pour voir la répartition.</p>
             )}
           </div>
 
           {/* Weekly Volume SVG Chart */}
           <div className="glass-panel">
-            <h3 className="panel-title">
-              <Icon name="chart" size={20} />
-              Évolution des Volumes (Dernières Semaines)
-            </h3>
+            <h3 className="panel-title">Volume par semaine</h3>
             {weeklyTrends.length > 0 ? (
               <div>
                 <svg className="chart-svg" viewBox="0 0 400 200" role="img" aria-label="Volume total par semaine">
-                  <defs>
-                    <linearGradient id="barGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                      <stop offset="0%" stopColor="#7ca99a" />
-                      <stop offset="100%" stopColor="#7ca99a" stopOpacity="0.18" />
-                    </linearGradient>
-                  </defs>
-
                   {/* Grid lines */}
                   <line x1="40" y1="30" x2="380" y2="30" stroke="rgba(224, 226, 234,0.06)" />
                   <line x1="40" y1="95" x2="380" y2="95" stroke="rgba(224, 226, 234,0.06)" />
@@ -184,7 +170,7 @@ export const AnalyticsView: React.FC = () => {
                     return (
                       <g key={idx} className="chart-bar-group">
                         <title>{`${w.label} : ${formatVolume(w.volume)}`}</title>
-                        <path className="chart-bar" d={barPath(x, y, barWidth, barHeight, 4)} fill="url(#barGradient)" />
+                        <path className="chart-bar" d={barPath(x, y, barWidth, barHeight, 4)} fill="var(--series-1)" />
                         {showLabel && (
                           <text
                             x={x + barWidth / 2}
@@ -204,7 +190,6 @@ export const AnalyticsView: React.FC = () => {
                     );
                   })}
                 </svg>
-                <div className="chart-caption">Volume total cumulé par semaine d'entraînement</div>
               </div>
             ) : (
               <p className="muted-note">Aucune donnée hebdomadaire disponible.</p>
@@ -228,15 +213,15 @@ export const AnalyticsView: React.FC = () => {
 
                 <div className="pr-card-values">
                   <div>
-                    <div className="pr-card-label">Charge Max (PR)</div>
-                    <div className="pr-card-value is-accent">{pr.maxWeight} kg</div>
+                    <div className="pr-card-label">Charge max</div>
+                    <div className="pr-card-value is-pr">{pr.maxWeight} kg</div>
                     <div className="pr-card-sub">× {pr.bestSet.reps} reps</div>
                   </div>
 
                   <div>
-                    <div className="pr-card-label">1RM Estimé</div>
-                    <div className="pr-card-value is-jade">{pr.max1RM} kg</div>
-                    <div className="pr-card-sub">Potentiel max</div>
+                    <div className="pr-card-label">1RM estimé</div>
+                    <div className="pr-card-value">{pr.max1RM} kg</div>
+                    <div className="pr-card-sub">Estimation Epley</div>
                   </div>
                 </div>
               </div>
@@ -248,8 +233,8 @@ export const AnalyticsView: React.FC = () => {
               <span className="empty-panel-icon">
                 <Icon name="trophy" size={26} />
               </span>
-              <h3>Aucun record enregistré pour le moment</h3>
-              <p>Complétez des séances avec des séries validées pour alimenter votre Mur des Records !</p>
+              <h3>Aucun record pour l'instant</h3>
+              <p>Valide des séries pendant tes séances : tes meilleures charges apparaîtront ici.</p>
             </div>
           )}
         </div>
@@ -268,7 +253,7 @@ export const AnalyticsView: React.FC = () => {
               <p>{badge.description}</p>
 
               <div className="badge-card-foot">
-                <span>{badge.unlocked ? '✓ Débloqué' : 'En progression'}</span>
+                <span>{badge.unlocked ? 'Débloqué' : 'En progression'}</span>
                 <span>{badge.progress}</span>
               </div>
             </div>

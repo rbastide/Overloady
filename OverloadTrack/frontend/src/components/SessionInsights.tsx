@@ -150,11 +150,8 @@ export function MuscleFocusCard({ exercises }: { exercises: ActiveExercise[] }) 
   return (
     <section className="glass-panel focus-card">
       <div className="focus-card-head">
-        <div>
-          <span className="eyebrow">Séries prévues par groupe</span>
-          <h3>Groupes musculaires</h3>
-        </div>
-        <Icon name="donut" size={22} />
+        <h3>Groupes musculaires</h3>
+        <span>Séries prévues</span>
       </div>
 
       {total === 0 ? (

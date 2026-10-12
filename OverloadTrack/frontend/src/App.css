@@ -1,5 +1,5 @@
 /* ==========================================================================
-   OVERLOADY — AURA BRONZE EDITORIAL · screens & shared components
+   OVERLOADY — QUIET STRENGTH · screens & shared components
    ========================================================================== */
 
 /* Main Layout */
@@ -129,7 +129,7 @@
   flex-shrink: 0;
 }
 
-/* Text / ghost button: tracked uppercase, zinc to sage */
+/* Text / ghost button: quiet sentence case, zinc to sage */
 .btn-ghost {
   display: inline-flex;
   align-items: center;
@@ -139,9 +139,8 @@
   background: none;
   color: var(--text-muted);
   font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-weight: 500;
+  letter-spacing: 0;
   cursor: pointer;
   transition: color 0.15s;
 }
@@ -247,11 +246,10 @@
   border: 1px solid var(--accent-line);
   background: var(--accent-soft);
   color: var(--accent-text);
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0;
   line-height: 1.2;
-  text-transform: uppercase;
   white-space: nowrap;
 }
 
@@ -288,10 +286,9 @@
   border: 1px solid var(--accent-line);
   background: rgba(124, 169, 154, 0.14);
   color: var(--accent-text);
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0;
   white-space: nowrap;
 }
 
@@ -600,7 +597,7 @@ select optgroup {
 
 .next-item-sets {
   flex-shrink: 0;
-  color: var(--accent-bright);
+  color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: 0.75rem;
   font-weight: 500;
@@ -818,17 +815,32 @@ select optgroup {
   font-size: 0.75rem;
 }
 
-/* ---------- Weekly summary ---------- */
+/* ---------- Weekly summary: one card, four figures split by hairlines ---------- */
+.week-card {
+  padding: 0;
+  gap: 0;
+}
+
 .week-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
 }
 
 .week-stat {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 1rem;
+  padding: 1.125rem 1.25rem;
+}
+
+.week-stat:nth-child(even) {
+  border-left: 1px solid var(--line-warm);
+}
+
+.week-stat:nth-child(n + 3) {
+  border-top: 1px solid var(--line-warm);
 }
 
 .week-stat-label {
@@ -966,6 +978,14 @@ select optgroup {
   .week-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+
+  .week-stat + .week-stat {
+    border-left: 1px solid var(--line-warm);
+  }
+
+  .week-stat:nth-child(n + 3) {
+    border-top: none;
+  }
 }
 
 @media (max-width: 767px) {
@@ -985,8 +1005,12 @@ select optgroup {
     padding: 1.25rem;
   }
 
+  .week-card {
+    padding: 0;
+  }
+
   .week-stat {
-    padding: 1rem;
+    padding: 1rem 1.125rem;
   }
 }
 
@@ -1000,19 +1024,6 @@ select optgroup {
   min-height: 100dvh;
   overflow: hidden;
   background: var(--bg-canvas);
-}
-
-/* A single, very diffuse sage halo above the brand mark */
-.auth-halo {
-  position: absolute;
-  top: -6rem;
-  left: 50%;
-  width: 24rem;
-  height: 24rem;
-  transform: translateX(-50%);
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(124, 169, 154, 0.09) 0%, transparent 70%);
-  pointer-events: none;
 }
 
 .auth-main {
@@ -1130,10 +1141,9 @@ select optgroup {
 
 .auth-step {
   color: var(--accent);
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 .auth-step-note {
@@ -1376,15 +1386,6 @@ select optgroup {
   background: #2f353e;
 }
 
-.auth-footer {
-  padding-top: 2rem;
-  color: #3a414a;
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-
 @media (max-width: 480px) {
   .auth-main {
     padding-top: calc(2rem + env(safe-area-inset-top));
@@ -1425,97 +1426,87 @@ select optgroup {
   }
 }
 
-/* Program selector cards (profile) */
+/* Goal choice (profile): a plain radio list */
 .goal-selector-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 0.75rem;
-  margin: 1.25rem 0;
+  gap: 0.5rem;
+  margin: 0.875rem 0 1.25rem;
   text-align: left;
 }
 
 .goal-card-option {
   display: flex;
   align-items: flex-start;
-  gap: 1rem;
+  gap: 0.875rem;
   width: 100%;
-  padding: 1.1rem 1.2rem;
+  padding: 0.875rem 1rem;
   color: inherit;
   text-align: left;
   border-radius: var(--radius-lg);
   border: 1px solid var(--line-strong);
-  background: var(--bg-raised);
+  background: none;
   cursor: pointer;
   transition: border-color 0.2s, background 0.2s;
 }
 
 .goal-card-option:hover {
-  border-color: rgba(124, 169, 154, 0.3);
+  background: rgba(28, 32, 37, 0.5);
 }
 
 .goal-card-option.selected {
-  border-color: var(--accent);
-  background: rgba(124, 169, 154, 0.08);
-  box-shadow: var(--accent-halo);
-}
-
-.goal-card-icon {
-  width: 40px;
-  height: 40px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-md);
-  background: var(--bg-inset);
-  border: 1px solid var(--line);
-  color: var(--text-muted);
-}
-
-.goal-card-option.selected .goal-card-icon {
-  color: var(--accent);
   border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.goal-card-radio {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-dim);
+  transition: border-color 0.2s;
+}
+
+.goal-card-option.selected .goal-card-radio {
+  border-color: var(--accent);
+}
+
+.goal-card-option.selected .goal-card-radio::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--accent);
 }
 
 .goal-card-content {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
   flex: 1;
+  min-width: 0;
 }
 
 .goal-card-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  font-size: 0.95rem;
-  font-weight: 700;
-}
-
-.goal-card-active {
-  color: var(--accent-text);
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.goal-card-desc {
-  display: block;
-  margin-top: 0.25rem;
-  color: var(--text-muted);
-  font-size: 0.8rem;
-  line-height: 1.45;
+  font-size: 0.9375rem;
+  font-weight: 600;
 }
 
 .goal-card-specs {
-  display: inline-block;
-  margin-top: 0.55rem;
-  padding: 0.25rem 0.65rem;
-  border-radius: var(--radius-pill);
-  background: var(--bg-inset);
   color: var(--text-secondary);
-  font-size: 0.72rem;
-  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.goal-card-desc {
+  margin-top: 0.15rem;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.45;
 }
 
 /* ==========================================================================
@@ -1596,13 +1587,14 @@ select optgroup {
   gap: 0.4rem;
 }
 
+/* Context line under the session name: live dot, goal, date */
 .session-kicker {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  min-width: 0;
   color: var(--text-muted);
-  font-size: 0.75rem;
-  font-weight: 500;
+  font-size: 0.8125rem;
 }
 
 .session-kicker span:last-child {
@@ -1775,7 +1767,7 @@ select optgroup {
 }
 
 .exercise-last {
-  color: rgba(162, 208, 192, 0.9);
+  color: var(--text-secondary);
 }
 
 .exercise-focus-title {
@@ -1798,9 +1790,8 @@ select optgroup {
   display: flex;
   align-items: baseline;
   gap: 0.5rem;
-  padding: 0.6rem 0.85rem;
-  border-left: 2px solid var(--accent);
-  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  padding: 0.625rem 0.875rem;
+  border-radius: var(--radius-md);
   background: rgba(28, 32, 37, 0.5);
 }
 
@@ -1813,10 +1804,9 @@ select optgroup {
 .engine-label {
   flex-shrink: 0;
   color: var(--text-muted);
-  font-size: 0.625rem;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 .engine-line p {
@@ -1865,10 +1855,9 @@ select optgroup {
 
 .engine-kicker strong {
   color: var(--accent-bright);
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 .engine-kicker span {
@@ -1919,11 +1908,10 @@ select optgroup {
   padding-bottom: 0.5rem;
   border-bottom-color: rgba(37, 42, 50, 0.45);
   color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
   font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  letter-spacing: 0;
 }
 
 .set-row.set-head:hover {
@@ -1987,12 +1975,6 @@ select optgroup {
   color: var(--accent-ink);
   font-size: 0.6875rem;
   font-weight: 700;
-}
-
-.set-active-tag {
-  color: var(--accent-bright);
-  font-size: 0.75rem;
-  font-weight: 500;
 }
 
 .set-prev {
@@ -2326,34 +2308,19 @@ select optgroup {
 }
 
 .queue-item.is-done .queue-detail {
-  color: var(--jade-text);
+  color: var(--accent-bright);
 }
 
 .session-empty {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 2.5rem 1.5rem;
-  border: 1px dashed rgba(37, 42, 50, 0.8);
-  border-radius: var(--radius-xl);
-  text-align: center;
-}
-
-.session-empty-icon {
-  width: 44px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 0.25rem;
-  border-radius: var(--radius-lg);
-  background: var(--accent-soft);
-  color: var(--accent-bright);
+  gap: 0.35rem;
+  padding: 0.5rem 0 0;
 }
 
 .session-empty h3 {
-  font-size: 1.125rem;
+  font-size: 1.0625rem;
+  font-weight: 600;
 }
 
 .session-empty p {
@@ -2373,6 +2340,49 @@ select optgroup {
 
 .session-picker .session-section-head {
   margin-bottom: 0.75rem;
+}
+
+.session-picker-links {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.link-btn.is-muted {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.link-btn.is-muted:hover {
+  color: var(--text-main);
+}
+
+/* Folded picker: one quiet row that opens it */
+.session-picker-open {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 48px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: none;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.session-picker-open svg {
+  color: var(--accent-bright);
+}
+
+.session-picker-open:hover {
+  border-color: var(--accent-line);
+  background: rgba(28, 32, 37, 0.5);
+  color: var(--text-main);
 }
 
 .session-notes {
@@ -2502,7 +2512,7 @@ select optgroup {
 }
 
 .coach-tips-head svg {
-  color: var(--accent-bright);
+  color: var(--text-muted);
 }
 
 .coach-tips ul {
@@ -2531,35 +2541,39 @@ select optgroup {
   background: var(--accent);
 }
 
-/* Session RPE */
+/* Session RPE: one segmented scale */
 .rpe-selector {
   display: grid;
   grid-template-columns: repeat(10, minmax(0, 1fr));
-  gap: 0.35rem;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius-md);
+  border: 1px solid #252a32;
+  background: var(--bg-inset);
 }
 
 .rpe-btn {
-  height: 40px;
-  border-radius: var(--radius-md);
-  border: 1px solid transparent;
-  background: rgba(38, 42, 48, 0.7);
+  height: 38px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: none;
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: 0.8125rem;
   font-weight: 500;
+  font-variant-numeric: tabular-nums;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
 
 .rpe-btn:hover {
-  background: var(--bg-raised-hover);
   color: var(--text-main);
 }
 
 .rpe-btn.active {
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-weight: 700;
+  background: var(--accent-soft);
+  color: var(--accent-bright);
+  font-weight: 600;
 }
 
 /* ==========================================================================
@@ -2595,10 +2609,9 @@ select optgroup {
 
 .rest-label {
   color: var(--text-muted);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 500;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  letter-spacing: 0;
   white-space: nowrap;
 }
 
@@ -3033,18 +3046,8 @@ select optgroup {
   transition: border-color 0.2s;
 }
 
-.routine-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, var(--accent), transparent 70%);
-}
-
 .routine-card:hover {
-  border-color: rgba(124, 169, 154, 0.28);
+  border-color: var(--line-strong);
 }
 
 .routine-card-head {
@@ -3056,37 +3059,41 @@ select optgroup {
 }
 
 .routine-card-head h3 {
-  font-size: 1.25rem;
+  font-size: 1.0625rem;
+  font-weight: 600;
 }
 
 .routine-card-count {
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
   color: var(--text-muted);
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 .routine-ex-list {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
 }
 
 .routine-ex-row {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.45rem 0.65rem;
-  border-radius: var(--radius-sm);
-  background: var(--bg-raised);
-  font-size: 0.85rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.875rem;
 }
 
-.routine-ex-row .badge-category {
-  font-size: 0.65rem;
+.routine-ex-row:last-child {
+  border-bottom: none;
+}
+
+.routine-ex-cat {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
 }
 
 .routine-launch {
@@ -3103,16 +3110,14 @@ select optgroup {
 }
 
 .empty-panel-icon {
-  width: 52px;
-  height: 52px;
   display: flex;
-  align-items: center;
-  justify-content: center;
   margin-bottom: 0.25rem;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--accent-line);
-  background: var(--accent-soft);
-  color: var(--accent-bright);
+  color: var(--text-dim);
+}
+
+.empty-panel h3 {
+  font-size: 1rem;
+  font-weight: 600;
 }
 
 .empty-panel p {
@@ -3135,13 +3140,13 @@ select optgroup {
 .category-chip {
   flex-shrink: 0;
   height: 34px;
-  padding: 0 1rem;
+  padding: 0 0.9rem;
   border-radius: var(--radius-pill);
   border: 1px solid var(--line-strong);
-  background: var(--bg-raised);
+  background: none;
   color: var(--text-muted);
-  font-size: 0.8rem;
-  font-weight: 600;
+  font-size: 0.8125rem;
+  font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s, background 0.15s;
@@ -3149,12 +3154,11 @@ select optgroup {
 
 .category-chip:hover {
   color: var(--text-main);
-  border-color: var(--accent-line);
 }
 
 .category-chip.active {
-  border-color: var(--accent-line);
-  background: rgba(124, 169, 154, 0.14);
+  border-color: transparent;
+  background: var(--accent-soft);
   color: var(--accent-text);
 }
 
@@ -3177,45 +3181,54 @@ select optgroup {
   padding-left: 2.75rem;
 }
 
+/* One list, hairlines between rows; two columns when the screen allows */
 .library-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 0.85rem;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  column-gap: 2rem;
 }
 
 .exercise-card {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  gap: 0.75rem;
   width: 100%;
-  padding: 1.1rem 1.2rem;
+  min-height: 52px;
+  padding: 0.5rem 0.25rem;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  background: none;
   color: var(--text-main);
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.2s, background 0.2s;
+  transition: background 0.15s;
 }
 
 .exercise-card:hover {
-  border-color: rgba(124, 169, 154, 0.3);
-  background: var(--bg-card-hover);
+  background: rgba(28, 32, 37, 0.5);
 }
 
 .exercise-card-name {
-  display: block;
-  margin-bottom: 0.4rem;
-  font-size: 0.98rem;
-  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.exercise-card-cat {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
 }
 
 .exercise-card-icon {
   flex-shrink: 0;
   color: var(--text-dim);
-  transition: color 0.2s;
+  transition: color 0.15s;
 }
 
 .exercise-card:hover .exercise-card-icon {
-  color: var(--accent);
+  color: var(--text-main);
 }
 
 .load-more {
@@ -3238,25 +3251,25 @@ select optgroup {
   max-width: 640px;
 }
 
+/* Body mass index: one readout line */
 .profile-bmi {
-  margin-bottom: 1.5rem;
-}
-
-.profile-bmi-value {
-  margin-top: 0.35rem;
-  color: var(--text-main);
-  font-family: var(--font-display);
-  font-size: 1.5rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-}
-
-.profile-bmi-value span {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  margin: -0.25rem 0 1.5rem;
+  padding: 0.875rem 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
   color: var(--text-muted);
-  font-family: var(--font-body);
-  font-size: 0.9rem;
-  font-weight: 500;
-  letter-spacing: 0;
+  font-size: 0.8125rem;
+}
+
+.profile-bmi strong {
+  color: var(--text-main);
+  font-size: 1rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .profile-goal {
@@ -3265,9 +3278,8 @@ select optgroup {
 }
 
 .profile-goal-help {
-  margin-bottom: 0.75rem;
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
 }
 
 .profile-save {
@@ -3278,18 +3290,6 @@ select optgroup {
   display: flex;
   align-items: center;
   gap: 0.9rem;
-}
-
-.profile-calibration-icon {
-  display: inline-grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--accent-line);
-  background: var(--accent-soft);
-  color: var(--accent-text);
 }
 
 .profile-calibration-text {
@@ -3344,7 +3344,7 @@ select optgroup {
 }
 
 .history-title {
-  font-size: 1.15rem;
+  font-size: 1.0625rem;
   font-weight: 600;
 }
 
@@ -3377,62 +3377,62 @@ select optgroup {
 
 .history-notes {
   margin-top: 0.75rem;
-  padding-left: 0.75rem;
-  border-left: 2px solid var(--line-strong);
-  color: var(--text-muted);
-  font-size: 0.85rem;
-  font-style: italic;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
 }
 
 .history-details {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  margin-top: 1.25rem;
-  padding-top: 1rem;
+  margin-top: 1rem;
   border-top: 1px solid var(--line);
 }
 
 .history-exercise {
-  padding: 0.75rem 1rem;
-  border-radius: var(--radius-md);
-  background: var(--bg-raised);
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.history-exercise:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
 }
 
 .history-exercise-head {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: 0.75rem;
-  margin-bottom: 0.55rem;
-  font-size: 0.9rem;
+  margin-bottom: 0.4rem;
+  font-size: 0.875rem;
 }
 
 .history-exercise-head strong {
-  font-weight: 600;
+  font-weight: 500;
 }
 
+.history-exercise-head span {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+/* Sets read as figures: validated in ink, the others dimmed */
 .history-sets {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
+  gap: 0.25rem 1.25rem;
 }
 
 .history-set {
-  padding: 0.2rem 0.55rem;
-  border-radius: var(--radius-xs);
-  border: 1px solid var(--line-strong);
-  background: var(--bg-inset);
-  color: var(--text-muted);
-  font-size: 0.78rem;
-  font-weight: 600;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
   font-variant-numeric: tabular-nums;
 }
 
 .history-set.is-done {
-  border-color: var(--jade-line);
-  background: var(--jade-soft);
-  color: var(--jade-text);
+  color: var(--text-main);
 }
 
 /* ==========================================================================
@@ -3560,50 +3560,41 @@ select optgroup {
 .toast-item {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  max-width: 420px;
-  padding: 0.85rem 1.15rem;
+  gap: 0.65rem;
+  max-width: 400px;
+  padding: 0.75rem 1rem;
   border-radius: var(--radius-lg);
-  border: 1px solid rgba(224, 226, 234, 0.1);
-  border-left-width: 3px;
+  border: 1px solid var(--line-strong);
   background: rgba(30, 37, 46, 0.96);
   color: var(--text-main);
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.4;
   box-shadow: var(--shadow-pop);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
   cursor: pointer;
-  animation: bentoEntrance 0.25s ease-out;
 }
 
+/* The status reads from the icon tint alone */
 .toast-item svg {
   flex-shrink: 0;
-}
-
-.toast-success {
-  border-left-color: var(--jade);
+  width: 18px;
+  height: 18px;
 }
 
 .toast-success svg {
-  color: var(--jade-text);
+  color: var(--accent-bright);
 }
 
 .toast-error {
-  border-left-color: var(--danger);
+  border-color: var(--danger-line);
 }
 
 .toast-error svg {
   color: var(--danger);
 }
 
-.toast-info {
-  border-left-color: var(--accent);
-}
-
 .toast-info svg {
-  color: var(--accent-bright);
+  color: var(--text-muted);
 }
 
 /* ==========================================================================
@@ -3630,11 +3621,10 @@ select optgroup {
 .sets-table th {
   padding-bottom: 0.6rem;
   color: var(--text-dim);
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0;
   text-align: left;
-  text-transform: uppercase;
 }
 
 .sets-table td {
@@ -3661,19 +3651,8 @@ select optgroup {
   margin-bottom: 1.5rem;
   padding: 1.5rem 1.75rem;
   border-radius: var(--radius-lg);
-  border: 1px solid rgba(124, 169, 154, 0.25);
+  border: 1px solid var(--line-warm);
   background: var(--bg-card);
-  box-shadow: var(--shadow-card);
-}
-
-.test-week-banner::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 3px;
-  height: 100%;
-  background: linear-gradient(180deg, var(--accent-bright) 0%, var(--accent-deep) 100%);
 }
 
 .test-week-banner-top {
@@ -3717,10 +3696,9 @@ select optgroup {
   border: 1px solid var(--accent-line);
   background: var(--accent-soft);
   color: var(--accent-text);
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 .test-week-steps-row {
@@ -3748,14 +3726,12 @@ select optgroup {
 }
 
 .test-step-mini-card.completed {
-  border-color: var(--jade-line);
-  background: var(--jade-soft);
+  opacity: 0.6;
 }
 
 .test-step-mini-card.current {
-  border-color: rgba(124, 169, 154, 0.5);
-  background: rgba(124, 169, 154, 0.08);
-  box-shadow: 0 0 18px rgba(124, 169, 154, 0.12);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
 }
 
 .test-step-mini-card.upcoming {
@@ -3768,10 +3744,9 @@ select optgroup {
   align-items: center;
   gap: 0.5rem;
   margin-bottom: 0.35rem;
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 .step-status {
@@ -3883,10 +3858,9 @@ select optgroup {
   gap: 0.5rem;
   margin-bottom: 0.85rem;
   color: var(--accent-text);
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 .benchmarks-cards-grid {
@@ -3949,14 +3923,11 @@ select optgroup {
 }
 
 .test-session-card.is-current {
-  border-color: rgba(124, 169, 154, 0.4);
-  background: linear-gradient(135deg, rgba(124, 169, 154, 0.07) 0%, transparent 60%), var(--bg-raised);
-  box-shadow: 0 12px 30px -10px rgba(124, 169, 154, 0.15);
+  border-color: var(--accent-line);
 }
 
 .test-session-card.is-completed {
-  border-color: var(--jade-line);
-  background: var(--jade-soft);
+  opacity: 0.7;
 }
 
 .test-card-top {
@@ -3970,10 +3941,9 @@ select optgroup {
 
 .test-step-badge {
   color: var(--accent-text);
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 .test-session-card.is-completed .test-step-badge {
@@ -4056,10 +4026,9 @@ select optgroup {
 .test-metric-tag {
   margin-top: 0.35rem;
   color: var(--accent-text);
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 .test-instructions-box {

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createNameMatcher } from '../lib/exerciseSearch';
+import { Icon } from './Icons';
 import { MUSCLE_GROUPS, muscleGroupsOf } from '../lib/muscleGroups';
 
 const MORE_PAGE_SIZE = 40;
@@ -63,7 +64,9 @@ export const ExercisePicker: React.FC<ExercisePickerProps> = ({ exercises, selec
       >
         <span className="routine-tile-name">{ex.name}</span>
         {searchResults && <span className="routine-tile-cat">{ex.category || 'Général'}</span>}
-        <span className="routine-tile-check">{isSelected ? '✓' : '+'}</span>
+        <span className="routine-tile-check" aria-hidden="true">
+          <Icon name={isSelected ? 'check' : 'plus'} size={15} strokeWidth={isSelected ? 2.6 : 2} />
+        </span>
       </button>
     );
   };
@@ -91,7 +94,7 @@ export const ExercisePicker: React.FC<ExercisePickerProps> = ({ exercises, selec
         ref={searchInputRef}
         type="search"
         className="input-glass routine-search"
-        placeholder="…ou rechercher en français ou en anglais (ex : développé couché, squat)"
+        placeholder="Rechercher, en français ou en anglais"
         aria-label="Rechercher un exercice"
         value={search}
         onChange={(e) => setSearch(e.target.value)}

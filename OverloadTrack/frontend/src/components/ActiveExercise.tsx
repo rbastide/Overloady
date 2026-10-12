@@ -119,6 +119,7 @@ export function ActiveExerciseCard({
     <section className="exercise-focus" aria-label={`Exercice en cours : ${exercise.name}`}>
       <header className="exercise-focus-head">
         <div className="exercise-focus-body">
+          <h2 className="exercise-focus-title">{exercise.name}</h2>
           <div className="exercise-focus-meta">
             <span>
               Exercice {position} sur {total}
@@ -139,7 +140,6 @@ export function ActiveExerciseCard({
               </span>
             )}
           </div>
-          <h2 className="exercise-focus-title">{exercise.name}</h2>
         </div>
         <div className="exercise-tools">
           <button type="button" className="icon-btn" onClick={onWarmup} title="Générer l'échauffement" aria-label="Générer l'échauffement">
@@ -191,7 +191,6 @@ export function ActiveExerciseCard({
             <div key={sIndex} className={`set-row${set.completed ? ' is-done' : ''}${isActive ? ' is-active' : ''}`}>
               <div className="set-label">
                 <span className="set-index">{n}</span>
-                {isActive && <span className="set-active-tag">Active</span>}
               </div>
               <span className="set-prev">
                 {previous ? (

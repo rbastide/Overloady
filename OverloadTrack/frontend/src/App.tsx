@@ -175,6 +175,8 @@ function App() {
   const [sessionTips, setSessionTips] = useState<string[]>([]);
   const addExerciseRef = useRef<HTMLElement>(null);
   const [isAbandonOpen, setIsAbandonOpen] = useState<boolean>(false);
+  // The exercise picker stays folded during a session until the athlete asks for it
+  const [isPickerOpen, setIsPickerOpen] = useState<boolean>(false);
   const [isRecalibrateOpen, setIsRecalibrateOpen] = useState<boolean>(false);
   // Session left open when the app was closed, offered back on the next launch
   const [resumeDraft, setResumeDraft] = useState<SessionDraft | null>(null);
@@ -393,7 +395,7 @@ function App() {
       const res = await api.post(endpoint, payload);
       setToken(res.data.access_token);
       setIsAuthenticated(true);
-      showToast(isLoginMode ? 'Connexion réussie !' : 'Compte créé avec succès ! Bienvenue sur Overloady.');
+      if (!isLoginMode) showToast('Compte créé. Bienvenue sur Overloady.');
     } catch (err: any) {
       const message = err.response?.data?.message;
       const text = Array.isArray(message) ? message[0] : message || "Échec de l'authentification";
@@ -440,6 +442,7 @@ function App() {
     setFocusedExercise(null);
     setSessionTips(tips.filter((tip) => tip && tip.trim()));
     setShowRestTimer(false);
+    setIsPickerOpen(false);
   };
 
   // Start Blank Workout
@@ -455,7 +458,6 @@ function App() {
       setSessionRpe(7);
       setWorkoutStartTime(new Date());
       setActiveTab('logger');
-      showToast('Nouvelle séance libre démarrée !', 'info');
     } catch (err: any) {
       showToast("Impossible de démarrer la séance", 'error');
     }
@@ -483,7 +485,6 @@ function App() {
 
       setWorkout(prefilledExercises);
       setActiveTab('logger');
-      showToast(`Programme "${routine.name}" lancé !`, 'success');
     } catch (err) {
       showToast('Erreur lors du lancement de la routine', 'error');
     }
@@ -494,19 +495,15 @@ function App() {
     setIsRegenerateOpen(false);
     setIsRegeneratingAi(true);
     try {
-      showToast(
-        instructions ? '⚡ Le Coach IA modifie la séance selon ta demande...' : '⚡ Le Coach IA conçoit une nouvelle séance optimisée...',
-        'info',
-      );
       const res = await api.post('/workout/regenerate-recommendation', instructions ? { instructions } : {});
       setNextRecommendation(res.data);
       if (res.data?.aiGenerated) {
-        showToast(`✨ Séance "${res.data.title}" générée par le Coach IA !`, 'success');
+        showToast(`Séance « ${res.data.title} » prête`, 'success');
       } else if (instructions) {
         // The fallback engine can't read the request: say so rather than pretend it was applied
         showToast("Le Coach IA n'a pas répondu : séance réajustée automatiquement, sans ta demande. Réessaie dans un instant.", 'error');
       } else {
-        showToast(`Séance réajustée selon votre surcharge progressive !`, 'success');
+        showToast('Séance réajustée selon ta surcharge progressive', 'success');
       }
     } catch (err: any) {
       showToast(err.response?.data?.message || 'Erreur lors de la consultation du Coach IA', 'error');
@@ -547,7 +544,6 @@ function App() {
 
       setWorkout(prefilledExercises);
       setActiveTab('logger');
-      showToast(`Séance "${rec.title}" démarrée ! Bon entraînement !`, 'success');
     } catch (err: any) {
       showToast(err.response?.data?.message || "Impossible de démarrer la séance recommandée", 'error');
     } finally {
@@ -562,7 +558,7 @@ function App() {
       await api.post('/routines', { name: coachWorkout.title, exerciseIds });
       const routinesRes = await api.get('/routines');
       setRoutines(routinesRes.data);
-      showToast(`Programme "${coachWorkout.title}" enregistré !`, 'success');
+      showToast(`Programme « ${coachWorkout.title} » enregistré`, 'success');
     } catch (err: any) {
       showToast(err.response?.data?.message || "Impossible d'enregistrer le programme", 'error');
     }
@@ -571,7 +567,7 @@ function App() {
   // Start Test Week Calibration Session
   const handleStartTestWeekSession = async (step: number) => {
     if (activeSessionId) {
-      showToast('Une séance est déjà en cours ! Terminez-la avant d\'en lancer une nouvelle.', 'error');
+      showToast("Une séance est déjà en cours. Termine-la avant d'en lancer une autre.", 'error');
       return;
     }
     setIsStartingTestStep(true);
@@ -598,7 +594,6 @@ function App() {
       setWorkout(loadedWorkout);
       setIsTestWeekModalOpen(false);
       setActiveTab('logger');
-      showToast(`Séance Test ${step}/3 lancée ! Donnez le maximum avec une technique propre.`, 'success');
       fetchData();
     } catch (err: any) {
       showToast(err.response?.data?.message || 'Erreur lors du démarrage du test', 'error');
@@ -611,7 +606,7 @@ function App() {
     if (!window.confirm('Voulez-vous passer la semaine test et activer directement le Coach IA ?')) return;
     try {
       await api.post('/workout/test-week/skip');
-      showToast('Semaine de test validée ! Le Coach IA est activé.', 'success');
+      showToast('Semaine test passée : le coach IA prend le relais', 'success');
       setIsTestWeekModalOpen(false);
       fetchData();
     } catch (err: any) {
@@ -623,7 +618,7 @@ function App() {
     if (!window.confirm('Voulez-vous réinitialiser votre semaine de test pour relancer une calibration ?')) return;
     try {
       await api.post('/workout/test-week/reset');
-      showToast('Semaine de test réinitialisée. Prêt pour une nouvelle calibration !', 'info');
+      showToast('Semaine test réinitialisée', 'info');
       setIsTestWeekModalOpen(false);
       fetchData();
     } catch (err: any) {
@@ -638,7 +633,7 @@ function App() {
       await fetchData();
       setIsRecalibrateOpen(false);
       setIsTestWeekModalOpen(true);
-      showToast("Semaine de calibration activée : 3 séances test t'attendent !", 'success');
+      showToast('Semaine de calibration activée : 3 séances test', 'success');
     } catch {
       showToast("Impossible d'activer la calibration", 'error');
     }
@@ -670,7 +665,6 @@ function App() {
         sets: [emptySet(), emptySet(), emptySet()],
       },
     ]);
-    showToast(`${exercise.name} ajouté à la séance`);
   };
 
   const removeExerciseFromSession = (index: number) => {
@@ -742,7 +736,6 @@ function App() {
       return;
     }
     setFocusedExercise(null);
-    showToast(`Toutes les séries de "${workout[eIndex].name}" ont été validées !`, 'info');
   };
 
   const startRestTimer = (autoStart: boolean) => {
@@ -751,16 +744,23 @@ function App() {
     setShowRestTimer(true);
   };
 
-  const scrollToAddExercise = () => {
-    const section = addExerciseRef.current;
-    if (!section) return;
-    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    section.querySelector('input')?.focus({ preventScroll: true });
+  const openExercisePicker = () => {
+    setIsPickerOpen(true);
+    // Wait for the picker to render, then bring its search field into view
+    requestAnimationFrame(() => {
+      const section = addExerciseRef.current;
+      if (!section) return;
+      section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      section.querySelector('input')?.focus({ preventScroll: true });
+    });
   };
 
   // An exercise already in the session is opened instead of being added a second time
   const pickSessionExercise = (exercise: any) => {
     const index = workout.findIndex((ex) => ex.exerciseId === exercise.id);
+    // The picked exercise opens at the top of the session: fold the picker and go back up to it
+    setIsPickerOpen(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     if (index === -1) {
       addExerciseToSession(exercise);
       return;
@@ -830,7 +830,7 @@ function App() {
         exercises: exercisesPayload,
       });
 
-      showToast('Séance enregistrée avec succès ! 💪 Vos charges et volume sont synchronisés.', 'success');
+      showToast('Séance enregistrée', 'success');
       resetActiveSession();
       // This session may hold new records: reload the stats next time.
       requestedStats.current.clear();
@@ -876,7 +876,7 @@ function App() {
         ...toAthleteProfilePayload(toAthleteProfileValue(profile)),
         goal: profile.goal || 'BODYBUILDING',
       });
-      showToast('Profil et programme mis à jour !', 'success');
+      showToast('Profil enregistré', 'success');
       api.get('/workout/test-week').then((res) => setTestWeekStatus(res.data)).catch(() => {});
       const recRes = await api.get('/workout/next-recommendation').catch(() => ({ data: null }));
       if (recRes?.data) {
@@ -898,7 +898,7 @@ function App() {
       ]);
       setTestWeekStatus(testWeekRes.data);
       if (recRes.data) setNextRecommendation(recRes.data);
-      showToast('Profil enregistré : charges de calibration recalculées !', 'success');
+      showToast('Profil enregistré, charges de calibration recalculées', 'success');
     } catch (err: any) {
       showToast(err.response?.data?.message || 'Erreur lors de la sauvegarde du profil', 'error');
     }
@@ -923,7 +923,7 @@ function App() {
     const currentSets = updated[warmupModalData.exerciseIndex].sets;
     updated[warmupModalData.exerciseIndex].sets = [...warmupSets, ...currentSets];
     setWorkout(updated);
-    showToast("Séries d'échauffement ajoutées à la séance ! 🔥", 'success');
+    showToast('Échauffement ajouté à la séance', 'success');
   };
 
   // Export workout history to CSV
@@ -969,7 +969,7 @@ function App() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showToast('Historique exporté en CSV ! 📥');
+    showToast('Historique exporté en CSV');
   };
 
   // Share session summary to clipboard
@@ -1004,7 +1004,7 @@ function App() {
     lines.push('⚡ Suivi avec Overloady');
 
     navigator.clipboard.writeText(lines.join('\n')).then(() => {
-      showToast('Résumé de la séance copié dans le presse-papier ! 📋');
+      showToast('Résumé copié dans le presse-papier');
     }).catch(() => {
       showToast('Impossible de copier le résumé', 'error');
     });
@@ -1083,7 +1083,6 @@ function App() {
     return (
       <div className="auth-shell">
         <ToastContainer toasts={toasts} onDismiss={dismissToast} />
-        <div className="auth-halo" aria-hidden="true" />
 
         <main className="auth-main">
           <div className={`auth-center${isLoginMode ? '' : ' is-signup'}`}>
@@ -1275,7 +1274,7 @@ function App() {
                 {isSignupProfile && (
                   <div className="auth-step-actions">
                     <button type="button" className="btn-ghost" onClick={() => setSignupStep(1)} disabled={isAuthLoading}>
-                      ← Retour
+                      Retour
                     </button>
                     <button type="button" className="btn-ghost" onClick={() => submitAuth(false)} disabled={isAuthLoading}>
                       Passer cette étape
@@ -1301,7 +1300,6 @@ function App() {
             </div>
           </div>
 
-          <footer className="auth-footer">Overloady</footer>
         </main>
       </div>
     );
@@ -1361,7 +1359,7 @@ function App() {
                 </div>
                 <div>
                   <h2 className="home-card-title">Phase d'évaluation initiale</h2>
-                  <p className="home-card-text">Calibrez vos charges de référence avant de lancer le coach IA.</p>
+                  <p className="home-card-text">3 séances test pour mesurer tes charges de référence avant que le coach IA prenne le relais.</p>
                 </div>
 
                 <div className="calib-steps">
@@ -1377,7 +1375,7 @@ function App() {
                       >
                         <span className="calib-step-head">
                           <span className="calib-step-status">
-                            {isCompleted ? '✓ Validée' : isCurrent ? 'En cours' : 'À venir'}
+                            {isCompleted ? 'Validée' : isCurrent ? 'En cours' : 'À venir'}
                           </span>
                           <span>{sess.dayName}</span>
                         </span>
@@ -1396,7 +1394,7 @@ function App() {
                   >
                     {!isStartingTestStep && !activeSessionId && <Icon name="play" size={16} filled strokeWidth={1.5} />}
                     {isStartingTestStep
-                      ? 'Lancement...'
+                      ? 'Lancement…'
                       : activeSessionId
                       ? 'Séance déjà en cours'
                       : `Lancer la séance test ${testWeekStatus.currentStep}`}
@@ -1509,7 +1507,7 @@ function App() {
                         >
                           {!isStartingRec && !activeSessionId && <Icon name="play" size={16} filled strokeWidth={1.5} />}
                           {isStartingRec
-                            ? 'Lancement en cours...'
+                            ? 'Lancement…'
                             : activeSessionId
                             ? 'Séance déjà en cours'
                             : nextRecommendation.isTestWeek
@@ -1543,19 +1541,15 @@ function App() {
                   ) : (
                     <div className="home-card next-card">
                       <div>
-                        <h3 className="next-title">Votre coach IA est prêt</h3>
-                        <p className="next-sub">Il conçoit votre prochaine séance à partir de votre historique et de votre objectif.</p>
+                        <h3 className="next-title">Atlas est prêt</h3>
+                        <p className="next-sub">Il prépare ta prochaine séance à partir de ton historique et de ton objectif.</p>
                       </div>
                       <div className="next-actions">
                         <button className="btn-primary" onClick={() => regenerateAiRecommendation()} disabled={isRegeneratingAi}>
                           <span className={isRegeneratingAi ? 'spin-icon' : ''}>
                             <Icon name="sparkle" size={16} />
                           </span>
-                          {isRegeneratingAi ? 'Génération en cours...' : 'Générer ma séance'}
-                        </button>
-                        <button className="btn-secondary" onClick={startNewWorkout}>
-                          <Icon name="plus" size={16} />
-                          Séance libre
+                          {isRegeneratingAi ? 'Génération…' : 'Générer ma séance'}
                         </button>
                       </div>
                     </div>
@@ -1565,7 +1559,7 @@ function App() {
                 {/* Programs: one tap to start */}
                 <section className="home-section home-programs">
                   <div className="home-section-head">
-                    <h2>Vos programmes</h2>
+                    <h2>Tes programmes</h2>
                     {routines.length > HERO_PROGRAMS_MOBILE ? (
                       <button className="link-btn" onClick={() => setActiveTab('routines')}>
                         Tout voir ({routines.length})
@@ -1580,13 +1574,13 @@ function App() {
                         {routines.slice(0, HERO_PROGRAMS_MAX).map((rt) => (
                           <button key={rt.id} className="program-row" onClick={() => startRoutineWorkout(rt)} title={`Lancer ${rt.name}`}>
                             <span className="program-row-name">{rt.name}</span>
-                            <span className="program-row-meta">{rt.exercises?.length || 0} exercices</span>
+                            <span className="program-row-meta">{rt.exercises?.length || 0} exercice{(rt.exercises?.length || 0) > 1 ? 's' : ''}</span>
                             <Icon name="play" size={14} filled strokeWidth={1.5} className="program-row-play" />
                           </button>
                         ))}
                       </div>
                     ) : (
-                      <p className="home-card-text">Aucun programme pour l'instant (ex : Push / Pull / Legs).</p>
+                      <p className="home-card-text">Aucun programme pour l'instant. Crée tes séances types (Push, Pull, Legs…) pour les lancer en un geste.</p>
                     )}
                     <div className="home-actions">
                       <button className="btn-secondary" onClick={startNewWorkout}>
@@ -1637,7 +1631,7 @@ function App() {
                         ).toLocaleString('fr-FR')} kg la semaine précédente.`
                       : weekVolume > 0
                       ? 'Pas encore de semaine précédente à comparer : la tendance apparaîtra la semaine prochaine.'
-                      : 'Terminez une séance pour commencer à mesurer votre progression.'}
+                      : 'Termine une séance pour commencer à mesurer ta progression.'}
                   </p>
                 </section>
 
@@ -1646,15 +1640,16 @@ function App() {
                   <div className="home-section-head">
                     <h2>Résumé hebdomadaire</h2>
                   </div>
+                  <div className="home-card week-card">
                   <div className="week-grid">
-                    <div className="home-card week-stat">
+                    <div className="week-stat">
                       <span className="week-stat-label">Séances</span>
                       <div>
                         <span className="week-stat-value">{dashboardStats.workoutsThisWeek ?? 0}</span>
                         <p className="week-stat-foot">7 derniers jours</p>
                       </div>
                     </div>
-                    <div className="home-card week-stat">
+                    <div className="week-stat">
                       <span className="week-stat-label">Volume</span>
                       <div>
                         <span className="week-stat-value">
@@ -1664,7 +1659,7 @@ function App() {
                         <p className="week-stat-foot">Tonnage validé</p>
                       </div>
                     </div>
-                    <div className="home-card week-stat">
+                    <div className="week-stat">
                       <span className="week-stat-label">Poids corporel</span>
                       <div>
                         <span className="week-stat-value">
@@ -1674,7 +1669,7 @@ function App() {
                         <p className="week-stat-foot">Dernière pesée</p>
                       </div>
                     </div>
-                    <div className="home-card week-stat">
+                    <div className="week-stat">
                       <span className="week-stat-label">IMC</span>
                       <div>
                         <span className="week-stat-value">{bmi ? bmi.toLocaleString('fr-FR') : '—'}</span>
@@ -1683,6 +1678,7 @@ function App() {
                         </p>
                       </div>
                     </div>
+                  </div>
                   </div>
                 </section>
               </div>
@@ -1700,8 +1696,8 @@ function App() {
                   <div className="session-notice">
                     <Icon name="flask" size={16} />
                     <p>
-                      <strong>Calibration athlète.</strong> Donnez le maximum avec une technique propre : vos charges réelles
-                      calibrent vos futurs cycles IA.
+                      <strong>Séance test.</strong> Donne le maximum avec une technique propre : tes charges réelles
+                      calibrent tes prochains cycles.
                     </p>
                     <button className="text-action" onClick={() => setIsTestWeekModalOpen(true)}>
                       Protocole
@@ -1712,11 +1708,11 @@ function App() {
                 {/* Session header: what is running and how to end it */}
                 <header className="session-head">
                   <div className="session-head-text">
-                    <div className="session-kicker">
-                      <span className="session-kicker-dot" aria-hidden="true" />
-                      <span>En cours • {sessionKicker}</span>
-                    </div>
                     <h1>{activeRoutineName || 'Séance libre'}</h1>
+                    <p className="session-kicker">
+                      <span className="session-kicker-dot" aria-hidden="true" />
+                      <span>En cours · {sessionKicker}</span>
+                    </p>
                   </div>
                   <div className="session-head-actions">
                     {!showRestTimer && (
@@ -1730,7 +1726,7 @@ function App() {
                         <span className="btn-label">Repos</span>
                       </button>
                     )}
-                    <button className="btn-secondary" onClick={scrollToAddExercise} aria-label="Ajouter un exercice" title="Ajouter un exercice">
+                    <button className="btn-secondary" onClick={openExercisePicker} aria-label="Ajouter un exercice" title="Ajouter un exercice">
                       <Icon name="plus" size={16} />
                       <span className="btn-label">Exercice</span>
                     </button>
@@ -1801,11 +1797,8 @@ function App() {
                       />
                     ) : (
                       <div className="session-empty">
-                        <span className="session-empty-icon">
-                          <Icon name="dumbbell" size={22} />
-                        </span>
-                        <h3>Votre séance est prête</h3>
-                        <p>Ajoutez un premier exercice depuis la bibliothèque pour commencer à enregistrer vos séries.</p>
+                        <h3>Ta séance est prête</h3>
+                        <p>Choisis un premier exercice ci-dessous pour commencer à noter tes séries.</p>
                       </div>
                     )}
 
@@ -1831,7 +1824,7 @@ function App() {
                                 onClick={() => setFocusedExercise(eIndex)}
                                 title={isDone ? 'Revoir cet exercice' : 'Ouvrir cet exercice'}
                               >
-                                <span className="queue-index">{String(eIndex + 1).padStart(2, '0')}</span>
+                                <span className="queue-index">{eIndex + 1}</span>
                                 <span className="queue-name">{ex.name}</span>
                                 <span className="queue-detail">
                                   {isDone ? (
@@ -1854,23 +1847,39 @@ function App() {
 
                     {/* Add Exercise */}
                     <section className="session-block session-picker" ref={addExerciseRef}>
-                      <div className="session-section-head">
-                        <span className="eyebrow">Ajouter un exercice</span>
-                        <button className="link-btn" onClick={() => setIsAddExerciseOpen(true)}>
-                          + Exercice personnalisé
+                      {isPickerOpen || workout.length === 0 ? (
+                        <>
+                          <div className="session-section-head">
+                            <span className="eyebrow">Ajouter un exercice</span>
+                            <div className="session-picker-links">
+                              <button className="link-btn" onClick={() => setIsAddExerciseOpen(true)}>
+                                Exercice personnalisé
+                              </button>
+                              {workout.length > 0 && (
+                                <button className="link-btn is-muted" onClick={() => setIsPickerOpen(false)}>
+                                  Fermer
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <ExercisePicker
+                            exercises={exercises}
+                            selectedIds={workout.map((ex) => ex.exerciseId)}
+                            onPick={pickSessionExercise}
+                          />
+                        </>
+                      ) : (
+                        <button type="button" className="session-picker-open" onClick={openExercisePicker}>
+                          <Icon name="plus" size={16} />
+                          Ajouter un exercice
                         </button>
-                      </div>
-                      <ExercisePicker
-                        exercises={exercises}
-                        selectedIds={workout.map((ex) => ex.exerciseId)}
-                        onPick={pickSessionExercise}
-                      />
+                      )}
                     </section>
 
                     {/* Session Feedback & Notes */}
                     <section className="session-block">
                       <div className="session-section-head">
-                        <span className="eyebrow">Effort perçu (RPE)</span>
+                        <span className="eyebrow">Effort perçu de la séance (RPE)</span>
                         <span className="session-section-count">{sessionRpe}/10</span>
                       </div>
                       <div className="rpe-selector" role="group" aria-label="RPE de la séance">
@@ -1893,7 +1902,7 @@ function App() {
                           id="session-notes"
                           type="text"
                           className="input-glass"
-                          placeholder="Sensations, forme, courbatures… ex : bonne congestion, barre facile à 80 kg"
+                          placeholder="Sensations, forme… ex : barre facile à 80 kg"
                           value={sessionNotes}
                           onChange={(e) => setSessionNotes(e.target.value)}
                         />
@@ -1901,8 +1910,8 @@ function App() {
                     </section>
 
                     <button className="btn-primary session-finish" onClick={finishWorkout}>
-                      <Icon name="flag" size={18} />
-                      Terminer et enregistrer la séance
+                      Terminer et enregistrer
+                      <Icon name="check" size={16} strokeWidth={2.4} />
                     </button>
                     <button className="btn-ghost session-abandon" onClick={() => setIsAbandonOpen(true)}>
                       Abandonner la séance
@@ -1932,13 +1941,18 @@ function App() {
               <>
                 <div className="header logger-header-idle">
                   <div>
-                    <h1>Aucune séance active</h1>
-                    <p>Démarrez une nouvelle séance pour commencer à enregistrer vos performances.</p>
+                    <h1>Séance</h1>
+                    <p>Démarre une séance libre, lance un programme ou demande une séance à Atlas.</p>
                   </div>
-                  <button className="btn-primary" onClick={startNewWorkout}>
-                    <Icon name="plus" size={18} strokeWidth={2.4} />
-                    Démarrer une séance
-                  </button>
+                  <div className="header-actions">
+                    <button className="btn-secondary" onClick={() => setActiveTab('routines')}>
+                      Choisir un programme
+                    </button>
+                    <button className="btn-primary" onClick={startNewWorkout}>
+                      <Icon name="plus" size={16} strokeWidth={2.4} />
+                      Séance libre
+                    </button>
+                  </div>
                 </div>
 
                 <div className="logger-idle">
@@ -1947,21 +1961,6 @@ function App() {
                     onSaveRoutine={saveCoachWorkoutAsRoutine}
                     onError={(text) => showToast(text, 'error')}
                   />
-                  <div className="glass-panel logger-idle-start">
-                    <span className="logger-idle-icon">
-                      <Icon name="dumbbell" size={28} />
-                    </span>
-                    <h2>Aucun entraînement en cours</h2>
-                    <p>Démarre une séance libre, lance un de tes programmes ou demande une séance au coach.</p>
-                    <div className="logger-idle-actions">
-                      <button className="btn-primary" onClick={startNewWorkout}>
-                        Démarrer une séance libre
-                      </button>
-                      <button className="btn-secondary" onClick={() => setActiveTab('routines')}>
-                        Choisir un programme
-                      </button>
-                    </div>
-                  </div>
                 </div>
               </>
             )}
@@ -1976,12 +1975,12 @@ function App() {
           <div>
             <div className="header flex-between">
               <div>
-                <h1>Programmes d'entraînement</h1>
-                <p>Structurez vos cycles (Push, Pull, Legs, Upper, Lower) pour optimiser vos gains.</p>
+                <h1>Programmes</h1>
+                <p>Tes séances types, prêtes à lancer en un geste.</p>
               </div>
               <button className="btn-primary" onClick={() => setIsRoutineModalOpen(true)}>
                 <Icon name="plus" size={18} strokeWidth={2.4} />
-                Nouveau Programme
+                Nouveau programme
               </button>
             </div>
 
@@ -2001,21 +2000,21 @@ function App() {
                       </button>
                     </div>
 
-                    <p className="routine-card-count">{rt.exercises?.length || 0} exercices</p>
+                    <p className="routine-card-count">{rt.exercises?.length || 0} exercice{(rt.exercises?.length || 0) > 1 ? 's' : ''}</p>
 
                     <div className="routine-ex-list">
                       {(rt.exercises || []).map((ex: any) => (
                         <div key={ex.id} className="routine-ex-row">
                           <span>{ex.name}</span>
-                          <span className="badge-category">{ex.category || 'Général'}</span>
+                          <span className="routine-ex-cat">{ex.category || 'Général'}</span>
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  <button className="btn-primary routine-launch" onClick={() => startRoutineWorkout(rt)}>
-                    <Icon name="play" size={16} filled strokeWidth={1.5} />
-                    Lancer l'entraînement
+                  <button className="btn-secondary routine-launch" onClick={() => startRoutineWorkout(rt)}>
+                    <Icon name="play" size={14} filled strokeWidth={1.5} />
+                    Lancer la séance
                   </button>
                 </div>
               ))}
@@ -2026,13 +2025,11 @@ function App() {
                 <span className="empty-panel-icon">
                   <Icon name="clipboard" size={26} />
                 </span>
-                <h3>Aucun programme créé pour le moment</h3>
-                <p>
-                  Créez des routines personnalisées pour pré-remplir automatiquement vos séances et appliquer la surcharge progressive.
-                </p>
+                <h3>Aucun programme pour l'instant</h3>
+                <p>Un programme pré-remplit ta séance avec ses exercices ; les charges suivent ta surcharge progressive.</p>
                 <button className="btn-primary" onClick={() => setIsRoutineModalOpen(true)}>
                   <Icon name="plus" size={18} strokeWidth={2.4} />
-                  Créer mon premier programme
+                  Créer un programme
                 </button>
               </div>
             )}
@@ -2044,8 +2041,8 @@ function App() {
           <div>
             <div className="header flex-between">
               <div>
-                <h1>Historique des Entraînements</h1>
-                <p>Consultez vos séances passées, le volume soulevé et vos séries validées.</p>
+                <h1>Historique</h1>
+                <p>Tes séances passées, série par série.</p>
               </div>
               {history.length > 0 && (
                 <button className="btn-secondary" onClick={exportHistoryCSV} title="Exporter l'historique au format CSV">
@@ -2104,17 +2101,21 @@ function App() {
                     </div>
 
                     <div className="history-actions">
-                      <button className="btn-small" onClick={() => shareSession(session)} title="Copier le résumé de la séance">
-                        <Icon name="share" size={16} />
-                        Partager
-                      </button>
                       <button
                         className="btn-small"
                         onClick={() => setExpandedHistoryId(isExpanded ? null : session.id)}
                         aria-expanded={isExpanded}
                       >
-                        {isExpanded ? 'Masquer détails' : 'Voir détails'}
+                        Détails
                         <Icon name={isExpanded ? 'chevronUp' : 'chevronDown'} size={16} />
+                      </button>
+                      <button
+                        className="btn-icon"
+                        onClick={() => shareSession(session)}
+                        title="Copier le résumé de la séance"
+                        aria-label="Copier le résumé de la séance"
+                      >
+                        <Icon name="share" size={17} />
                       </button>
                       <button
                         className="btn-icon is-danger"
@@ -2122,12 +2123,12 @@ function App() {
                         title="Supprimer la séance"
                         aria-label="Supprimer la séance"
                       >
-                        <Icon name="trash" size={18} />
+                        <Icon name="trash" size={17} />
                       </button>
                     </div>
                   </div>
 
-                  {session.notes && <div className="history-notes">"{session.notes}"</div>}
+                  {session.notes && <p className="history-notes">« {session.notes} »</p>}
 
                   {/* Expanded Exercise and Sets view */}
                   {isExpanded && (
@@ -2137,13 +2138,17 @@ function App() {
                           <div key={exLog.id} className="history-exercise">
                             <div className="history-exercise-head">
                               <strong>{exLog.exercise?.name || 'Exercice'}</strong>
-                              <span className="badge-category">{exLog.exercise?.category || 'Général'}</span>
+                              <span>{exLog.exercise?.category || 'Général'}</span>
                             </div>
 
                             <div className="history-sets">
                               {exLog.sets?.map((st: any, idx: number) => (
-                                <span key={st.id || idx} className={`history-set${st.completed ? ' is-done' : ''}`}>
-                                  S{idx + 1}: {st.weight}kg × {st.reps} {st.completed ? '✓' : ''}
+                                <span
+                                  key={st.id || idx}
+                                  className={`history-set${st.completed ? ' is-done' : ''}`}
+                                  title={st.completed ? 'Série validée' : 'Série non validée'}
+                                >
+                                  {formatKg(Number(st.weight) || 0)} × {st.reps}
                                 </span>
                               ))}
                             </div>
@@ -2163,7 +2168,8 @@ function App() {
                 <span className="empty-panel-icon">
                   <Icon name="history" size={26} />
                 </span>
-                <p>Aucune séance passée enregistrée.</p>
+                <h3>Aucune séance pour l'instant</h3>
+                <p>Tes séances terminées apparaîtront ici, série par série.</p>
               </div>
             )}
           </div>
@@ -2174,12 +2180,12 @@ function App() {
           <div>
             <div className="header flex-between">
               <div>
-                <h1>Bibliothèque d'Exercices</h1>
-                <p>Consultez vos records personnels, l'historique et la surcharge progressive suggérée.</p>
+                <h1>Exercices</h1>
+                <p>Tes records et la prochaine charge conseillée, exercice par exercice.</p>
               </div>
               <button className="btn-primary" onClick={() => setIsAddExerciseOpen(true)}>
                 <Icon name="plus" size={18} strokeWidth={2.4} />
-                Nouvel Exercice
+                Nouvel exercice
               </button>
             </div>
 
@@ -2205,7 +2211,7 @@ function App() {
               <input
                 type="search"
                 className="input-glass"
-                placeholder="Rechercher un exercice par nom..."
+                placeholder="Rechercher un exercice"
                 aria-label="Rechercher un exercice"
                 value={exerciseSearch}
                 onChange={(e) => {
@@ -2221,14 +2227,12 @@ function App() {
                 <button
                   key={ex.id}
                   type="button"
-                  className="glass-panel exercise-card"
+                  className="exercise-card"
                   onClick={() => setSelectedExerciseIdForModal(ex.id)}
                 >
-                  <span>
-                    <span className="exercise-card-name">{ex.name}</span>
-                    <span className="badge-category">{ex.category || 'Général'}</span>
-                  </span>
-                  <Icon name="trendingUp" size={20} className="exercise-card-icon" />
+                  <span className="exercise-card-name">{ex.name}</span>
+                  <span className="exercise-card-cat">{ex.category || 'Général'}</span>
+                  <Icon name="chevronRight" size={16} className="exercise-card-icon" />
                 </button>
               ))}
             </div>
@@ -2242,7 +2246,7 @@ function App() {
             )}
 
             {filteredExercises.length === 0 && (
-              <p className="muted-note empty-note">Aucun exercice trouvé correspondant à vos critères.</p>
+              <p className="muted-note empty-note">Aucun exercice ne correspond à ta recherche.</p>
             )}
           </div>
         )}
@@ -2252,8 +2256,8 @@ function App() {
           <div>
             <div className="header flex-between">
               <div>
-                <h1>Votre Profil</h1>
-                <p>Gérez vos mensurations, vos préférences d'entraînement et vos options.</p>
+                <h1>Profil</h1>
+                <p>Tes mensurations, ton objectif et tes réglages.</p>
               </div>
               <button className="btn-secondary" onClick={handleLogout}>
                 <Icon name="logout" size={18} />
@@ -2277,28 +2281,24 @@ function App() {
                 </div>
 
                 {bmi && (
-                  <div className="highlight-box profile-bmi">
-                    <div className="eyebrow">Indice de Masse Corporelle (IMC)</div>
-                    <div className="profile-bmi-value">
-                      {bmi} kg/m²{' '}
-                      <span>
-                        {bmi < 18.5
-                          ? '(Insuffisance pondérale)'
-                          : bmi < 25
-                          ? '(Corpulence normale)'
-                          : bmi < 30
-                          ? '(Surpoids)'
-                          : '(Obésité)'}
-                      </span>
-                    </div>
-                  </div>
+                  <p className="profile-bmi">
+                    <span>IMC</span>
+                    <strong>{bmi.toLocaleString('fr-FR')} kg/m²</strong>
+                    <span>
+                      {bmi < 18.5
+                        ? 'Insuffisance pondérale'
+                        : bmi < 25
+                        ? 'Corpulence normale'
+                        : bmi < 30
+                        ? 'Surpoids'
+                        : 'Obésité'}
+                    </span>
+                  </p>
                 )}
 
                 <div className="form-group profile-goal">
-                  <label>Programme d'entraînement principal</label>
-                  <p className="profile-goal-help">
-                    Changer de programme adapte immédiatement les objectifs (charges, répétitions, temps de repos) de vos prochaines séances recommandées :
-                  </p>
+                  <label>Objectif</label>
+                  <p className="profile-goal-help">Il règle les charges, répétitions et temps de repos de tes prochaines séances.</p>
                   <div className="goal-selector-grid">
                     {GOAL_OPTIONS.map((g) => {
                       const isSelected = (profile.goal || 'BODYBUILDING') === g.id;
@@ -2310,18 +2310,13 @@ function App() {
                           onClick={() => setProfile({ ...profile, goal: g.id })}
                           aria-pressed={isSelected}
                         >
-                          <span className="goal-card-icon">
-                            <Icon name={g.icon} size={20} />
-                          </span>
+                          <span className="goal-card-radio" aria-hidden="true" />
                           <span className="goal-card-content">
-                            <span className="goal-card-title">
-                              <span>{g.name}</span>
-                              {isSelected && <span className="goal-card-active">● Actif</span>}
+                            <span className="goal-card-title">{g.name}</span>
+                            <span className="goal-card-specs">
+                              {g.badge} · {g.rest}
                             </span>
                             <span className="goal-card-desc">{g.desc}</span>
-                            <span className="goal-card-specs">
-                              {g.badge} | {g.rest}
-                            </span>
                           </span>
                         </button>
                       );
@@ -2333,9 +2328,6 @@ function App() {
                   <div className="form-group">
                     <label>Semaine de calibration</label>
                     <div className="highlight-box profile-calibration">
-                      <span className="profile-calibration-icon" aria-hidden="true">
-                        <Icon name="flask" size={18} />
-                      </span>
                       <div className="profile-calibration-text">
                         <strong>
                           {testWeekStatus.testWeekSkipped
@@ -2353,7 +2345,7 @@ function App() {
                         </p>
                       </div>
                       {testWeekStatus.testWeekSkipped ? (
-                        <button type="button" className="btn-primary" onClick={startCalibrationFromProfile}>
+                        <button type="button" className="btn-secondary" onClick={startCalibrationFromProfile}>
                           Faire la calibration
                         </button>
                       ) : testWeekStatus.testWeekCompleted ? (
@@ -2376,7 +2368,7 @@ function App() {
                       checked={autoRestEnabled}
                       onChange={(e) => setAutoRestEnabled(e.target.checked)}
                     />
-                    <span>Démarrer automatiquement le chronomètre de repos après chaque série validée (✓)</span>
+                    <span>Lancer le chronomètre de repos à chaque série validée</span>
                   </label>
                 </div>
 
@@ -2412,7 +2404,7 @@ function App() {
         onClose={() => setIsAddExerciseOpen(false)}
         onSuccess={(newEx) => {
           setExercises([...exercises, newEx]);
-          showToast(`Exercice "${newEx.name}" créé avec succès !`);
+          showToast(`Exercice « ${newEx.name} » créé`);
         }}
       />
 
@@ -2504,7 +2496,7 @@ function App() {
         exercises={exercises}
         onSuccess={(newRoutine) => {
           setRoutines([...routines, newRoutine]);
-          showToast(`Programme "${newRoutine.name}" enregistré !`);
+          showToast(`Programme « ${newRoutine.name} » enregistré`);
         }}
       />
 

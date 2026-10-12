@@ -40,7 +40,7 @@ export const ExerciseDetailModal: React.FC<ExerciseDetailModalProps> = ({
       <div className="glass-panel modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="flex-between" style={{ marginBottom: '1.5rem' }}>
           <div>
-            <h2>{stats?.exercise?.name || 'Détails Exercice'}</h2>
+            <h2>{stats?.exercise?.name || 'Exercice'}</h2>
             <span className="badge-category">{stats?.exercise?.category || 'Général'}</span>
           </div>
           <button className="btn-icon" onClick={onClose} aria-label="Fermer">
@@ -55,16 +55,16 @@ export const ExerciseDetailModal: React.FC<ExerciseDetailModalProps> = ({
         ) : stats ? (
           <div>
             {/* PR and Stats Grid */}
-            <div className="dashboard-grid" style={{ marginBottom: '1.5rem', gridTemplateColumns: '1fr 1fr' }}>
-              <div className="glass-panel stat-card" style={{ padding: '1rem' }}>
-                <h3>Record Max (PR)</h3>
-                <div className="value is-accent">
+            <div className="dashboard-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+              <div className="stat-card">
+                <h3>Record</h3>
+                <div className="value is-pr">
                   {stats.maxWeight > 0 ? `${stats.maxWeight} kg` : '-'}
                 </div>
               </div>
-              <div className="glass-panel stat-card" style={{ padding: '1rem' }}>
-                <h3>1RM Estimé</h3>
-                <div className="value is-jade">
+              <div className="stat-card">
+                <h3>1RM estimé</h3>
+                <div className="value">
                   {stats.maxEstimated1RM > 0 ? `${stats.maxEstimated1RM} kg` : '-'}
                 </div>
               </div>
@@ -77,7 +77,7 @@ export const ExerciseDetailModal: React.FC<ExerciseDetailModalProps> = ({
               </span>
               <div className="engine-text">
                 <div className="engine-kicker">
-                  <strong>Surcharge Progressive Recommandée</strong>
+                  <strong>Prochaine charge conseillée</strong>
                 </div>
                 <p>{stats.recommendedOverload.reason}</p>
               </div>
@@ -91,7 +91,7 @@ export const ExerciseDetailModal: React.FC<ExerciseDetailModalProps> = ({
                   <thead>
                     <tr>
                       <th>Date</th>
-                      <th>Max Levée</th>
+                      <th>Charge max</th>
                       <th>1RM</th>
                       <th>Volume</th>
                     </tr>
@@ -101,7 +101,7 @@ export const ExerciseDetailModal: React.FC<ExerciseDetailModalProps> = ({
                       <tr key={i}>
                         <td style={{ color: 'var(--text-muted)' }}>{pt.date}</td>
                         <td style={{ fontWeight: 600 }}>{pt.maxWeight} kg</td>
-                        <td style={{ color: 'var(--jade-text)' }}>{pt.estimated1RM} kg</td>
+                        <td>{pt.estimated1RM} kg</td>
                         <td>{pt.totalVolume} kg</td>
                       </tr>
                     ))}
@@ -123,7 +123,8 @@ export const ExerciseDetailModal: React.FC<ExerciseDetailModalProps> = ({
                   onClose();
                 }}
               >
-                + Ajouter à la séance en cours
+                <Icon name="plus" size={16} />
+                Ajouter à la séance en cours
               </button>
             )}
           </div>

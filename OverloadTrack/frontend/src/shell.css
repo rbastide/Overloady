@@ -107,7 +107,7 @@ a,
   line-height: 1.4;
 }
 
-/* Pulsing sage status dots */
+/* Sage status dots: steady, a running session needs no pulse to be seen */
 .live-dot,
 .ping-dot {
   width: 8px;
@@ -115,7 +115,6 @@ a,
   flex-shrink: 0;
   border-radius: 50%;
   background: var(--accent);
-  animation: softPing 1.6s ease-out infinite;
 }
 
 /* ---------- Brand mark ---------- */
@@ -388,10 +387,9 @@ a,
 
 .topbar-session-label {
   color: var(--accent-bright);
-  font-size: 0.625rem;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 .topbar-session-name {
@@ -459,7 +457,6 @@ a,
   height: 8px;
   border-radius: 50%;
   background: var(--accent);
-  animation: softPulse 2s ease-in-out infinite;
 }
 
 .topbar-avatar,
@@ -507,9 +504,7 @@ a,
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 1rem 1.5rem;
-  margin-bottom: 2rem;
-  padding-bottom: 1.25rem;
-  border-bottom: 1px solid rgba(37, 42, 50, 0.4);
+  margin-bottom: 1.75rem;
 }
 
 .header h1 {
@@ -530,6 +525,13 @@ a,
 .header > div > button {
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.625rem;
 }
 
 /* ==========================================================================
