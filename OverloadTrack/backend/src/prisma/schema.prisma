@@ -16,6 +16,7 @@ model User {
   profile     Profile?
   sessions    WorkoutSession[]
   routines    Routine[]
+  pushSubscriptions PushSubscription[]
 }
 
 model Profile {
@@ -87,4 +88,23 @@ model SetLog {
   reps          Int
   weight        Float
   completed     Boolean     @default(true)
+}
+
+// A device that receives the rest timer notifications (Web Push, home-screen app on iOS 16.4+)
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+}
+
+// The server's Web Push (VAPID) key pair, generated on first start when not set in the environment:
+// a subscription is bound to it, so it has to survive restarts and deploys.
+model PushConfig {
+  id         Int    @id @default(1)
+  publicKey  String
+  privateKey String
 }

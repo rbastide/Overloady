@@ -2590,6 +2590,12 @@ select optgroup {
   background: var(--accent-soft);
 }
 
+/* Offered until the athlete answers: notifications at the end of the rest */
+.rest-notify {
+  color: var(--accent-bright);
+  animation: amberPing 2s ease-out 3;
+}
+
 /* ---------- Session · laptops without room for the side column ---------- */
 @media (max-width: 1279px) {
   .session-layout {

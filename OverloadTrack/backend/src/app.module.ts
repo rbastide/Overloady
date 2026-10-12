@@ -8,9 +8,10 @@ import { UserModule } from './user/user.module';
 import { ExerciseModule } from './exercise/exercise.module';
 import { RoutineModule } from './routine/routine.module';
 import { AiModule } from './ai/ai.module';
+import { PushModule } from './push/push.module';
 
 @Module({
-  imports: [PrismaModule, WorkoutModule, AuthModule, UserModule, ExerciseModule, RoutineModule, AiModule],
+  imports: [PrismaModule, WorkoutModule, AuthModule, UserModule, ExerciseModule, RoutineModule, AiModule, PushModule],
   controllers: [AppController],
   providers: [AppService],
 })

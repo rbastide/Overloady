@@ -1,5 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Icon } from './Icons';
+import {
+  cancelRestNotification,
+  enableRestNotifications,
+  restNotificationsPermission,
+  scheduleRestNotification,
+  syncRestNotifications,
+} from '../lib/restNotifications';
 
 interface RestTimerProps {
   /** Rest duration the timer opens with (seconds). */
@@ -41,43 +48,93 @@ const formatTime = (seconds: number) => {
 
 export const RestTimer: React.FC<RestTimerProps> = ({ initialSeconds, autoStart = false, onDurationChange, onClose }) => {
   const [initialDuration, setInitialDuration] = useState(initialSeconds);
-  const [timeLeft, setTimeLeft] = useState(initialSeconds);
-  const [isRunning, setIsRunning] = useState(autoStart);
+  // Running: the moment the rest ends. The countdown is read from the clock, so it stays right
+  // after iOS suspended the app in the background.
+  const [endsAt, setEndsAt] = useState<number | null>(() => (autoStart ? Date.now() + initialSeconds * 1000 : null));
+  // Paused or stopped: the seconds left
+  const [pausedLeft, setPausedLeft] = useState(initialSeconds);
+  const [now, setNow] = useState(() => Date.now());
+  const [notifyPermission, setNotifyPermission] = useState(restNotificationsPermission);
+  // The rest ran out on its own: its notification is going out, it must not be cancelled
+  const endedOnItsOwn = useRef(false);
+
+  const isRunning = endsAt !== null;
+  const timeLeft = endsAt !== null ? Math.max(0, Math.ceil((endsAt - now) / 1000)) : pausedLeft;
 
   useEffect(() => {
-    let interval: any = null;
-    if (isRunning && timeLeft > 0) {
-      interval = setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev <= 1) {
-            playBeep();
-            setIsRunning(false);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isRunning, timeLeft]);
+    if (endsAt === null) return;
+    const tick = () => {
+      const current = Date.now();
+      setNow(current);
+      if (current >= endsAt) {
+        // No beep for a rest that ended while the app was in the background: the notification did it
+        if (current - endsAt < 2000) playBeep();
+        endedOnItsOwn.current = true;
+        setEndsAt(null);
+        setPausedLeft(0);
+      }
+    };
+    const interval = setInterval(tick, 250);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, [endsAt]);
+
+  // The server notifies the phone when the rest ends, even with the app in the background or the screen locked
+  useEffect(() => {
+    if (endsAt === null) return;
+    endedOnItsOwn.current = false;
+    scheduleRestNotification(endsAt);
+    return () => {
+      if (!endedOnItsOwn.current) cancelRestNotification();
+    };
+  }, [endsAt]);
+
+  useEffect(() => {
+    syncRestNotifications();
+  }, []);
+
+  const runFor = (seconds: number) => {
+    const current = Date.now();
+    setNow(current);
+    setEndsAt(current + seconds * 1000);
+  };
 
   const startWith = (sec: number) => {
     setInitialDuration(sec);
-    setTimeLeft(sec);
-    setIsRunning(true);
+    setPausedLeft(sec);
+    runFor(sec);
     onDurationChange?.(sec);
   };
 
   const adjustTime = (sec: number) => {
-    setTimeLeft((prev) => Math.max(0, prev + sec));
+    if (endsAt === null) {
+      setPausedLeft((prev) => Math.max(0, prev + sec));
+      return;
+    }
+    const current = Date.now();
+    setNow(current);
+    setEndsAt(Math.max(current, endsAt + sec * 1000));
   };
 
   const toggle = () => {
-    if (timeLeft === 0) {
+    if (isRunning) {
+      setPausedLeft(timeLeft);
+      setEndsAt(null);
+    } else if (timeLeft === 0) {
       startWith(initialDuration);
     } else {
-      setIsRunning(!isRunning);
+      runFor(timeLeft);
     }
+  };
+
+  const enableNotifications = async () => {
+    const permission = await enableRestNotifications();
+    setNotifyPermission(permission);
+    // The rest already running gets its notification too
+    if (permission === 'granted' && endsAt !== null) scheduleRestNotification(endsAt);
   };
 
   const isEnded = timeLeft === 0;
@@ -129,6 +186,17 @@ export const RestTimer: React.FC<RestTimerProps> = ({ initialSeconds, autoStart 
         <button type="button" className="rest-btn is-icon" onClick={toggle} aria-label={toggleLabel} title={toggleLabel}>
           <Icon name={isRunning ? 'pause' : 'play'} size={15} filled={!isRunning} strokeWidth={isRunning ? 2.4 : 1.5} />
         </button>
+        {notifyPermission === 'default' && (
+          <button
+            type="button"
+            className="rest-btn is-icon rest-notify"
+            onClick={enableNotifications}
+            aria-label="Être notifié à la fin du repos"
+            title="Être notifié à la fin du repos, même écran verrouillé"
+          >
+            <Icon name="bell" size={15} />
+          </button>
+        )}
         {onClose && (
           <button type="button" className="rest-skip" onClick={onClose} aria-label="Passer le repos" title="Passer le repos">
             <span>Passer</span>
