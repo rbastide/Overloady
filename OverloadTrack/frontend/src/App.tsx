@@ -24,6 +24,7 @@ import { MuscleFocusCard, RecordCard } from './components/SessionInsights';
 import { GymFocus } from './components/GymFocus';
 import { ConsistencyHeatmap } from './components/ConsistencyHeatmap';
 import { GlossaryTerm, RPE_MEANINGS } from './components/Glossary';
+import { RecapModal } from './components/RecapModal';
 import {
   AthleteProfileFields,
   toAthleteProfilePayload,
@@ -246,6 +247,8 @@ function App() {
 
   // Expanded History cards
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
+  // Finished session shown as a shareable story card
+  const [recapSession, setRecapSession] = useState<any>(null);
 
   const showToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
     const id = Date.now().toString();
@@ -884,14 +887,15 @@ function App() {
         })),
       }));
 
-      await api.post('/workout/finish', {
+      const res = await api.post('/workout/finish', {
         sessionId: activeSessionId,
         rpe: sessionRpe,
         notes: sessionNotes,
         exercises: exercisesPayload,
       });
 
-      showToast('Séance enregistrée', 'success');
+      // The recap card says the session is saved, and offers to share it
+      setRecapSession(res.data);
       resetActiveSession();
       // This session may hold new records: reload the stats next time.
       requestedStats.current.clear();
@@ -2280,9 +2284,9 @@ function App() {
                       </button>
                       <button
                         className="btn-icon"
-                        onClick={() => shareSession(session)}
-                        title="Copier le résumé de la séance"
-                        aria-label="Copier le résumé de la séance"
+                        onClick={() => setRecapSession(session)}
+                        title="Partager le récap de la séance"
+                        aria-label="Partager le récap de la séance"
                       >
                         <Icon name="share" size={17} />
                       </button>
@@ -2559,6 +2563,14 @@ function App() {
         defaultWeight={plateCalcContext.weight}
         defaultReps={plateCalcContext.reps}
         bodyWeight={Number(profile.weight) || undefined}
+      />
+
+      <RecapModal
+        session={recapSession}
+        history={history}
+        onClose={() => setRecapSession(null)}
+        onCopyText={shareSession}
+        onResult={showToast}
       />
 
       <ExerciseDetailModal

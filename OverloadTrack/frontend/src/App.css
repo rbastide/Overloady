@@ -4227,6 +4227,47 @@ select optgroup {
   font-size: 1.4rem;
 }
 
+/* Session recap: the story card, previewed at phone height */
+.recap-modal {
+  max-width: 440px;
+}
+
+.recap-preview {
+  display: flex;
+  justify-content: center;
+  margin: 1.25rem 0;
+}
+
+.recap-preview img,
+.recap-preview-loading {
+  height: min(56vh, 520px);
+  aspect-ratio: 9 / 16;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-canvas);
+}
+
+.recap-preview-loading {
+  animation: recapLoading 1.4s ease-in-out infinite;
+}
+
+@keyframes recapLoading {
+  50% {
+    background: var(--bg-card);
+  }
+}
+
+.recap-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.recap-actions .text-action {
+  align-self: center;
+}
+
 /* Segmented control */
 .tab-pill-container {
   display: flex;
