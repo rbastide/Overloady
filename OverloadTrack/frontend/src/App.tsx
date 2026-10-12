@@ -10,6 +10,7 @@ import { AddExerciseModal } from './components/AddExerciseModal';
 import { RoutineModal } from './components/RoutineModal';
 import { ExercisePicker } from './components/ExercisePicker';
 import { ConfirmDialog } from './components/ConfirmDialog';
+import { RegenerateModal } from './components/RegenerateModal';
 import { ToastContainer, type ToastMessage } from './components/Toast';
 import { WarmupModal } from './components/WarmupModal';
 import { AnalyticsView } from './components/AnalyticsView';
@@ -126,6 +127,7 @@ function App() {
   const [nextRecommendation, setNextRecommendation] = useState<any>(null);
   const [isStartingRec, setIsStartingRec] = useState<boolean>(false);
   const [isRegeneratingAi, setIsRegeneratingAi] = useState<boolean>(false);
+  const [isRegenerateOpen, setIsRegenerateOpen] = useState<boolean>(false);
   const [showAiExercisesPreview, setShowAiExercisesPreview] = useState<boolean>(true);
 
   // Test Week Calibration State
@@ -471,14 +473,21 @@ function App() {
   };
 
   // Regenerate with AI Coach
-  const regenerateAiRecommendation = async () => {
+  const regenerateAiRecommendation = async (instructions = '') => {
+    setIsRegenerateOpen(false);
     setIsRegeneratingAi(true);
     try {
-      showToast('⚡ Le Coach IA conçoit une nouvelle séance optimisée...', 'info');
-      const res = await api.post('/workout/regenerate-recommendation');
+      showToast(
+        instructions ? '⚡ Le Coach IA modifie la séance selon ta demande...' : '⚡ Le Coach IA conçoit une nouvelle séance optimisée...',
+        'info',
+      );
+      const res = await api.post('/workout/regenerate-recommendation', instructions ? { instructions } : {});
       setNextRecommendation(res.data);
       if (res.data?.aiGenerated) {
         showToast(`✨ Séance "${res.data.title}" générée par le Coach IA !`, 'success');
+      } else if (instructions) {
+        // The fallback engine can't read the request: say so rather than pretend it was applied
+        showToast("Le Coach IA n'a pas répondu : séance réajustée automatiquement, sans ta demande. Réessaie dans un instant.", 'error');
       } else {
         showToast(`Séance réajustée selon votre surcharge progressive !`, 'success');
       }
@@ -1527,7 +1536,7 @@ function App() {
                     ) : (
                       <button
                         className="btn-ai-regenerate"
-                        onClick={regenerateAiRecommendation}
+                        onClick={() => setIsRegenerateOpen(true)}
                         disabled={isRegeneratingAi || !!activeSessionId}
                         title="Demander une autre séance générée par l'IA"
                       >
@@ -1554,7 +1563,7 @@ function App() {
                     </p>
                   </div>
                   <div className="bento-ai-actions">
-                    <button className="btn-primary" onClick={regenerateAiRecommendation} disabled={isRegeneratingAi}>
+                    <button className="btn-primary" onClick={() => regenerateAiRecommendation()} disabled={isRegeneratingAi}>
                       <span className={isRegeneratingAi ? 'spin-icon' : ''}>
                         <Icon name="sparkle" size={16} />
                       </span>
@@ -2381,6 +2390,13 @@ function App() {
           </div>
         </div>
       </ConfirmDialog>
+
+      <RegenerateModal
+        isOpen={isRegenerateOpen}
+        sessionTitle={nextRecommendation?.title}
+        onClose={() => setIsRegenerateOpen(false)}
+        onSubmit={regenerateAiRecommendation}
+      />
 
       <ConfirmDialog
         isOpen={isRecalibrateOpen}

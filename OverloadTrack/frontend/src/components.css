@@ -1767,3 +1767,43 @@
     order: 1;
   }
 }
+
+/* ==========================================================================
+   Regenerate modal — tell the AI coach what to change in the proposed session
+   ========================================================================== */
+.regenerate-modal {
+  max-width: 520px;
+}
+
+.regenerate-modal .form-group {
+  position: relative;
+  margin-bottom: 0.75rem;
+}
+
+.regenerate-modal textarea {
+  width: 100%;
+  min-height: 110px;
+  resize: vertical;
+  font-size: 16px; /* no iOS zoom on focus */
+  line-height: 1.5;
+}
+
+.regenerate-count {
+  display: block;
+  margin-top: 0.3rem;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  text-align: right;
+}
+
+.regenerate-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.regenerate-suggestions .coach-chip {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.78rem;
+}

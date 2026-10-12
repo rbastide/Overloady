@@ -14,6 +14,7 @@ import { orderRoutineExercises } from '../routine/routine.service';
 
 const COACH_MAX_MESSAGES = 12;
 const COACH_MAX_MESSAGE_LENGTH = 2000;
+const REGENERATE_MAX_INSTRUCTIONS = 500;
 
 interface FinishSetDto {
   reps: number;
@@ -37,6 +38,8 @@ export interface FinishWorkoutDto {
 export class WorkoutService implements OnApplicationBootstrap {
   private readonly logger = new Logger(WorkoutService.name);
   private recommendationCache = new Map<string, { data: any; timestamp: number }>();
+  /** Generation running per athlete: the AI allows one call every 15s, so concurrent loads share it. */
+  private recommendationInFlight = new Map<string, Promise<any>>();
 
   constructor(
     private prisma: PrismaService,
@@ -680,11 +683,32 @@ export class WorkoutService implements OnApplicationBootstrap {
     return allExercises[0];
   }
 
-  async getNextRecommendedWorkout(userId: string, forceFreshAi = false) {
+  async getNextRecommendedWorkout(userId: string, forceFreshAi = false, instructions?: string) {
+    const pending = this.recommendationInFlight.get(userId);
+    // Dashboard loads (often two at once) share the running generation instead of queueing another AI call
+    if (pending && !forceFreshAi) return pending;
+    // A regeneration waits for it: it then edits the session just proposed, without competing for the AI
+    if (pending) await pending.catch(() => undefined);
+
+    const run = this.computeNextRecommendedWorkout(userId, forceFreshAi, instructions);
+    this.recommendationInFlight.set(userId, run);
+    try {
+      return await run;
+    } finally {
+      if (this.recommendationInFlight.get(userId) === run) this.recommendationInFlight.delete(userId);
+    }
+  }
+
+  private async computeNextRecommendedWorkout(userId: string, forceFreshAi: boolean, instructions?: string) {
     const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes cache
     const profile = await this.prisma.profile.findUnique({
       where: { userId },
     });
+
+    // What the athlete wants changed in the session currently proposed ("plus court", "pas de squat"...)
+    const athleteRequest =
+      typeof instructions === 'string' ? instructions.trim().slice(0, REGENERATE_MAX_INSTRUCTIONS) : '';
+    const proposedSession = athleteRequest ? this.recommendationCache.get(userId)?.data : null;
 
     if (!forceFreshAi && this.recommendationCache.has(userId)) {
       const cached = this.recommendationCache.get(userId)!;
@@ -795,13 +819,26 @@ export class WorkoutService implements OnApplicationBootstrap {
         athlete: describeAthlete(profile as any),
         benchmarks: testedBenchmarks,
         lastSession: lastSessionContext,
+        athleteRequest: athleteRequest || undefined,
+        proposedSession: proposedSession?.exercises?.length
+          ? {
+              title: proposedSession.title,
+              exercises: proposedSession.exercises.map((ex: any) => ({
+                name: ex.name,
+                sets: ex.sets?.length || 0,
+                reps: ex.sets?.[0]?.reps,
+                weight: ex.sets?.[0]?.weight,
+              })),
+            }
+          : null,
         // The wger import adds ~900 exercises: only the app library is offered to the AI.
         availableExercises: allExercises.filter((e) => e.source !== 'wger').map((e) => ({
           id: e.id,
           name: e.name,
           category: (e as any).category || 'Général',
         })),
-      });
+        // A regeneration is asked by the athlete, who waits for it: it gets more time than the dashboard load
+      }, forceFreshAi ? 45000 : 28000);
     } catch (aiErr: any) {
       this.logger.warn(`AI Generation invocation error: ${aiErr.message}`);
     }
@@ -825,7 +862,7 @@ export class WorkoutService implements OnApplicationBootstrap {
           usedIds.add(matchedDbEx.id);
           const sets = (aiEx.sets || []).map((s, idx) => ({
             setNumber: s.setNumber || idx + 1,
-            weight: Number(s.weight) || 20,
+            weight: Number.isFinite(Number(s.weight)) && Number(s.weight) >= 0 ? Number(s.weight) : 20,
             reps: Number(s.reps) || 10,
             completed: false,
           }));

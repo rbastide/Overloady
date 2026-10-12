@@ -18,6 +18,13 @@ export interface AiWorkoutPromptContext {
       reps?: number;
     }>;
   } | null;
+  /** What the athlete asked to change when regenerating ("plus court", "pas de squat"...). */
+  athleteRequest?: string;
+  /** The session proposed before the regeneration, which the request refers to. */
+  proposedSession?: {
+    title?: string;
+    exercises: Array<{ name: string; sets: number; reps?: number; weight?: number }>;
+  } | null;
   availableExercises: Array<{
     id: string;
     name: string;
@@ -96,38 +103,28 @@ export class AiService {
    * Generates an intelligent workout recommendation using a free AI bodybuilding coach model.
    * Gracefully returns null if network fails or times out, allowing seamless fallback.
    */
-  async generateWorkoutSession(context: AiWorkoutPromptContext): Promise<AiGeneratedWorkout | null> {
+  async generateWorkoutSession(context: AiWorkoutPromptContext, timeoutMs = 28000): Promise<AiGeneratedWorkout | null> {
     const goal = (context.goal || 'BODYBUILDING').toUpperCase();
     const catalogNames = context.availableExercises.map((e) => e.name);
 
     const systemPrompt = `Tu es un préparateur physique certifié CSCS et coach expert en musculation et force.
 Tu conçois une séance d'entraînement optimisée selon l'objectif de l'athlète (${goal}) et son historique (rotation musculaire Push/Pull/Legs).
 Exercices autorisés disponibles dans l'application : ${catalogNames.join(', ')}.
-Sélectionne 3 ou 4 exercices pertinents. Garde les explications courtes (1 phrase max par champ).
+Par défaut, sélectionne 4 à 6 exercices pertinents. Si l'athlète demande un nombre d'exercices ou une répartition par muscle (ex : "4 pecs, 3 épaules, 2 triceps"), respecte-les EXACTEMENT, jusqu'à 12 exercices, sans doublon et sans ajouter d'exercice non demandé.
+"weight" est une charge réaliste en kg propre à CHAQUE exercice et au niveau de l'athlète (une élévation latérale est bien plus légère qu'un développé couché ; 0 pour un exercice au poids du corps). Ne recopie pas les valeurs de l'exemple.
+Si l'athlète formule une demande, elle est prioritaire : respecte-la tant qu'elle reste sûre, et indique dans "rationale" ce que tu as changé.
 
-Tu dois répondre STRICTEMENT avec un objet JSON valide (aucun markdown, aucun outil) suivant ce schéma :
+La réponse est limitée en longueur : sois TRÈS concis ("reason" : 6 mots max, "rationale" : 1 phrase, 2 conseils courts), une ligne par exercice. Tout le texte est en français.
+Tu dois répondre STRICTEMENT avec un objet JSON valide (aucun markdown, aucun outil) suivant ce schéma, les exercices en premier :
 {
-  "title": "Titre clair de la séance (ex: Séance Hypertrophie — Push Pectoraux & Triceps)",
-  "focusMuscle": "Groupes musculaires ciblés",
-  "rationale": "Courte explication tactique du coach (rotation, récupération, surcharge)",
-  "coachingTips": [
-    "Conseil d'activation ou d'échauffement",
-    "Conseil de tempo ou exécution",
-    "Conseil de récupération"
-  ],
   "exercises": [
-    {
-      "name": "Nom exact choisi dans la liste des exercices autorisés",
-      "category": "Catégorie (Pectoraux, Dos, Jambes, Épaules, Bras, Abdominaux)",
-      "reason": "Raison courte du choix pour cet objectif",
-      "targetAdvice": "Consignes de tempo, intensité et repos",
-      "sets": [
-        { "setNumber": 1, "weight": 60, "reps": 10 },
-        { "setNumber": 2, "weight": 60, "reps": 10 },
-        { "setNumber": 3, "weight": 60, "reps": 10 }
-      ]
-    }
-  ]
+    { "name": "Bench Press (Barbell)", "category": "Pectoraux", "sets": 4, "reps": 8, "weight": 50, "reason": "Base de force des pectoraux" },
+    { "name": "Lateral Raise (Dumbbell)", "category": "Épaules", "sets": 3, "reps": 15, "weight": 6, "reason": "Isolation du deltoïde moyen" }
+  ],
+  "title": "Titre clair (ex: Séance Hypertrophie — Push Pectoraux & Triceps)",
+  "focusMuscle": "Groupes musculaires ciblés",
+  "rationale": "Courte explication du coach",
+  "coachingTips": ["Conseil court", "Conseil court"]
 }`;
 
     const userPrompt = `Profil athlète :
@@ -143,65 +140,35 @@ Tu dois répondre STRICTEMENT avec un objet JSON valide (aucun markdown, aucun o
         ? JSON.stringify(context.benchmarks)
         : 'Non testé'
     }
+${
+  context.athleteRequest
+    ? `- Séance actuellement proposée : ${
+        context.proposedSession ? JSON.stringify(context.proposedSession) : 'aucune'
+      }
+- Demande de l'athlète pour la nouvelle version (PRIORITAIRE) : "${context.athleteRequest.replace(/"/g, "'")}"
 
-Génère la prochaine séance d'entraînement idéale au format JSON en calibrant les charges selon ces données.`;
+Si la demande décrit la séance entière (un nombre ou une répartition d'exercices), construis EXACTEMENT cette séance et retire tout le reste ; sinon, modifie seulement ce qui est concerné et garde le reste. Réponds au format JSON en calibrant les charges selon ces données.`
+    : `
+Génère la prochaine séance d'entraînement idéale au format JSON en calibrant les charges selon ces données.`
+}`;
 
     try {
       this.logger.log(`Requesting free AI workout generation for goal: ${goal}...`);
-      const parsed = await this.requestJson(systemPrompt, [{ role: 'user', content: userPrompt }], 1800, 28000);
-      if (!parsed) return null;
+      const deadline = Date.now() + timeoutMs;
+      // An unusable answer (cut off, reasoning without the session) gets one more try while time allows:
+      // each call has its own seed, so the provider doesn't replay the same answer.
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        const parsed = await this.requestJson(systemPrompt, [{ role: 'user', content: userPrompt }], deadline - Date.now());
+        if (!parsed) return null;
 
-      // Check tool_calls, content, or direct object
-      let rawObj: any = parsed;
-      if (parsed.tool_calls && parsed.tool_calls[0]?.function?.arguments) {
-        try {
-          rawObj = JSON.parse(parsed.tool_calls[0].function.arguments);
-        } catch (e) {}
-      } else if (parsed.content) {
-        try {
-          rawObj = typeof parsed.content === 'string' ? JSON.parse(parsed.content) : parsed.content;
-        } catch (e) {}
+        const workout = readWorkout(parsed, goal);
+        if (workout) {
+          this.logger.log(`Successfully generated AI workout: "${workout.title}" with ${workout.exercises.length} exercises`);
+          return workout;
+        }
+        this.logger.warn(`AI returned JSON without exercises (attempt ${attempt}): ${JSON.stringify(parsed).substring(0, 200)}`);
       }
-
-      if (rawObj.workout) rawObj = rawObj.workout;
-      if (rawObj.seance) rawObj = rawObj.seance;
-      const title = rawObj.title || rawObj.nom || rawObj.name || `Séance ${goal}`;
-      const exercises = rawObj.exercises || rawObj.exercices || rawObj.mouvements || [];
-      const focusMuscle = rawObj.focusMuscle || rawObj.focus || rawObj.targetMuscle || 'Haut / Bas du corps';
-      const rationale = rawObj.rationale || rawObj.description || rawObj.explication || 'Séance générée par Coach IA';
-      const coachingTips = rawObj.coachingTips || rawObj.tips || rawObj.conseils || [];
-
-      if (!Array.isArray(exercises) || exercises.length === 0) {
-        this.logger.warn(`AI returned JSON without exercises array: ${JSON.stringify(parsed).substring(0, 300)}`);
-        return null;
-      }
-
-      const formattedResult: AiGeneratedWorkout = {
-        title,
-        focusMuscle,
-        rationale,
-        coachingTips,
-        exercises: exercises.map((ex: any) => ({
-          name: ex.name || ex.nom || 'Exercice',
-          category: ex.category || ex.categorie || 'Général',
-          reason: ex.reason || ex.explication || 'Recommandé par votre coach IA',
-          targetAdvice: ex.targetAdvice || ex.consigne || ex.advice || '',
-          sets: Array.isArray(ex.sets) || Array.isArray(ex.series)
-            ? (ex.sets || ex.series).map((s: any, idx: number) => ({
-                setNumber: s.setNumber || s.serie || idx + 1,
-                weight: Number(s.weight || s.poids || s.charge) || 20,
-                reps: Number(s.reps || s.repetitions) || 10,
-              }))
-            : [
-                { setNumber: 1, weight: 20, reps: 10 },
-                { setNumber: 2, weight: 20, reps: 10 },
-                { setNumber: 3, weight: 20, reps: 10 },
-              ],
-        })),
-      };
-
-      this.logger.log(`Successfully generated AI workout: "${formattedResult.title}" with ${formattedResult.exercises.length} exercises`);
-      return formattedResult;
+      return null;
     } catch (err: any) {
       this.logger.warn(`AI generation failed: ${err.message}. Falling back to internal engine.`);
       return null;
@@ -255,7 +222,7 @@ Réponds STRICTEMENT avec un objet JSON valide (aucun markdown) suivant ce sché
 
     try {
       this.logger.log(`Coach chat request (${messages.length} messages, goal ${goal})`);
-      const parsed = await this.requestJson(systemPrompt, messages, 3000, 60000);
+      const parsed = await this.requestJson(systemPrompt, messages, 60000);
       if (!parsed) return null;
 
       const rawWorkouts = Array.isArray(parsed.workouts) ? parsed.workouts : Array.isArray(parsed.seances) ? parsed.seances : [];
@@ -299,7 +266,6 @@ Réponds STRICTEMENT avec un objet JSON valide (aucun markdown) suivant ce sché
   private async requestJson(
     systemPrompt: string,
     messages: CoachChatMessage[],
-    maxTokens: number,
     timeoutMs: number,
   ): Promise<any | null> {
     const deadline = Date.now() + timeoutMs;
@@ -312,7 +278,7 @@ Réponds STRICTEMENT avec un objet JSON valide (aucun markdown) suivant ce sché
       }
       if (slotWait > 0) await sleep(slotWait);
 
-      const result = await this.requestJsonOnce(systemPrompt, messages, maxTokens, deadline - Date.now());
+      const result = await this.requestJsonOnce(systemPrompt, messages, deadline - Date.now());
       if (result.status === 'ok') return result.data;
       if (result.status === 'failed') return null;
       this.logger.warn('AI provider rate limit reached, retrying on the next slot...');
@@ -332,7 +298,6 @@ Réponds STRICTEMENT avec un objet JSON valide (aucun markdown) suivant ce sché
   private async requestJsonOnce(
     systemPrompt: string,
     messages: CoachChatMessage[],
-    maxTokens: number,
     timeoutMs: number,
   ): Promise<{ status: 'ok'; data: any } | { status: 'retry' | 'failed' }> {
     const controller = new AbortController();
@@ -346,10 +311,13 @@ Réponds STRICTEMENT avec un objet JSON valide (aucun markdown) suivant ce sché
           Accept: 'application/json',
           ...(this.apiToken ? { Authorization: `Bearer ${this.apiToken}` } : {}),
         },
+        // No max_tokens: the anonymous tier answers 402 (payment required) to requests that set it.
+        // A random seed per call: the provider replays its cached answer to an identical request,
+        // so "another session" would come back unchanged and a broken answer would never heal.
         body: JSON.stringify({
           messages: [{ role: 'system', content: systemPrompt }, ...messages],
           jsonMode: true,
-          max_tokens: maxTokens,
+          seed: Math.floor(Math.random() * 1_000_000_000),
         }),
         signal: controller.signal,
       });
@@ -384,6 +352,102 @@ const MIN_REQUEST_TIME_MS = 8000;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** The session in an AI answer, or null when it holds no exercise. */
+function readWorkout(parsed: any, goal: string): AiGeneratedWorkout | null {
+  let rawObj: any = parsed;
+  // Reasoning models sometimes wrap the answer ({"role":"assistant","reasoning":...,"content":"{...}"}):
+  // the inner text gets the same tolerant parsing, cut-off answers included.
+  const unwrap = (value: any) => (typeof value === 'string' ? parseJsonObject(value) : value) || null;
+  if (parsed.tool_calls && parsed.tool_calls[0]?.function?.arguments) {
+    rawObj = unwrap(parsed.tool_calls[0].function.arguments) || rawObj;
+  } else if (parsed.content) {
+    rawObj = unwrap(parsed.content) || rawObj;
+  }
+
+  if (rawObj.workout) rawObj = rawObj.workout;
+  if (rawObj.seance) rawObj = rawObj.seance;
+  const exercises = rawObj.exercises || rawObj.exercices || rawObj.mouvements || [];
+  if (!Array.isArray(exercises) || exercises.length === 0) return null;
+
+  return {
+    title: rawObj.title || rawObj.nom || rawObj.name || `Séance ${goal}`,
+    focusMuscle: rawObj.focusMuscle || rawObj.focus || rawObj.targetMuscle || 'Haut / Bas du corps',
+    rationale: rawObj.rationale || rawObj.description || rawObj.explication || 'Séance générée par Coach IA',
+    coachingTips: rawObj.coachingTips || rawObj.tips || rawObj.conseils || [],
+    exercises: exercises.map((ex: any) => ({
+      name: ex.name || ex.nom || 'Exercice',
+      category: ex.category || ex.categorie || 'Général',
+      reason: ex.reason || ex.explication || 'Recommandé par votre coach IA',
+      targetAdvice: ex.targetAdvice || ex.consigne || ex.advice || '',
+      sets: toSetList(ex),
+    })),
+  };
+}
+
+/**
+ * Sets of an AI exercise: the compact form ("sets": 4, "reps": 10, "weight": 40) keeps the answer
+ * short enough for the free tier; a detailed list of sets is still accepted.
+ */
+function toSetList(ex: any): Array<{ setNumber: number; weight: number; reps: number }> {
+  const list = Array.isArray(ex.sets) ? ex.sets : Array.isArray(ex.series) ? ex.series : null;
+  if (list && list.length > 0) {
+    return list.map((s: any, idx: number) => ({
+      setNumber: s.setNumber || s.serie || idx + 1,
+      weight: toWeight(s.weight ?? s.poids ?? s.charge ?? ex.weight),
+      reps: Number(s.reps ?? s.repetitions ?? ex.reps) || 10,
+    }));
+  }
+  const count = Math.min(10, Math.max(1, Math.round(Number(ex.sets ?? ex.series) || 3)));
+  const weight = toWeight(ex.weight ?? ex.poids ?? ex.charge);
+  const reps = Number(ex.reps ?? ex.repetitions) || 10;
+  return Array.from({ length: count }, (_, idx) => ({ setNumber: idx + 1, weight, reps }));
+}
+
+/** Load in kg: 0 stays 0 (bodyweight exercise), a missing or invalid value falls back to 20. */
+function toWeight(value: any): number {
+  const weight = Number(value);
+  return value !== null && value !== '' && Number.isFinite(weight) && weight >= 0 ? weight : 20;
+}
+
+/**
+ * The free tier cuts long answers mid-JSON. Rebuilds the object from what arrived complete:
+ * the text is cut after the last closed value and the brackets still open are closed, so a
+ * truncated session keeps every exercise that was fully written.
+ */
+function repairTruncatedJson(text: string, tryParse: (candidate: string) => any): any | null {
+  const start = text.indexOf('{');
+  if (start === -1) return null;
+
+  const open: string[] = [];
+  const cuts: Array<{ at: number; closers: string }> = [];
+  let inString = false;
+  let escaped = false;
+
+  for (let i = start; i < text.length; i++) {
+    const c = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (c === '\\') escaped = true;
+      else if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') inString = true;
+    else if (c === '{') open.push('}');
+    else if (c === '[') open.push(']');
+    else if (c === '}' || c === ']') {
+      open.pop();
+      if (open.length === 0) return tryParse(text.slice(start, i + 1));
+      cuts.push({ at: i + 1, closers: [...open].reverse().join('') });
+    }
+  }
+
+  for (let k = cuts.length - 1; k >= 0; k--) {
+    const value = tryParse(text.slice(start, cuts[k].at) + cuts[k].closers);
+    if (value) return value;
+  }
+  return null;
+}
+
 /**
  * Parses the model output as a JSON object, tolerating markdown fences and stray characters
  * around the object (the free models occasionally prefix the payload with garbage).
@@ -406,6 +470,10 @@ function parseJsonObject(rawText: string): any | null {
 
   const direct = tryParse(text);
   if (direct) return direct;
+
+  // Garbage around the object, or an answer cut by the provider's length limit
+  const repaired = repairTruncatedJson(text, tryParse);
+  if (repaired) return repaired;
 
   // Retry from each opening brace, keeping the outermost object that parses.
   const end = text.lastIndexOf('}');

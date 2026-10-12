@@ -28,8 +28,8 @@ export class WorkoutController {
   }
 
   @Post('regenerate-recommendation')
-  regenerateRecommendation(@Request() req: any) {
-    return this.workoutService.getNextRecommendedWorkout(req.user.userId, true);
+  regenerateRecommendation(@Request() req: any, @Body() body: { instructions?: string }) {
+    return this.workoutService.getNextRecommendedWorkout(req.user.userId, true, body?.instructions);
   }
 
   @Get('test-week')
