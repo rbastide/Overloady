@@ -128,6 +128,9 @@ export function ActiveExerciseCard({
   const plateWeight = plateSet ? Number(plateSet.weight) || targets[plateIndex]?.weight || 0 : 0;
   const plateHint = equipment === 'barbell' && plateWeight > 0 ? describePlates(plateWeight, barWeightFor(exercise.name)) : null;
   const previousSets = stats?.previousSets ?? [];
+  // Record live: a validated set heavier than the best ever lifted on this exercise.
+  // Not on a first session, where every set would be one.
+  const isRecord = (set: ActiveSet) => !!stats && stats.maxWeight > 0 && set.completed && set.weight > stats.maxWeight;
 
   return (
     <section className="exercise-focus" aria-label={`Exercice en cours : ${exercise.name}`}>
@@ -203,8 +206,12 @@ export function ActiveExerciseCard({
           const previous = previousSets[sIndex];
           // Ghost values only on sets still to do: a validated set shows what was lifted
           const target = set.completed ? null : targets[sIndex];
+          const record = isRecord(set);
           return (
-            <div key={sIndex} className={`set-row${set.completed ? ' is-done' : ''}${isActive ? ' is-active' : ''}`}>
+            <div
+              key={sIndex}
+              className={`set-row${set.completed ? ' is-done' : ''}${isActive ? ' is-active' : ''}${record ? ' is-record' : ''}`}
+            >
               <div className="set-label">
                 <span className="set-index">{n}</span>
               </div>
@@ -263,6 +270,12 @@ export function ActiveExerciseCard({
                 )}
               </div>
               <div className="set-status">
+                {record && (
+                  <span className="set-record" title={`Ancien record : ${formatKg(stats!.maxWeight)} kg`}>
+                    <Icon name="trophy" size={12} />
+                    <span>Record</span>
+                  </span>
+                )}
                 <button
                   type="button"
                   className="set-remove"

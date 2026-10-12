@@ -80,6 +80,10 @@
   animation: rowFlash 0.6s ease-out;
 }
 
+.set-row.is-record {
+  animation: recordFlash 0.9s ease-out;
+}
+
 /* ---------- Arrivals ---------- */
 .modal-card,
 .modal-content {
@@ -144,6 +148,12 @@
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+@keyframes recordFlash {
+  from {
+    background: rgba(212, 163, 115, 0.28);
   }
 }
 
