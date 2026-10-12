@@ -103,6 +103,76 @@ export function describeGap(target: SetTarget | null, previous: SetTarget | null
   return { label: 'Même charge', tone: 'same' };
 }
 
+/** Who planned the session: Atlas (AI coach), the local engine, the calibration protocol. */
+export type PlanSource = 'atlas' | 'engine' | 'protocol';
+
+export const SOURCE_LABELS: Record<PlanSource | 'history', string> = {
+  atlas: 'Atlas',
+  engine: 'Calcul auto',
+  protocol: 'Protocole',
+  history: 'Calcul auto',
+};
+
+const rpeContext = (rpe: number) =>
+  rpe <= 7
+    ? `RPE ${rpe} la dernière fois, tu avais de la marge`
+    : rpe === 8
+    ? 'RPE 8 la dernière fois, tu étais dans la bonne zone'
+    : rpe === 9
+    ? 'RPE 9 la dernière fois, tout près de ton max'
+    : 'séance à fond la dernière fois (RPE 10)';
+
+/**
+ * A margin note on the exercise: who set the target, the gap with last time and why,
+ * e.g. "Atlas · +2,5 kg : RPE 7 la dernière fois, tu avais de la marge."
+ */
+export function explainTarget(
+  exercise: ActiveExercise,
+  setIndex: number,
+  stats: ExerciseStats | undefined,
+  goal?: string,
+): { source: PlanSource | 'history'; who: string; gap: { label: string; tone: GapTone } | null; why: string } | null {
+  const target = resolveSetTarget(exercise, setIndex, stats, goal);
+  if (!target) return null;
+  const planned = exercise.sets[setIndex]?.target;
+  const source = planned ? exercise.source ?? 'atlas' : 'history';
+  const who = SOURCE_LABELS[source];
+
+  if (source === 'protocol') {
+    return { source, who, gap: null, why: 'charge de départ calibrée sur ton profil, monte si la série est facile.' };
+  }
+  if (!stats) return null;
+
+  const previous = topSet(stats.previousSets) ?? stats.lastSet;
+  const gap = describeGap(target, previous);
+  if (!previous) {
+    return { source, who, gap: null, why: 'première fois sur ce mouvement : prends tes repères, la suite se calera dessus.' };
+  }
+
+  let why: string;
+  if (!planned) {
+    // Derived here: say which rule of the double progression applied
+    const { rule } = progressFrom(previous, exercise.name, goal, stats.lastRpe);
+    const [, top] = repRange(goal);
+    why =
+      rule === 'hold'
+        ? 'séance à fond la dernière fois (RPE 10) : on consolide avant de monter.'
+        : rule === 'load'
+        ? `${previous.reps} reps la dernière fois, le haut de ta fourchette : la charge monte.`
+        : `${previous.reps} reps la dernière fois : une de plus avant de monter la charge (objectif ${top}).`;
+  } else if (stats.lastRpe) {
+    why = `${rpeContext(stats.lastRpe)}.`;
+  } else {
+    why =
+      gap?.tone === 'up'
+        ? 'dans la suite de ta dernière séance.'
+        : gap?.tone === 'down'
+        ? 'un peu plus léger que la dernière fois : soigne l’exécution.'
+        : 'vise des reps plus propres que la dernière fois.';
+  }
+  return { source, who, gap: gap && gap.tone !== 'new' ? gap : null, why };
+}
+
 /** Empty fields take their ghost value: what is validated is what is shown. */
 export function fillFromTarget<T extends { weight: number; reps: number }>(set: T, target: SetTarget | null): T {
   if (!target) return set;

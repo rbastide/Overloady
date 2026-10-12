@@ -1,6 +1,6 @@
 import { useRef, type TouchEvent } from 'react';
 import { Icon } from './Icons';
-import { Stepper, beatsRecord, type ActiveExercise, type ExerciseStats } from './ActiveExercise';
+import { Stepper, TargetNote, beatsRecord, type ActiveExercise, type ExerciseStats } from './ActiveExercise';
 import { DEFAULT_STEP, detectEquipment, formatKg } from '../lib/loadMath';
 import { resolveSetTarget } from '../lib/overload';
 
@@ -145,6 +145,7 @@ export function GymFocus({
                 {previous ? `Précédent ${formatKg(previous.weight)} kg × ${previous.reps}` : 'Pas de précédent'}
               </span>
             </div>
+            <TargetNote exercise={exercise} setIndex={setIndex} stats={stats} goal={goal} compact />
             <div className="gym-field">
               <span className="gym-field-label">Charge (kg)</span>
               <Stepper

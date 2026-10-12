@@ -559,6 +559,8 @@ function App() {
       const res = await api.post('/workout/start-recommended', { customRec: rec });
       // AI recommendations carry coaching tips, coach chat sessions a note.
       prepareSession(Array.isArray(rec.coachingTips) ? rec.coachingTips : rec.notes ? [rec.notes] : []);
+      // Coach chat sessions come from Atlas; dashboard ones say whether Atlas or the local engine made them
+      const source = rec.isTestWeek ? 'protocol' : rec.aiGenerated || !('aiModel' in rec) ? 'atlas' : 'engine';
       setActiveSessionId(res.data.id);
       setActiveRoutineName(rec.title);
       setActiveTestStep(res.data.testWeekStep || null);
@@ -576,6 +578,7 @@ function App() {
           progressiveTarget:
             matchingRecEx?.targetAdvice ||
             (rec.goalDetails ? `${rec.goalDetails.label || ''} : ${rec.goalDetails.repTarget || ''}` : undefined),
+          source,
           // The recommended loads become the ghost values of the empty sets
           sets: (exLog.sets || []).map((_: unknown, i: number) => {
             const planned = matchingRecEx?.sets ?? [];
@@ -633,7 +636,8 @@ function App() {
           exerciseId: exLog.exerciseId,
           name: exLog.exercise?.name || 'Exercice Test',
           category: exLog.exercise?.category,
-          progressiveTarget: 'Série Test : Notez votre charge maximale propre (RPE 8-9)',
+          progressiveTarget: 'Série test : note ta charge maximale propre (RPE 8-9)',
+          source: 'protocol' as const,
           sets: (exLog.sets || []).map(() => ({ ...emptySet(), target })),
         };
       });

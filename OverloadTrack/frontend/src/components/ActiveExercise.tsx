@@ -1,7 +1,7 @@
 import React from 'react';
 import { Icon } from './Icons';
 import { BAR_PLATES, DEFAULT_STEP, breakdownPlates, detectEquipment, formatKg } from '../lib/loadMath';
-import { resolveSetTarget, type SetTarget } from '../lib/overload';
+import { explainTarget, resolveSetTarget, type PlanSource, type SetTarget } from '../lib/overload';
 
 export interface ActiveSet {
   reps: number;
@@ -16,6 +16,8 @@ export interface ActiveExercise {
   name: string;
   category?: string;
   progressiveTarget?: string;
+  /** Who planned the targets of the sets; none when they come from the last performance. */
+  source?: PlanSource;
   sets: ActiveSet[];
 }
 
@@ -78,6 +80,40 @@ export function Stepper({ value, step, label, decimal = false, ghost, className,
  */
 export const beatsRecord = (set: ActiveSet, stats?: ExerciseStats) =>
   !!stats && stats.maxWeight > 0 && set.completed && set.weight > stats.maxWeight;
+
+interface TargetNoteProps {
+  exercise: ActiveExercise;
+  setIndex: number;
+  stats?: ExerciseStats;
+  goal?: string;
+  /** The coach's advice for the exercise (rep range, rest, cue), under the note. */
+  advice?: string;
+  compact?: boolean;
+}
+
+/** Margin note: who set the target of the set, the gap with last time and why. */
+export function TargetNote({ exercise, setIndex, stats, goal, advice, compact = false }: TargetNoteProps) {
+  const note = setIndex >= 0 ? explainTarget(exercise, setIndex, stats, goal) : null;
+  if (!note && !advice) return null;
+  return (
+    <div className={`target-note${compact ? ' is-compact' : ''}`}>
+      {note && (
+        <p className="target-note-main">
+          <span className={`source-dot is-${note.source}`} aria-hidden="true" />
+          <strong>{note.who}</strong>
+          {note.gap && (
+            <>
+              {' · '}
+              <span className={`target-note-gap is-${note.gap.tone}`}>{note.gap.label}</span>
+            </>
+          )}
+          {` : ${note.why}`}
+        </p>
+      )}
+      {advice && <p className="target-note-advice">{advice}</p>}
+    </div>
+  );
+}
 
 // Same EZ / technique bar detection as the load calculator.
 const barWeightFor = (exerciseName: string) => (/\bez\b|technique/i.test(exerciseName) ? 10 : 20);
@@ -183,13 +219,13 @@ export function ActiveExerciseCard({
         </div>
       </header>
 
-      {exercise.progressiveTarget && (
-        <div className="engine-line">
-          <Icon name="target" size={15} />
-          <span className="engine-label">Objectif</span>
-          <p>{exercise.progressiveTarget}</p>
-        </div>
-      )}
+      <TargetNote
+        exercise={exercise}
+        setIndex={activeSetIndex}
+        stats={stats}
+        goal={goal}
+        advice={exercise.progressiveTarget}
+      />
 
       <div className="set-table">
         <div className="set-row set-head" aria-hidden="true">

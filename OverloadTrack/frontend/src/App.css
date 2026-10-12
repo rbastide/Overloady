@@ -1948,35 +1948,66 @@ select optgroup {
   flex-shrink: 0;
 }
 
-/* Progressive overload target, one quiet line */
-.engine-line {
+/* Margin note: who set the target, the gap with last time and why, in one quiet block */
+.target-note {
   display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
+  flex-direction: column;
+  gap: 0.3rem;
   padding: 0.625rem 0.875rem;
   border-radius: var(--radius-md);
   background: rgba(28, 32, 37, 0.5);
 }
 
-.engine-line svg {
-  flex-shrink: 0;
-  align-self: center;
+.target-note.is-compact {
+  margin-top: -0.75rem;
+  padding: 0;
+  background: none;
+}
+
+.target-note-main {
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.target-note-main strong {
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+.target-note-gap {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.target-note-gap.is-up {
   color: var(--accent-bright);
 }
 
-.engine-label {
-  flex-shrink: 0;
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  font-weight: 500;
-  letter-spacing: 0;
+.target-note-gap.is-down {
+  color: var(--pr-text);
 }
 
-.engine-line p {
-  min-width: 0;
-  color: var(--text-secondary);
-  font-size: 0.8125rem;
-  line-height: 1.45;
+.target-note-advice {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+/* Where a plan comes from: sage for Atlas, neutral for the local engine and the protocol */
+.source-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 0.45rem;
+  border-radius: 50%;
+  background: var(--text-dim);
+  vertical-align: 0.1em;
+}
+
+.source-dot.is-atlas {
+  background: var(--accent);
 }
 
 /* "Moteur Overloady" banner, kept for the exercise detail window */
