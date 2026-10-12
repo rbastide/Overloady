@@ -28,6 +28,7 @@ import {
   type AthleteProfileValue,
 } from './components/AthleteProfileFields';
 import { formatKg } from './lib/loadMath';
+import { fillFromTarget, resolveSetTarget, toTarget } from './lib/overload';
 import { createNameMatcher } from './lib/exerciseSearch';
 import {
   clearSessionDraft,
@@ -80,7 +81,11 @@ const emptySet = (): ActiveSet => ({ weight: 0, reps: 0, completed: false });
 const describeSets = (exercise: ActiveExercise) => {
   const first = exercise.sets[0];
   if (!first) return 'Aucune série prévue';
-  return `${exercise.sets.length} × ${first.reps}${first.weight > 0 ? ` · ${formatKg(first.weight)} kg` : ''}`;
+  // Sets start empty: the planned target stands in until the athlete logs the first one
+  const reps = first.reps || first.target?.reps || 0;
+  const weight = first.weight || first.target?.weight || 0;
+  if (!reps) return `${exercise.sets.length} série${exercise.sets.length > 1 ? 's' : ''}`;
+  return `${exercise.sets.length} × ${reps}${weight > 0 ? ` · ${formatKg(weight)} kg` : ''}`;
 };
 
 // Training cycle named on the dashboard greeting ("Cycle Hypertrophie").
@@ -270,6 +275,7 @@ function App() {
         previousSets: Array.isArray(data?.previousSets)
           ? data.previousSets.map((s: any) => ({ weight: Number(s.weight) || 0, reps: Number(s.reps) || 0 }))
           : [],
+        lastRpe: Number(data?.lastRpe) || null,
       },
     }));
   };
@@ -538,7 +544,11 @@ function App() {
           progressiveTarget:
             matchingRecEx?.targetAdvice ||
             (rec.goalDetails ? `${rec.goalDetails.label || ''} : ${rec.goalDetails.repTarget || ''}` : undefined),
-          sets: (exLog.sets || []).map(emptySet),
+          // The recommended loads become the ghost values of the empty sets
+          sets: (exLog.sets || []).map((_: unknown, i: number) => {
+            const planned = matchingRecEx?.sets ?? [];
+            return { ...emptySet(), target: toTarget(planned[Math.min(i, planned.length - 1)]) };
+          }),
         };
       });
 
@@ -583,13 +593,18 @@ function App() {
       setSessionRpe(7);
       setWorkoutStartTime(new Date());
 
-      const loadedWorkout: ActiveExercise[] = (session.exercises || []).map((exLog: any) => ({
-        exerciseId: exLog.exerciseId,
-        name: exLog.exercise?.name || 'Exercice Test',
-        category: exLog.exercise?.category,
-        progressiveTarget: 'Série Test : Notez votre charge maximale propre (RPE 8-9)',
-        sets: (exLog.sets || []).map(emptySet),
-      }));
+      const loadedWorkout: ActiveExercise[] = (session.exercises || []).map((exLog: any, idx: number) => {
+        // Starting loads of the protocol, scaled to the athlete's profile
+        const planned = protocol?.exercises?.[idx];
+        const target = toTarget(planned && { weight: planned.defaultWeight, reps: planned.reps });
+        return {
+          exerciseId: exLog.exerciseId,
+          name: exLog.exercise?.name || 'Exercice Test',
+          category: exLog.exercise?.category,
+          progressiveTarget: 'Série Test : Notez votre charge maximale propre (RPE 8-9)',
+          sets: (exLog.sets || []).map(() => ({ ...emptySet(), target })),
+        };
+      });
 
       setWorkout(loadedWorkout);
       setIsTestWeekModalOpen(false);
@@ -641,14 +656,10 @@ function App() {
 
   // Add Exercise to Active Session
   const addExerciseToSession = async (exercise: any) => {
-    // Fetch progressive target recommendation for this exercise
-    let target = 'Objectif : 20kg × 10 reps';
+    // The last performance gives the ghost targets of the new sets
     try {
       const statsRes = await api.get(`/workout/stats/${exercise.id}`);
       rememberStats(exercise.id, statsRes.data);
-      if (statsRes.data?.recommendedOverload?.reason) {
-        target = statsRes.data.recommendedOverload.reason;
-      }
     } catch (e) {
       // ignore
     }
@@ -661,7 +672,6 @@ function App() {
         exerciseId: exercise.id,
         name: exercise.name,
         category: exercise.category,
-        progressiveTarget: target,
         sets: [emptySet(), emptySet(), emptySet()],
       },
     ]);
@@ -678,7 +688,9 @@ function App() {
     const updated = [...workout];
     const prevSet = updated[exerciseIndex].sets[updated[exerciseIndex].sets.length - 1];
     // A further set repeats the one just entered, the first one starts empty
-    updated[exerciseIndex].sets.push(prevSet ? { weight: prevSet.weight, reps: prevSet.reps, completed: false } : emptySet());
+    updated[exerciseIndex].sets.push(
+      prevSet ? { weight: prevSet.weight, reps: prevSet.reps, completed: false, target: prevSet.target } : emptySet(),
+    );
     setWorkout(updated);
   };
 
@@ -694,10 +706,17 @@ function App() {
     setWorkout(updated);
   };
 
+  const targetOf = (eIndex: number, sIndex: number) =>
+    resolveSetTarget(workout[eIndex], sIndex, exerciseStats[workout[eIndex].exerciseId], profile.goal);
+
   const toggleSetCompleted = (eIndex: number, sIndex: number) => {
     const updated = [...workout];
     const currentVal = updated[eIndex].sets[sIndex].completed;
-    // Nothing is pre-filled: a set is validated once its reps are entered (the load may be 0, bodyweight)
+    // Fields left empty record their ghost target: the athlete only types what deviated from it
+    if (!currentVal) {
+      updated[eIndex].sets[sIndex] = fillFromTarget(updated[eIndex].sets[sIndex], targetOf(eIndex, sIndex));
+    }
+    // A set is validated once its reps are known (the load may be 0, bodyweight)
     if (!currentVal && !(Number(updated[eIndex].sets[sIndex].reps) > 0)) {
       showToast('Indique le nombre de répétitions avant de valider la série', 'error');
       return;
@@ -716,8 +735,8 @@ function App() {
   };
 
   const completeAllSets = (eIndex: number) => {
-    // Only the sets filled in can be validated
-    const sets = workout[eIndex].sets;
+    // Only the sets filled in, or with a target to fall back on, can be validated
+    const sets = workout[eIndex].sets.map((s, i) => (s.completed ? s : fillFromTarget(s, targetOf(eIndex, i))));
     const unfilled = sets.filter((s) => !s.completed && !(Number(s.reps) > 0)).length;
     if (unfilled === sets.filter((s) => !s.completed).length) {
       showToast('Indique les répétitions de tes séries avant de les valider', 'error');
@@ -727,7 +746,7 @@ function App() {
       const copy = [...prev];
       copy[eIndex] = {
         ...copy[eIndex],
-        sets: copy[eIndex].sets.map((s) => (Number(s.reps) > 0 ? { ...s, completed: true } : s)),
+        sets: sets.map((s) => (Number(s.reps) > 0 ? { ...s, completed: true } : s)),
       };
       return copy;
     });
@@ -907,8 +926,12 @@ function App() {
   // Open Warmup Modal for an exercise in active workout
   const openWarmupForExercise = (eIndex: number) => {
     const ex = workout[eIndex];
-    // Sets start empty: the warm-up builds up to the load entered, else the one lifted last time
-    const targetWeight = ex.sets.find((s) => s.weight > 0)?.weight || exerciseStats[ex.exerciseId]?.lastSet?.weight || 80;
+    // Sets start empty: the warm-up builds up to the load entered, else the target, else the one lifted last time
+    const targetWeight =
+      ex.sets.find((s) => s.weight > 0)?.weight ||
+      targetOf(eIndex, 0)?.weight ||
+      exerciseStats[ex.exerciseId]?.lastSet?.weight ||
+      80;
     setWarmupModalData({
       isOpen: true,
       exerciseIndex: eIndex,
@@ -1012,10 +1035,13 @@ function App() {
 
   // Open the load calculator, optionally on an exercise of the session and its first set
   const openPlateCalculator = (exercise?: ActiveExercise) => {
-    const firstSet = exercise?.sets[0];
+    // An empty set opens on its target, else on the calculator's own default for the movement
+    const firstSet =
+      exercise && exercise.sets[0]
+        ? fillFromTarget(exercise.sets[0], resolveSetTarget(exercise, 0, exerciseStats[exercise.exerciseId], profile.goal))
+        : undefined;
     setPlateCalcContext({
       exerciseName: exercise?.name || null,
-      // An empty set falls back to the calculator's own default for the movement.
       weight: Number(firstSet?.weight) > 0 ? Number(firstSet?.weight) : undefined,
       reps: firstSet && Number(firstSet.reps) > 0 ? Number(firstSet.reps) : undefined,
     });
@@ -1786,6 +1812,7 @@ function App() {
                         position={activeExerciseIndex + 1}
                         total={workout.length}
                         stats={exerciseStats[activeExercise.exerciseId]}
+                        goal={profile.goal}
                         onSetChange={(sIndex, field, value) => updateSet(activeExerciseIndex, sIndex, field, value)}
                         onToggleSet={(sIndex) => toggleSetCompleted(activeExerciseIndex, sIndex)}
                         onAddSet={() => addSet(activeExerciseIndex)}

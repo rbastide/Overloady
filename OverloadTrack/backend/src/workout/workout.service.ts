@@ -292,7 +292,7 @@ export class WorkoutService implements OnApplicationBootstrap {
         session: { startedAt: 'asc' },
       },
       include: {
-        session: { select: { startedAt: true } },
+        session: { select: { startedAt: true, rpe: true } },
         // cuid ids grow with insertion: keeps the sets in the order they were logged
         sets: { orderBy: { id: 'asc' } },
       },
@@ -303,6 +303,8 @@ export class WorkoutService implements OnApplicationBootstrap {
     let lastSet: { weight: number; reps: number; completed: boolean } | null = null;
     // Sets done on this exercise during the latest session, shown as "Précédent" in the logger
     let previousSets: Array<{ weight: number; reps: number }> = [];
+    // Session RPE of that latest session: the next target holds the load after an all-out session
+    let lastRpe: number | null = null;
     const historyPoints: Array<{ date: string; maxWeight: number; totalVolume: number; estimated1RM: number }> = [];
 
     for (const log of logs) {
@@ -325,6 +327,7 @@ export class WorkoutService implements OnApplicationBootstrap {
       const doneSets = log.sets.filter((set) => set.completed && set.weight > 0 && set.reps > 0);
       if (doneSets.length > 0) {
         previousSets = doneSets.map((set) => ({ weight: set.weight, reps: set.reps }));
+        lastRpe = log.session.rpe || null;
       }
 
       if (sessionMaxWeight > 0) {
@@ -366,6 +369,7 @@ export class WorkoutService implements OnApplicationBootstrap {
       maxEstimated1RM,
       lastSet,
       previousSets,
+      lastRpe,
       recommendedOverload,
       historyPoints,
     };

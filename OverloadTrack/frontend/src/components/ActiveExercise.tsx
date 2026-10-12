@@ -1,11 +1,14 @@
 import React from 'react';
 import { Icon } from './Icons';
 import { BAR_PLATES, DEFAULT_STEP, breakdownPlates, detectEquipment, formatKg } from '../lib/loadMath';
+import { resolveSetTarget, type SetTarget } from '../lib/overload';
 
 export interface ActiveSet {
   reps: number;
   weight: number;
   completed: boolean;
+  /** Planned by the coach or the protocol: shown as a ghost value until the athlete types. */
+  target?: SetTarget;
 }
 
 export interface ActiveExercise {
@@ -23,6 +26,8 @@ export interface ExerciseStats {
   lastSet: { weight: number; reps: number } | null;
   /** Sets done on this exercise during the latest session, in logging order. */
   previousSets: { weight: number; reps: number }[];
+  /** Session RPE of that latest session. */
+  lastRpe?: number | null;
 }
 
 interface StepperProps {
@@ -30,13 +35,16 @@ interface StepperProps {
   step: number;
   label: string;
   decimal?: boolean;
+  /** Target shown in the empty field, and the starting point of the -/+ buttons. */
+  ghost?: number;
   onChange: (value: string) => void;
 }
 
 // Broad -/+ targets for chalked hands: the set being performed is adjusted without the keyboard.
-function Stepper({ value, step, label, decimal = false, onChange }: StepperProps) {
+function Stepper({ value, step, label, decimal = false, ghost, onChange }: StepperProps) {
   const nudge = (direction: 1 | -1) => {
-    const next = Math.max(0, Math.round((Number(value || 0) + direction * step) * 100) / 100);
+    const base = Number(value) || ghost || 0;
+    const next = Math.max(0, Math.round((base + direction * step) * 100) / 100);
     onChange(String(next));
   };
 
@@ -50,8 +58,9 @@ function Stepper({ value, step, label, decimal = false, onChange }: StepperProps
         inputMode={decimal ? 'decimal' : 'numeric'}
         step={decimal ? '0.5' : '1'}
         value={value || ''}
-        placeholder="0"
-        aria-label={label}
+        placeholder={ghost !== undefined ? formatKg(ghost) : '0'}
+        className={ghost !== undefined ? 'has-ghost' : undefined}
+        aria-label={ghost !== undefined ? `${label}, objectif ${formatKg(ghost)}` : label}
         onChange={(e) => onChange(e.target.value)}
       />
       <button type="button" onClick={() => nudge(1)} aria-label={`${label} : +${formatKg(step)}`}>
@@ -82,6 +91,8 @@ interface ActiveExerciseCardProps {
   position: number;
   total: number;
   stats?: ExerciseStats;
+  /** Training goal: sets the rep range of the progression. */
+  goal?: string;
   onSetChange: (setIndex: number, field: 'weight' | 'reps', value: string) => void;
   onToggleSet: (setIndex: number) => void;
   onAddSet: () => void;
@@ -97,6 +108,7 @@ export function ActiveExerciseCard({
   position,
   total,
   stats,
+  goal,
   onSetChange,
   onToggleSet,
   onAddSet,
@@ -110,9 +122,11 @@ export function ActiveExerciseCard({
   // The first set not validated yet is the one being performed: it gets the steppers.
   const activeSetIndex = exercise.sets.findIndex((s) => !s.completed);
   const allDone = exercise.sets.length > 0 && activeSetIndex === -1;
-  const plateSet = exercise.sets[activeSetIndex] ?? exercise.sets[exercise.sets.length - 1];
-  const plateHint =
-    equipment === 'barbell' && plateSet ? describePlates(Number(plateSet.weight), barWeightFor(exercise.name)) : null;
+  const targets = exercise.sets.map((_, i) => resolveSetTarget(exercise, i, stats, goal));
+  const plateIndex = activeSetIndex !== -1 ? activeSetIndex : exercise.sets.length - 1;
+  const plateSet = exercise.sets[plateIndex];
+  const plateWeight = plateSet ? Number(plateSet.weight) || targets[plateIndex]?.weight || 0 : 0;
+  const plateHint = equipment === 'barbell' && plateWeight > 0 ? describePlates(plateWeight, barWeightFor(exercise.name)) : null;
   const previousSets = stats?.previousSets ?? [];
 
   return (
@@ -187,6 +201,8 @@ export function ActiveExerciseCard({
           const isActive = sIndex === activeSetIndex;
           const n = sIndex + 1;
           const previous = previousSets[sIndex];
+          // Ghost values only on sets still to do: a validated set shows what was lifted
+          const target = set.completed ? null : targets[sIndex];
           return (
             <div key={sIndex} className={`set-row${set.completed ? ' is-done' : ''}${isActive ? ' is-active' : ''}`}>
               <div className="set-label">
@@ -208,17 +224,18 @@ export function ActiveExerciseCard({
                     value={set.weight}
                     step={DEFAULT_STEP[equipment]}
                     decimal
+                    ghost={target?.weight}
                     label={`Charge série ${n}`}
                     onChange={(v) => onSetChange(sIndex, 'weight', v)}
                   />
                 ) : (
                   <input
-                    className="set-input"
+                    className={`set-input${target ? ' has-ghost' : ''}`}
                     type="number"
                     inputMode="decimal"
                     step="0.5"
                     value={set.weight || ''}
-                    placeholder="0"
+                    placeholder={target ? formatKg(target.weight) : '0'}
                     aria-label={`Charge série ${n}`}
                     onChange={(e) => onSetChange(sIndex, 'weight', e.target.value)}
                   />
@@ -229,16 +246,17 @@ export function ActiveExerciseCard({
                   <Stepper
                     value={set.reps}
                     step={1}
+                    ghost={target?.reps}
                     label={`Répétitions série ${n}`}
                     onChange={(v) => onSetChange(sIndex, 'reps', v)}
                   />
                 ) : (
                   <input
-                    className="set-input"
+                    className={`set-input${target ? ' has-ghost' : ''}`}
                     type="number"
                     inputMode="numeric"
                     value={set.reps || ''}
-                    placeholder="0"
+                    placeholder={target ? String(target.reps) : '0'}
                     aria-label={`Répétitions série ${n}`}
                     onChange={(e) => onSetChange(sIndex, 'reps', e.target.value)}
                   />
@@ -259,7 +277,11 @@ export function ActiveExerciseCard({
                     type="button"
                     className="set-validate"
                     onClick={() => onToggleSet(sIndex)}
-                    aria-label={`Valider la série ${n}`}
+                    aria-label={
+                      target && !(set.weight > 0 && set.reps > 0)
+                        ? `Valider la série ${n} : ${formatKg(set.weight || target.weight)} kg × ${set.reps || target.reps}`
+                        : `Valider la série ${n}`
+                    }
                   >
                     <span>Valider</span>
                     <Icon name="check" size={16} strokeWidth={2.6} />
