@@ -30,15 +30,22 @@ interface PlateCalculatorModalProps {
 }
 
 const BELT_PLATES = [20, 15, 10, 5, 2.5, 1.25];
-const PLATE_COLORS: Record<number, string> = {
-  25: '#e63946',
-  20: '#1d4ed8',
-  15: '#e9c46a',
-  10: '#2a9d8f',
-  5: '#f8fafc',
-  2.5: '#495057',
-  1.25: '#adb5bd',
+
+/**
+ * Competition plates as they look on the platform: IWF colours (red 25, blue 20, yellow 15,
+ * green 10, white 5), tuned to sit on the slate, and real diameters and thicknesses (mm).
+ * The one place of the app where colour describes an object rather than a meaning.
+ */
+const PLATES: Record<number, { color: string; ink: string; diameter: number; thickness: number }> = {
+  25: { color: '#c4473a', ink: '#fbe9e6', diameter: 450, thickness: 27 },
+  20: { color: '#3567b0', ink: '#e6eefa', diameter: 450, thickness: 23 },
+  15: { color: '#d9b13b', ink: '#1c1a12', diameter: 400, thickness: 20 },
+  10: { color: '#3e8e57', ink: '#e5f3e9', diameter: 325, thickness: 17 },
+  5: { color: '#e0e2ea', ink: '#0f1216', diameter: 228, thickness: 14 },
+  2.5: { color: '#c4473a', ink: '#fbe9e6', diameter: 190, thickness: 11 },
+  1.25: { color: '#9aa1a9', ink: '#0f1216', diameter: 160, thickness: 9 },
 };
+const plateSpec = (plate: number) => PLATES[plate] ?? { color: '#6b737c', ink: '#e0e2ea', diameter: 200, thickness: 12 };
 const BARS = [
   { weight: 20, label: '20 kg (olympique)' },
   { weight: 15, label: '15 kg' },
@@ -369,32 +376,80 @@ interface LoadViewProps {
   step: number;
 }
 
-const PlateStack: React.FC<{ plates: number[] }> = ({ plates }) => (
-  <div className="barbell-container">
-    <div className="barbell-collar">
-      {plates.map((plate, idx) => (
-        <div
-          key={idx}
-          className="barbell-plate"
-          style={{
-            backgroundColor: PLATE_COLORS[plate] || '#ccc',
-            height: `${Math.min(100, Math.max(35, plate * 3.5))}px`,
-            color: plate === 5 ? '#000' : '#fff',
-          }}
-          title={`${formatKg(plate)} kg`}
-        >
-          <span>{formatKg(plate)}</span>
-        </div>
-      ))}
-      {plates.length === 0 && <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Aucun disque</div>}
+// One side of the bar, drawn to scale: shaft, collar, then the plates from the collar outwards
+const BAR_VIEW = { width: 360, height: 160, center: 80, sleeveStart: 92, sleeveEnd: 352 };
+const PX_PER_MM = 140 / 450;
+
+const describeSide = (plates: number[]) =>
+  Array.from(new Set(plates))
+    .map((p) => `${plates.filter((x) => x === p).length} × ${formatKg(p)} kg`)
+    .join(', ');
+
+const PlateStack: React.FC<{ plates: number[] }> = ({ plates }) => {
+  const { width, height, center, sleeveStart, sleeveEnd } = BAR_VIEW;
+  const gap = 2;
+  const room = sleeveEnd - sleeveStart - 6;
+  const natural = plates.reduce((w, p) => w + plateSpec(p).thickness * PX_PER_MM * 2.6 + gap, 0);
+  // Many small plates: thinner, so the stack always fits on the sleeve
+  const squeeze = natural > room ? room / natural : 1;
+  let x = sleeveStart + 4;
+
+  return (
+    <div className="barbell-container">
+      <svg
+        className="barbell"
+        viewBox={`0 0 ${width} ${height}`}
+        role="img"
+        aria-label={plates.length > 0 ? `Par côté : ${describeSide(plates)}` : 'Barre seule, aucun disque'}
+      >
+        <rect className="barbell-shaft" x="0" y={center - 5} width={sleeveStart - 16} height="10" rx="2" />
+        <rect className="barbell-collar" x={sleeveStart - 18} y={center - 17} width="14" height="34" rx="3" />
+        <rect className="barbell-sleeve" x={sleeveStart - 4} y={center - 9} width={sleeveEnd - sleeveStart + 4} height="18" rx="3" />
+        {plates.map((plate, idx) => {
+          const spec = plateSpec(plate);
+          const w = (spec.thickness * PX_PER_MM * 2.6) * squeeze;
+          const h = spec.diameter * PX_PER_MM;
+          const plateX = x;
+          x += w + gap * squeeze;
+          return (
+            <g key={idx}>
+              <title>{`${formatKg(plate)} kg`}</title>
+              <rect x={plateX} y={center - h / 2} width={w} height={h} rx={Math.min(4, w / 3)} fill={spec.color} />
+              <rect
+                className="barbell-plate-hub"
+                x={plateX}
+                y={center - 12}
+                width={w}
+                height="24"
+                fill={spec.ink}
+              />
+              {w >= 16 && h >= 90 && (
+                <text
+                  className="barbell-plate-label"
+                  x={plateX + w / 2}
+                  y={center - h / 2 + 26}
+                  fill={spec.ink}
+                  textAnchor="middle"
+                  transform={`rotate(-90 ${plateX + w / 2} ${center - h / 2 + 26})`}
+                  dominantBaseline="central"
+                >
+                  {formatKg(plate)}
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+      {plates.length === 0 && <p className="barbell-empty">Barre seule</p>}
     </div>
-  </div>
-);
+  );
+};
 
 const PlateSummary: React.FC<{ plates: number[] }> = ({ plates }) => (
   <div className="calc-plate-badges">
     {Array.from(new Set(plates)).map((p) => (
-      <span key={p} className="badge-plate" style={{ borderLeft: `4px solid ${PLATE_COLORS[p]}` }}>
+      <span key={p} className="badge-plate">
+        <span className="plate-dot" style={{ background: plateSpec(p).color }} aria-hidden="true" />
         {plates.filter((x) => x === p).length} × {formatKg(p)} kg
       </span>
     ))}

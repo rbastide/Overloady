@@ -4305,41 +4305,63 @@ select optgroup {
 }
 
 /* Olympic barbell visualizer */
+/* Olympic bar, one side drawn to scale: the only object of the app shown in its real colours */
 .barbell-container {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 140px;
-  padding: 2rem 1.5rem;
+  padding: 1.25rem 1rem;
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
   background: var(--bg-inset);
 }
 
+.barbell {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+  height: auto;
+}
+
+.barbell-shaft {
+  fill: #4b535c;
+}
+
 .barbell-collar {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  height: 80px;
-  padding-left: 10px;
-  border-left: 14px solid #5b636c;
+  fill: #6b737c;
 }
 
-.barbell-plate {
-  width: 26px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-xs);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 3px 0 8px rgba(0, 0, 0, 0.6);
-  font-size: 0.725rem;
-  font-weight: 800;
+.barbell-sleeve {
+  fill: #5b636c;
 }
 
-.barbell-plate span {
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
+/* The steel hub at the centre of each plate */
+.barbell-plate-hub {
+  opacity: 0.22;
+}
+
+.barbell-plate-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.barbell-empty {
+  position: absolute;
+  right: 1.25rem;
+  bottom: 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.plate-dot {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
 /* ==========================================================================

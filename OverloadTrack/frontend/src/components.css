@@ -603,11 +603,13 @@
 .badge-plate {
   display: inline-flex;
   align-items: center;
+  gap: 0.45rem;
   padding: 0.3rem 0.7rem;
   border-radius: var(--radius-sm);
   background: var(--bg-raised);
+  font-family: var(--font-mono);
   font-size: 0.8rem;
-  font-weight: 700;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
