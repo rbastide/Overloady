@@ -501,6 +501,13 @@ export class WorkoutService implements OnApplicationBootstrap {
     }> = {};
 
     const weeksMap: Record<string, { volume: number; count: number }> = {};
+    // Heaviest set of each session per exercise: the steps of the progression chart
+    const liftMap: Record<string, {
+      exerciseId: string;
+      exerciseName: string;
+      category: string;
+      points: Array<{ date: string; weight: number; reps: number }>;
+    }> = {};
 
     for (const session of sessions) {
       const sessionDate = new Date(session.startedAt);
@@ -535,8 +542,12 @@ export class WorkoutService implements OnApplicationBootstrap {
           };
         }
 
+        let topSet: { weight: number; reps: number } | null = null;
         for (const set of exLog.sets) {
           if (set.completed && set.weight > 0 && set.reps > 0) {
+            if (!topSet || set.weight > topSet.weight || (set.weight === topSet.weight && set.reps > topSet.reps)) {
+              topSet = { weight: set.weight, reps: set.reps };
+            }
             const vol = set.weight * set.reps;
             totalVolume += vol;
             muscleMap[cat].volume += vol;
@@ -554,8 +565,26 @@ export class WorkoutService implements OnApplicationBootstrap {
             }
           }
         }
+
+        if (topSet) {
+          if (!liftMap[exId]) {
+            liftMap[exId] = { exerciseId: exId, exerciseName: exerciseData.name, category: cat, points: [] };
+          }
+          liftMap[exId].points.push({
+            date: session.startedAt.toISOString().split('T')[0],
+            weight: topSet.weight,
+            reps: topSet.reps,
+          });
+        }
       }
     }
+
+    // Key lifts: the movements trained most often (two sessions at least), the last 12 sessions each
+    const keyLifts = Object.values(liftMap)
+      .filter((lift) => lift.points.length >= 2)
+      .sort((a, b) => b.points.length - a.points.length || b.points[b.points.length - 1].weight - a.points[a.points.length - 1].weight)
+      .slice(0, 4)
+      .map((lift) => ({ ...lift, points: lift.points.slice(-12) }));
 
     const muscleDistribution = Object.keys(muscleMap).map((cat) => ({
       category: cat,
@@ -619,6 +648,7 @@ export class WorkoutService implements OnApplicationBootstrap {
       muscleDistribution,
       personalRecords,
       weeklyTrends,
+      keyLifts,
       achievements,
     };
   }

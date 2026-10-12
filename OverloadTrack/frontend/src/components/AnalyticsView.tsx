@@ -1,6 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api';
 import { Icon } from './Icons';
+import { StepChart, StepMark, type StepPoint } from './StepChart';
+import { formatKg } from '../lib/loadMath';
+
+interface KeyLift {
+  exerciseId: string;
+  exerciseName: string;
+  category: string;
+  points: StepPoint[];
+}
+
+// "12 sept."
+const formatShortDate = (iso: string) =>
+  new Date(`${iso}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+
+const describeGain = (gain: number) =>
+  gain > 0 ? `+${formatKg(gain)} kg` : gain < 0 ? `−${formatKg(-gain)} kg` : 'Même charge';
 
 const formatVolume = (volume: number) =>
   volume >= 1000 ? `${(volume / 1000).toFixed(1).replace('.', ',')} t` : `${volume} kg`;
@@ -45,6 +61,7 @@ export const AnalyticsView: React.FC = () => {
   }
 
   const { totalVolume, totalSessions, muscleDistribution, personalRecords, weeklyTrends, achievements } = data;
+  const keyLifts: KeyLift[] = Array.isArray(data.keyLifts) ? data.keyLifts : [];
 
   // Find max volume in weekly trends for scaling SVG bars
   const maxWeeklyVol = weeklyTrends.length > 0
@@ -123,6 +140,48 @@ export const AnalyticsView: React.FC = () => {
       </div>
 
       {/* TAB 1: OVERVIEW & MUSCLE BALANCE */}
+      {activeSubTab === 'overview' && (
+        <section className="lift-steps" aria-labelledby="lift-steps-title">
+          <div className="lift-steps-head">
+            <h2 id="lift-steps-title">Charge par mouvement</h2>
+            <span>Meilleure série de chaque séance</span>
+          </div>
+          {keyLifts.length > 0 ? (
+            <div className="lift-steps-grid">
+              {keyLifts.map((lift) => {
+                const first = lift.points[0];
+                const last = lift.points[lift.points.length - 1];
+                const gain = Math.round((last.weight - first.weight) * 100) / 100;
+                return (
+                  <article key={lift.exerciseId} className="glass-panel lift-step-card">
+                    <div className="lift-step-head">
+                      <h3>{lift.exerciseName}</h3>
+                      <span className={`lift-step-gain${gain > 0 ? ' is-up' : gain < 0 ? ' is-down' : ''}`}>
+                        {describeGain(gain)}
+                      </span>
+                    </div>
+                    <StepChart
+                      points={lift.points}
+                      label={`${lift.exerciseName} : de ${formatKg(first.weight)} à ${formatKg(last.weight)} kg en ${lift.points.length} séances`}
+                    />
+                    <div className="lift-step-foot">
+                      <span>{formatShortDate(first.date)}</span>
+                      <span>{lift.points.length} séances</span>
+                      <span>{formatShortDate(last.date)}</span>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="glass-panel lift-steps-empty">
+              <StepMark />
+              <p>Deux séances sur un même mouvement et ton escalier apparaît : une marche à chaque charge gagnée.</p>
+            </div>
+          )}
+        </section>
+      )}
+
       {activeSubTab === 'overview' && (
         <div className="analytics-grid">
           {/* Muscle Distribution */}
