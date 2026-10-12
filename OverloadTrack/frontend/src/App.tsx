@@ -4,7 +4,7 @@ import './App.css';
 import './shell.css';
 import './components.css';
 import './motion.css';
-import { RestTimer } from './components/RestTimer';
+import { REST_TIDE_ID, RestTimer } from './components/RestTimer';
 import { PlateCalculatorModal } from './components/PlateCalculatorModal';
 import { ExerciseDetailModal } from './components/ExerciseDetailModal';
 import { AddExerciseModal } from './components/AddExerciseModal';
@@ -1333,6 +1333,7 @@ function App() {
 
   return (
     <div className="app-container">
+      <div id={REST_TIDE_ID} className="rest-tide" aria-hidden="true" />
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
       <Navigation

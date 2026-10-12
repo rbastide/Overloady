@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from './Icons';
 import {
   cancelRestNotification,
@@ -39,6 +40,9 @@ const playBeep = () => {
     console.warn('Audio not available', err);
   }
 };
+
+/** Layer behind the app (see .rest-tide in App.css) that fills up with the rest, like an hourglass. */
+export const REST_TIDE_ID = 'rest-tide';
 
 const formatTime = (seconds: number) => {
   const mins = Math.floor(seconds / 60);
@@ -140,9 +144,21 @@ export const RestTimer: React.FC<RestTimerProps> = ({ initialSeconds, autoStart 
   const isEnded = timeLeft === 0;
   const progressPercent = initialDuration > 0 ? Math.min(100, ((initialDuration - timeLeft) / initialDuration) * 100) : 0;
   const toggleLabel = isRunning ? 'Pause' : isEnded ? 'Relancer' : timeLeft === initialDuration ? 'Démarrer' : 'Reprendre';
+  // Readable from the bench without the numbers: the screen fills in glacier as the rest runs
+  const tideRoot = typeof document !== 'undefined' ? document.getElementById(REST_TIDE_ID) : null;
+  const showTide = isRunning || timeLeft !== initialDuration;
 
   return (
     <section className={`rest-timer${isEnded ? ' is-ended' : ''}`} aria-label="Chronomètre de repos">
+      {tideRoot &&
+        showTide &&
+        createPortal(
+          <div
+            className={`rest-tide-fill${isEnded ? ' is-full' : ''}${isRunning ? '' : ' is-paused'}`}
+            style={{ height: `${progressPercent}%` }}
+          />,
+          tideRoot,
+        )}
       <div className="rest-readout">
         <span className="rest-label">{isEnded ? 'Repos terminé' : isRunning || timeLeft !== initialDuration ? 'Repos' : 'Repos prêt'}</span>
         <span className="rest-time" role="timer" aria-live="off">
