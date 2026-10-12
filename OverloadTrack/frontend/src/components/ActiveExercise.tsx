@@ -37,11 +37,13 @@ interface StepperProps {
   decimal?: boolean;
   /** Target shown in the empty field, and the starting point of the -/+ buttons. */
   ghost?: number;
+  /** Size variant, e.g. the large steppers of the gym view. */
+  className?: string;
   onChange: (value: string) => void;
 }
 
 // Broad -/+ targets for chalked hands: the set being performed is adjusted without the keyboard.
-function Stepper({ value, step, label, decimal = false, ghost, onChange }: StepperProps) {
+export function Stepper({ value, step, label, decimal = false, ghost, className, onChange }: StepperProps) {
   const nudge = (direction: 1 | -1) => {
     const base = Number(value) || ghost || 0;
     const next = Math.max(0, Math.round((base + direction * step) * 100) / 100);
@@ -49,7 +51,7 @@ function Stepper({ value, step, label, decimal = false, ghost, onChange }: Stepp
   };
 
   return (
-    <div className="stepper">
+    <div className={`stepper${className ? ` ${className}` : ''}`}>
       <button type="button" onClick={() => nudge(-1)} aria-label={`${label} : -${formatKg(step)}`}>
         <Icon name="minus" size={14} strokeWidth={2.4} />
       </button>
@@ -69,6 +71,13 @@ function Stepper({ value, step, label, decimal = false, ghost, onChange }: Stepp
     </div>
   );
 }
+
+/**
+ * Record live: a validated set heavier than the best ever lifted on this exercise.
+ * Not on a first session, where every set would be one.
+ */
+export const beatsRecord = (set: ActiveSet, stats?: ExerciseStats) =>
+  !!stats && stats.maxWeight > 0 && set.completed && set.weight > stats.maxWeight;
 
 // Same EZ / technique bar detection as the load calculator.
 const barWeightFor = (exerciseName: string) => (/\bez\b|technique/i.test(exerciseName) ? 10 : 20);
@@ -128,9 +137,6 @@ export function ActiveExerciseCard({
   const plateWeight = plateSet ? Number(plateSet.weight) || targets[plateIndex]?.weight || 0 : 0;
   const plateHint = equipment === 'barbell' && plateWeight > 0 ? describePlates(plateWeight, barWeightFor(exercise.name)) : null;
   const previousSets = stats?.previousSets ?? [];
-  // Record live: a validated set heavier than the best ever lifted on this exercise.
-  // Not on a first session, where every set would be one.
-  const isRecord = (set: ActiveSet) => !!stats && stats.maxWeight > 0 && set.completed && set.weight > stats.maxWeight;
 
   return (
     <section className="exercise-focus" aria-label={`Exercice en cours : ${exercise.name}`}>
@@ -206,7 +212,7 @@ export function ActiveExerciseCard({
           const previous = previousSets[sIndex];
           // Ghost values only on sets still to do: a validated set shows what was lifted
           const target = set.completed ? null : targets[sIndex];
-          const record = isRecord(set);
+          const record = beatsRecord(set, stats);
           return (
             <div
               key={sIndex}

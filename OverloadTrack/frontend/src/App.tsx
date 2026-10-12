@@ -21,6 +21,7 @@ import { Icon, type IconName } from './components/Icons';
 import { CoachChat, type CoachWorkout } from './components/CoachChat';
 import { ActiveExerciseCard, type ActiveExercise, type ActiveSet, type ExerciseStats } from './components/ActiveExercise';
 import { MuscleFocusCard, RecordCard } from './components/SessionInsights';
+import { GymFocus } from './components/GymFocus';
 import {
   AthleteProfileFields,
   toAthleteProfilePayload,
@@ -111,6 +112,17 @@ const formatDraftStart = (iso: string) => {
 // Key lifts of the "Aujourd'hui" card: their target and the gap with last time
 const TODAY_KEY_LIFTS = 3;
 
+// Session layout picked by the athlete, kept on the device: the set table, or one exercise per screen
+type SessionView = 'list' | 'gym';
+const SESSION_VIEW_KEY = 'overloady.sessionView';
+const readSessionView = (): SessionView => {
+  try {
+    return localStorage.getItem(SESSION_VIEW_KEY) === 'gym' ? 'gym' : 'list';
+  } catch {
+    return 'list';
+  }
+};
+
 const LIBRARY_PAGE_SIZE = 60;
 // Programs shown as quick-launch buttons on the dashboard welcome card
 // (phones only display the first HERO_PROGRAMS_MOBILE, see .program-row in shell.css).
@@ -180,6 +192,16 @@ function App() {
   const [isRecalibrateOpen, setIsRecalibrateOpen] = useState<boolean>(false);
   // Session left open when the app was closed, offered back on the next launch
   const [resumeDraft, setResumeDraft] = useState<SessionDraft | null>(null);
+  const [sessionView, setSessionView] = useState<SessionView>(readSessionView);
+
+  const changeSessionView = (view: SessionView) => {
+    setSessionView(view);
+    try {
+      localStorage.setItem(SESSION_VIEW_KEY, view);
+    } catch {
+      // Storage unavailable: the choice lasts until the app is closed.
+    }
+  };
 
   // Rest Timer State
   const [showRestTimer, setShowRestTimer] = useState<boolean>(false);
@@ -1856,9 +1878,37 @@ function App() {
                   />
                 )}
 
-                <div className="session-layout">
+                {workout.length > 0 && (
+                  <div className="session-toolbar">
+                    <div className="view-switch" role="group" aria-label="Affichage de la séance">
+                      <button type="button" aria-pressed={sessionView === 'list'} onClick={() => changeSessionView('list')}>
+                        <Icon name="list" size={15} />
+                        Liste
+                      </button>
+                      <button type="button" aria-pressed={sessionView === 'gym'} onClick={() => changeSessionView('gym')}>
+                        <Icon name="focus" size={15} />
+                        Salle
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className={`session-layout${sessionView === 'gym' ? ' is-gym' : ''}`}>
                   <div className="session-main">
-                    {activeExercise ? (
+                    {activeExercise && sessionView === 'gym' ? (
+                      <GymFocus
+                        workout={workout}
+                        index={activeExerciseIndex}
+                        stats={exerciseStats[activeExercise.exerciseId]}
+                        goal={profile.goal}
+                        onNavigate={setFocusedExercise}
+                        onSetChange={(sIndex, field, value) => updateSet(activeExerciseIndex, sIndex, field, value)}
+                        onToggleSet={(sIndex) => toggleSetCompleted(activeExerciseIndex, sIndex)}
+                        onAddSet={() => addSet(activeExerciseIndex)}
+                        onWarmup={() => openWarmupForExercise(activeExerciseIndex)}
+                        onCalculator={() => openPlateCalculator(activeExercise)}
+                      />
+                    ) : activeExercise ? (
                       <ActiveExerciseCard
                         exercise={activeExercise}
                         position={activeExerciseIndex + 1}
@@ -1881,8 +1931,8 @@ function App() {
                       </div>
                     )}
 
-                    {/* Rest of the session */}
-                    {workout.length > 1 && (
+                    {/* Rest of the session (the gym view has its own dots) */}
+                    {workout.length > 1 && sessionView === 'list' && (
                       <section className="session-queue">
                         <div className="session-section-head">
                           <span className="eyebrow">Suite du programme</span>
