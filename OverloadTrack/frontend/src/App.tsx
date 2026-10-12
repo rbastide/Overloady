@@ -28,6 +28,7 @@ import {
   type AthleteProfileValue,
 } from './components/AthleteProfileFields';
 import { formatKg } from './lib/loadMath';
+import { HAPTICS, useWakeLock, vibrate } from './lib/device';
 import { describeGap, fillFromTarget, resolveSetTarget, toTarget, topSet, type SetTarget } from './lib/overload';
 import { createNameMatcher } from './lib/exerciseSearch';
 import {
@@ -294,6 +295,9 @@ function App() {
       .slice(0, TODAY_KEY_LIFTS)
       .forEach((ex: any) => typeof ex.exerciseId === 'string' && loadStats(ex.exerciseId));
   }, [nextRecommendation]);
+
+  // A session keeps the screen on: the phone lies on the bench between two sets
+  useWakeLock(activeSessionId !== null);
 
   // Expired or rejected session: straight back to the login page.
   useEffect(() => {
@@ -728,6 +732,11 @@ function App() {
     }
     updated[eIndex].sets[sIndex].completed = !currentVal;
     setWorkout(updated);
+
+    if (!currentVal) {
+      const maxWeight = exerciseStats[updated[eIndex].exerciseId]?.maxWeight || 0;
+      vibrate(maxWeight > 0 && updated[eIndex].sets[sIndex].weight > maxWeight ? HAPTICS.record : HAPTICS.set);
+    }
 
     // Last set of the exercise done: move on to the next exercise with sets left.
     if (!currentVal && updated[eIndex].sets.every((s) => s.completed)) {

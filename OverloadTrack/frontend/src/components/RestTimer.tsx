@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from './Icons';
+import { HAPTICS, vibrate } from '../lib/device';
 import {
   cancelRestNotification,
   enableRestNotifications,
@@ -72,7 +73,10 @@ export const RestTimer: React.FC<RestTimerProps> = ({ initialSeconds, autoStart 
       setNow(current);
       if (current >= endsAt) {
         // No beep for a rest that ended while the app was in the background: the notification did it
-        if (current - endsAt < 2000) playBeep();
+        if (current - endsAt < 2000) {
+          playBeep();
+          vibrate(HAPTICS.restEnd);
+        }
         endedOnItsOwn.current = true;
         setEndsAt(null);
         setPausedLeft(0);
