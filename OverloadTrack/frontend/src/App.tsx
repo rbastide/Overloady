@@ -19,7 +19,7 @@ import { TestWeekModal } from './components/TestWeekModal';
 import { Navigation, type AppTab } from './components/Navigation';
 import { Icon, type IconName } from './components/Icons';
 import { CoachChat, type CoachWorkout } from './components/CoachChat';
-import { ActiveExerciseCard, type ActiveExercise, type ExerciseStats } from './components/ActiveExercise';
+import { ActiveExerciseCard, type ActiveExercise, type ActiveSet, type ExerciseStats } from './components/ActiveExercise';
 import { MuscleFocusCard, RecordCard } from './components/SessionInsights';
 import {
   AthleteProfileFields,
@@ -74,6 +74,9 @@ const GOAL_OPTIONS: {
 const DEFAULT_REST_SECONDS = 90;
 
 // Planned sets summary for the session queue, e.g. "3 × 10 · 20 kg".
+/** A set with nothing entered yet: sessions start empty, the athlete logs what they actually lift. */
+const emptySet = (): ActiveSet => ({ weight: 0, reps: 0, completed: false });
+
 const describeSets = (exercise: ActiveExercise) => {
   const first = exercise.sets[0];
   if (!first) return 'Aucune série prévue';
@@ -458,11 +461,7 @@ function App() {
         exerciseId: exLog.exerciseId,
         name: exLog.exercise?.name || 'Exercice',
         category: exLog.exercise?.category,
-        sets: (exLog.sets || []).map((s: any) => ({
-          weight: s.weight,
-          reps: s.reps,
-          completed: false,
-        })),
+        sets: (exLog.sets || []).map(emptySet),
       }));
 
       setWorkout(prefilledExercises);
@@ -525,11 +524,7 @@ function App() {
           progressiveTarget:
             matchingRecEx?.targetAdvice ||
             (rec.goalDetails ? `${rec.goalDetails.label || ''} : ${rec.goalDetails.repTarget || ''}` : undefined),
-          sets: (exLog.sets || []).map((s: any) => ({
-            weight: s.weight,
-            reps: s.reps,
-            completed: false,
-          })),
+          sets: (exLog.sets || []).map(emptySet),
         };
       });
 
@@ -580,11 +575,7 @@ function App() {
         name: exLog.exercise?.name || 'Exercice Test',
         category: exLog.exercise?.category,
         progressiveTarget: 'Série Test : Notez votre charge maximale propre (RPE 8-9)',
-        sets: (exLog.sets || []).map((s: any) => ({
-          reps: s.reps || 10,
-          weight: s.weight || 20,
-          completed: false,
-        })),
+        sets: (exLog.sets || []).map(emptySet),
       }));
 
       setWorkout(loadedWorkout);
@@ -659,11 +650,7 @@ function App() {
         name: exercise.name,
         category: exercise.category,
         progressiveTarget: target,
-        sets: [
-          { weight: 20, reps: 10, completed: false },
-          { weight: 20, reps: 10, completed: false },
-          { weight: 20, reps: 10, completed: false },
-        ],
+        sets: [emptySet(), emptySet(), emptySet()],
       },
     ]);
     showToast(`${exercise.name} ajouté à la séance`);
@@ -679,9 +666,8 @@ function App() {
   const addSet = (exerciseIndex: number) => {
     const updated = [...workout];
     const prevSet = updated[exerciseIndex].sets[updated[exerciseIndex].sets.length - 1];
-    const weight = prevSet ? prevSet.weight : 20;
-    const reps = prevSet ? prevSet.reps : 10;
-    updated[exerciseIndex].sets.push({ weight, reps, completed: false });
+    // A further set repeats the one just entered, the first one starts empty
+    updated[exerciseIndex].sets.push(prevSet ? { weight: prevSet.weight, reps: prevSet.reps, completed: false } : emptySet());
     setWorkout(updated);
   };
 
@@ -700,6 +686,11 @@ function App() {
   const toggleSetCompleted = (eIndex: number, sIndex: number) => {
     const updated = [...workout];
     const currentVal = updated[eIndex].sets[sIndex].completed;
+    // Nothing is pre-filled: a set is validated once its reps are entered (the load may be 0, bodyweight)
+    if (!currentVal && !(Number(updated[eIndex].sets[sIndex].reps) > 0)) {
+      showToast('Indique le nombre de répétitions avant de valider la série', 'error');
+      return;
+    }
     updated[eIndex].sets[sIndex].completed = !currentVal;
     setWorkout(updated);
 
@@ -714,14 +705,25 @@ function App() {
   };
 
   const completeAllSets = (eIndex: number) => {
+    // Only the sets filled in can be validated
+    const sets = workout[eIndex].sets;
+    const unfilled = sets.filter((s) => !s.completed && !(Number(s.reps) > 0)).length;
+    if (unfilled === sets.filter((s) => !s.completed).length) {
+      showToast('Indique les répétitions de tes séries avant de les valider', 'error');
+      return;
+    }
     setWorkout((prev) => {
       const copy = [...prev];
       copy[eIndex] = {
         ...copy[eIndex],
-        sets: copy[eIndex].sets.map((s) => ({ ...s, completed: true })),
+        sets: copy[eIndex].sets.map((s) => (Number(s.reps) > 0 ? { ...s, completed: true } : s)),
       };
       return copy;
     });
+    if (unfilled > 0) {
+      showToast(`${unfilled} série${unfilled > 1 ? 's' : ''} sans répétitions laissée${unfilled > 1 ? 's' : ''} de côté`, 'info');
+      return;
+    }
     setFocusedExercise(null);
     showToast(`Toutes les séries de "${workout[eIndex].name}" ont été validées !`, 'info');
   };
@@ -888,7 +890,8 @@ function App() {
   // Open Warmup Modal for an exercise in active workout
   const openWarmupForExercise = (eIndex: number) => {
     const ex = workout[eIndex];
-    const targetWeight = ex.sets[0]?.weight || 80;
+    // Sets start empty: the warm-up builds up to the load entered, else the one lifted last time
+    const targetWeight = ex.sets.find((s) => s.weight > 0)?.weight || exerciseStats[ex.exerciseId]?.lastSet?.weight || 80;
     setWarmupModalData({
       isOpen: true,
       exerciseIndex: eIndex,

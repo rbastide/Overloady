@@ -97,7 +97,8 @@ export class WorkoutService implements OnApplicationBootstrap {
       } as any,
     });
 
-    // If starting from a routine, pre-fill exercises with progressive overload from past sessions
+    // Starting from a routine: same number of sets as last time (3 the first time), left empty for
+    // the athlete to fill in; the previous loads are shown next to each set, not pre-filled.
     if (routine && routine.exercises.length > 0) {
       for (const ex of orderRoutineExercises(routine.exercises, routine.exerciseOrder)) {
         const newExerciseLog = await this.prisma.exerciseLog.create({
@@ -107,49 +108,13 @@ export class WorkoutService implements OnApplicationBootstrap {
           },
         });
 
-        // Find last completed log for this exercise by this user
         const lastLog = await this.prisma.exerciseLog.findFirst({
-          where: {
-            exerciseId: ex.id,
-            session: {
-              userId,
-              endedAt: { not: null },
-            },
-          },
-          orderBy: {
-            session: { startedAt: 'desc' },
-          },
-          include: { sets: true },
+          where: { exerciseId: ex.id, session: { userId, endedAt: { not: null } } },
+          orderBy: { session: { startedAt: 'desc' } },
+          select: { sets: { where: { completed: true }, select: { id: true } } },
         });
 
-        if (lastLog && lastLog.sets.length > 0) {
-          for (const lastSet of lastLog.sets) {
-            let nextWeight = lastSet.weight;
-            if (lastSet.completed) {
-              nextWeight += 2.5; // Surcharge progressive
-            }
-            await this.prisma.setLog.create({
-              data: {
-                exerciseLogId: newExerciseLog.id,
-                reps: lastSet.reps,
-                weight: nextWeight,
-                completed: false,
-              },
-            });
-          }
-        } else {
-          // Default template 3 sets
-          for (let i = 0; i < 3; i++) {
-            await this.prisma.setLog.create({
-              data: {
-                exerciseLogId: newExerciseLog.id,
-                reps: 10,
-                weight: 20,
-                completed: false,
-              },
-            });
-          }
-        }
+        await this.createEmptySets(newExerciseLog.id, lastLog?.sets.length || 3);
       }
     }
 
@@ -1108,16 +1073,8 @@ export class WorkoutService implements OnApplicationBootstrap {
         },
       });
 
-      for (const setRec of exRec.sets) {
-        await this.prisma.setLog.create({
-          data: {
-            exerciseLogId: exLog.id,
-            reps: setRec.reps,
-            weight: setRec.weight,
-            completed: false,
-          },
-        });
-      }
+      // The recommended loads stay in the recommendation: the athlete enters what they actually lift
+      await this.createEmptySets(exLog.id, exRec.sets?.length || 3);
     }
 
     return this.prisma.workoutSession.findUnique({
@@ -1132,6 +1089,13 @@ export class WorkoutService implements OnApplicationBootstrap {
           },
         },
       },
+    });
+  }
+
+  /** Sets with no load nor reps yet: the athlete fills them in while training. */
+  private async createEmptySets(exerciseLogId: string, count: number) {
+    await this.prisma.setLog.createMany({
+      data: Array.from({ length: count }, () => ({ exerciseLogId, reps: 0, weight: 0, completed: false })),
     });
   }
 
