@@ -164,6 +164,12 @@ const paths: Record<string, React.ReactNode> = {
     </>
   ),
   swap: <path d="M7 4 3 8l4 4M3 8h13M17 20l4-4-4-4M21 16H8" />,
+  link: (
+    <>
+      <path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1" />
+      <path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1" />
+    </>
+  ),
   download: <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />,
   share: (
     <>

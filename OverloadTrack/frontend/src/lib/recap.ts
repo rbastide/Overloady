@@ -2,6 +2,7 @@
 // drawn on a canvas in the app's own palette so it can be shared rather than pasted as text.
 import { formatKg } from './loadMath';
 import { isWorkSet } from './setTypes';
+import { supersetLabels } from './supersets';
 
 export interface RecapRecord {
   name: string;
@@ -43,13 +44,15 @@ export function buildRecap(session: any, history: any[]): SessionRecap {
   const exercises: SessionRecap['exercises'] = [];
   const records: RecapRecord[] = [];
 
-  (session.exercises || []).forEach((exLog: any) => {
+  // "A1 Développé couché": the exercises of a superset keep their pairing on the card
+  const labels = supersetLabels(session.exercises || []);
+  (session.exercises || []).forEach((exLog: any, exIndex: number) => {
     const done = doneSets(exLog);
     sets += done.length;
     volume += done.reduce((v, s) => v + (Number(s.weight) || 0) * (Number(s.reps) || 0), 0);
     const best = heaviest(done.map((s) => ({ weight: Number(s.weight) || 0, reps: Number(s.reps) || 0 })));
     const name = exLog.exercise?.name || 'Exercice';
-    exercises.push({ name, best });
+    exercises.push({ name: labels[exIndex] ? `${labels[exIndex]} ${name}` : name, best });
 
     if (!best || best.weight <= 0) return;
     const previous = earlier.reduce((max: number, s: any) => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { Fragment, useState, useEffect, useRef } from 'react';
 import api, { clearToken, hasValidToken, onUnauthorized, setToken, warmUpBackend } from './api';
 import './App.css';
 import './shell.css';
@@ -24,6 +24,7 @@ import { MuscleFocusCard, RecordCard } from './components/SessionInsights';
 import { GymFocus } from './components/GymFocus';
 import { ReplaceExerciseModal } from './components/ReplaceExerciseModal';
 import { SetTypeSheet } from './components/SetTypeSheet';
+import { newSupersetId, nextInRound, nextInSuperset, normalizeSupersets, runOf, segmentBySuperset, supersetLabels } from './lib/supersets';
 import { ConsistencyHeatmap } from './components/ConsistencyHeatmap';
 import { GlossaryTerm } from './components/Glossary';
 import { RPE_MEANINGS } from './lib/rpe';
@@ -748,6 +749,8 @@ function App() {
       category: exercise.category,
       // Same plan, same set types: a warm-up stays a warm-up on the new movement
       sets: original.sets.length > 0 ? original.sets.map((s) => ({ ...emptySet(), type: s.type })) : [emptySet(), emptySet(), emptySet()],
+      // Same place in its superset
+      supersetId: original.supersetId,
     };
     const updated = [...workout];
     updated.splice(index, 1, replacement);
@@ -767,8 +770,27 @@ function App() {
   const removeExerciseFromSession = (index: number) => {
     const updated = [...workout];
     updated.splice(index, 1);
-    setWorkout(updated);
+    // A superset left with one exercise is no superset any more
+    setWorkout(normalizeSupersets(updated));
     setFocusedExercise(null);
+  };
+
+  // Superset with the next exercise of the session; a superset that follows is merged into it
+  const linkWithNext = (index: number) => {
+    const current = workout[index];
+    const next = workout[index + 1];
+    if (!current || !next) return;
+    const id = current.supersetId ?? next.supersetId ?? newSupersetId();
+    const updated = workout.map((ex, i) =>
+      i === index || i === index + 1 || (next.supersetId && ex.supersetId === next.supersetId) ? { ...ex, supersetId: id } : ex,
+    );
+    setWorkout(normalizeSupersets(updated));
+  };
+
+  // Out of its superset; the exercises left on each side regroup only if they still touch
+  const unlinkFromSuperset = (index: number) => {
+    const updated = workout.map((ex, i) => (i === index ? { ...ex, supersetId: undefined } : ex));
+    setWorkout(normalizeSupersets(updated));
   };
 
   const addSet = (exerciseIndex: number) => {
@@ -829,12 +851,21 @@ function App() {
       vibrate(maxWeight > 0 && isWorkSet(set) && set.weight > maxWeight ? HAPTICS.record : HAPTICS.set);
     }
 
+    if (currentVal) return;
+    // Superset: straight on to the next exercise of the round, the rest only once the round is over
+    const round = nextInRound(updated, eIndex, sIndex);
+    if (round) {
+      setFocusedExercise(round.next);
+      if (round.endOfRound && autoRestEnabled) startRestTimer(true);
+      return;
+    }
+
     // Last set of the exercise done: move on to the next exercise with sets left.
-    if (!currentVal && updated[eIndex].sets.every((s) => s.completed)) {
+    if (updated[eIndex].sets.every((s) => s.completed)) {
       setFocusedExercise(null);
     }
 
-    if (!currentVal && autoRestEnabled) {
+    if (autoRestEnabled) {
       startRestTimer(true);
     }
   };
@@ -847,19 +878,19 @@ function App() {
       showToast('Indique les répétitions de tes séries avant de les valider', 'error');
       return;
     }
+    const doneSets = sets.map((s) => (Number(s.reps) > 0 ? { ...s, completed: true } : s));
     setWorkout((prev) => {
       const copy = [...prev];
-      copy[eIndex] = {
-        ...copy[eIndex],
-        sets: sets.map((s) => (Number(s.reps) > 0 ? { ...s, completed: true } : s)),
-      };
+      copy[eIndex] = { ...copy[eIndex], sets: doneSets };
       return copy;
     });
     if (unfilled > 0) {
       showToast(`${unfilled} série${unfilled > 1 ? 's' : ''} sans répétitions laissée${unfilled > 1 ? 's' : ''} de côté`, 'info');
       return;
     }
-    setFocusedExercise(null);
+    // In a superset, on to the partner with sets left rather than out of the group
+    const after = workout.map((ex, i) => (i === eIndex ? { ...ex, sets: doneSets } : ex));
+    setFocusedExercise(nextInSuperset(after, eIndex)?.next ?? null);
   };
 
   const startRestTimer = (autoStart: boolean) => {
@@ -938,6 +969,7 @@ function App() {
       const anyCompletedExplicitly = workout.some((ex) => ex.sets.some((s) => s.completed));
       const exercisesPayload = workout.map((ex) => ({
         exerciseId: ex.exerciseId,
+        supersetId: ex.supersetId ?? null,
         sets: ex.sets.map((s) => ({
           reps: Number(s.reps) || 0,
           weight: Number(s.weight) || 0,
@@ -1064,7 +1096,7 @@ function App() {
       return;
     }
 
-    const headers = ['Date', 'Programme', 'RPE', 'Notes', 'Exercice', 'Categorie', 'Serie', 'Poids_kg', 'Reps', 'Valide', 'Type'];
+    const headers = ['Date', 'Programme', 'RPE', 'Notes', 'Exercice', 'Categorie', 'Serie', 'Poids_kg', 'Reps', 'Valide', 'Type', 'Superset'];
     const rows: string[] = [headers.join(';')];
 
     history.forEach((session) => {
@@ -1072,7 +1104,8 @@ function App() {
       const routineName = (session.title || session.routine?.name || 'Séance libre').replace(/;/g, ',');
       const notes = (session.notes || '').replace(/;/g, ',').replace(/\n/g, ' ');
 
-      (session.exercises || []).forEach((exLog: any) => {
+      const labels = supersetLabels(session.exercises || []);
+      (session.exercises || []).forEach((exLog: any, exIndex: number) => {
         const exName = (exLog.exercise?.name || 'Exercice').replace(/;/g, ',');
         const cat = (exLog.exercise?.category || 'Général').replace(/;/g, ',');
 
@@ -1089,6 +1122,7 @@ function App() {
             st.reps,
             st.completed ? 'Oui' : 'Non',
             SET_TYPE_LABELS[typeOf(st)],
+            labels[exIndex] ?? '',
           ].join(';'));
         });
       });
@@ -1124,14 +1158,16 @@ function App() {
 
     lines.push('\n💪 Exercices & Performances :');
 
-    (session.exercises || []).forEach((exLog: any) => {
+    const labels = supersetLabels(session.exercises || []);
+    (session.exercises || []).forEach((exLog: any, exIndex: number) => {
       const setsStr = (exLog.sets || []).map((s: any) => {
         if (s.completed && isWorkSet(s)) totalVol += (s.weight || 0) * (s.reps || 0);
         const type = typeOf(s);
         const kind = type !== 'normal' ? ` (${SET_TYPE_LABELS[type].toLowerCase()})` : '';
         return `${s.weight}kg × ${s.reps}${kind}${s.completed ? ' ✓' : ''}`;
       }).join(', ');
-      lines.push(`• ${exLog.exercise?.name || 'Exercice'} : ${setsStr}`);
+      const label = labels[exIndex] ? `${labels[exIndex]} ` : '';
+      lines.push(`• ${label}${exLog.exercise?.name || 'Exercice'} : ${setsStr}`);
     });
 
     lines.push(`\n📊 Volume Total Soulevé : ${totalVol.toLocaleString()} kg`);
@@ -1198,6 +1234,57 @@ function App() {
     0,
   );
   const remainingExercises = workout.filter((ex, i) => i !== activeExerciseIndex && !isExerciseDone(ex)).length;
+  const workoutLabels = supersetLabels(workout);
+  const activeRun = runOf(workout, activeExerciseIndex);
+  const activeSuperset =
+    activeRun && workoutLabels[activeExerciseIndex]
+      ? {
+          label: workoutLabels[activeExerciseIndex] as string,
+          partners: workout.slice(activeRun.start, activeRun.end + 1).filter((_, k) => activeRun.start + k !== activeExerciseIndex).map((ex) => ex.name),
+        }
+      : undefined;
+  // Linking goes forward: from an exercise on its own, or from the last one of a superset
+  const canLinkNext = activeExerciseIndex < workout.length - 1 && (!activeRun || activeRun.end === activeExerciseIndex);
+
+  const renderQueueItem = (ex: ActiveExercise, eIndex: number) => {
+    const doneSets = ex.sets.filter((s) => s.completed).length;
+    const isDone = ex.sets.length > 0 && doneSets === ex.sets.length;
+    const index = workoutLabels[eIndex] ?? String(eIndex + 1);
+    // The exercise on screen shows in the queue only inside its superset, to make the group whole
+    if (eIndex === activeExerciseIndex) {
+      return (
+        <div key={ex.exerciseId + eIndex} className="queue-item is-current" aria-current="step">
+          <span className="queue-index">{index}</span>
+          <span className="queue-name">{ex.name}</span>
+          <span className="queue-detail">En cours</span>
+        </div>
+      );
+    }
+    return (
+      <button
+        key={ex.exerciseId + eIndex}
+        type="button"
+        className={`queue-item${isDone ? ' is-done' : ''}`}
+        onClick={() => setFocusedExercise(eIndex)}
+        title={isDone ? 'Revoir cet exercice' : 'Ouvrir cet exercice'}
+      >
+        <span className="queue-index">{index}</span>
+        <span className="queue-name">{ex.name}</span>
+        <span className="queue-detail">
+          {isDone ? (
+            <>
+              <Icon name="check" size={13} strokeWidth={2.6} />
+              Terminé
+            </>
+          ) : doneSets > 0 ? (
+            `${doneSets}/${ex.sets.length} séries`
+          ) : (
+            describeSets(ex)
+          )}
+        </span>
+      </button>
+    );
+  };
   // Dashboard: validated volume of the last 7 days against the 7 days before
   const weekVolume = Number(dashboardStats.weekVolume) || 0;
   const volumeDelta: number | null = typeof dashboardStats.weekVolumeDelta === 'number' ? dashboardStats.weekVolumeDelta : null;
@@ -2031,6 +2118,10 @@ function App() {
                         onCalculator={() => openPlateCalculator(activeExercise)}
                         onReplace={() => setReplacingIndex(activeExerciseIndex)}
                         onRemove={() => removeExerciseFromSession(activeExerciseIndex)}
+                        superset={activeSuperset}
+                        nextName={canLinkNext ? workout[activeExerciseIndex + 1].name : undefined}
+                        onLinkNext={canLinkNext ? () => linkWithNext(activeExerciseIndex) : undefined}
+                        onUnlink={activeSuperset ? () => unlinkFromSuperset(activeExerciseIndex) : undefined}
                       />
                     ) : (
                       <div className="session-empty">
@@ -2049,35 +2140,19 @@ function App() {
                           </span>
                         </div>
                         <div className="queue-list">
-                          {workout.map((ex, eIndex) => {
-                            if (eIndex === activeExerciseIndex) return null;
-                            const doneSets = ex.sets.filter((s) => s.completed).length;
-                            const isDone = ex.sets.length > 0 && doneSets === ex.sets.length;
-                            return (
-                              <button
-                                key={ex.exerciseId + eIndex}
-                                type="button"
-                                className={`queue-item${isDone ? ' is-done' : ''}`}
-                                onClick={() => setFocusedExercise(eIndex)}
-                                title={isDone ? 'Revoir cet exercice' : 'Ouvrir cet exercice'}
-                              >
-                                <span className="queue-index">{eIndex + 1}</span>
-                                <span className="queue-name">{ex.name}</span>
-                                <span className="queue-detail">
-                                  {isDone ? (
-                                    <>
-                                      <Icon name="check" size={13} strokeWidth={2.6} />
-                                      Terminé
-                                    </>
-                                  ) : doneSets > 0 ? (
-                                    `${doneSets}/${ex.sets.length} séries`
-                                  ) : (
-                                    describeSets(ex)
-                                  )}
+                          {segmentBySuperset(workout).map(({ run, items }) =>
+                            run ? (
+                              <div key={`superset-${items[0].index}`} className="queue-superset" role="group" aria-label="Superset">
+                                <span className="queue-superset-label">
+                                  <Icon name="link" size={13} />
+                                  Superset
                                 </span>
-                              </button>
-                            );
-                          })}
+                                {items.map(({ item, index }) => renderQueueItem(item, index))}
+                              </div>
+                            ) : items[0].index === activeExerciseIndex ? null : (
+                              renderQueueItem(items[0].item, items[0].index)
+                            ),
+                          )}
                         </div>
                       </section>
                     )}
@@ -2381,7 +2456,8 @@ function App() {
                   {isExpanded && (
                     <div className="history-details">
                       {session.exercises?.length > 0 ? (
-                        session.exercises.map((exLog: any) => (
+                        segmentBySuperset<any>(session.exercises).map(({ run, items }) => {
+                          const block = items.map(({ item: exLog }) => (
                           <div key={exLog.id} className="history-exercise">
                             <div className="history-exercise-head">
                               <strong>{exLog.exercise?.name || 'Exercice'}</strong>
@@ -2405,7 +2481,19 @@ function App() {
                               })}
                             </div>
                           </div>
-                        ))
+                          ));
+                          return run ? (
+                            <div key={`superset-${items[0].item.id}`} className="history-superset" role="group" aria-label="Superset">
+                              <span className="history-superset-label">
+                                <Icon name="link" size={13} />
+                                Superset
+                              </span>
+                              {block}
+                            </div>
+                          ) : (
+                            <Fragment key={items[0].item.id}>{block}</Fragment>
+                          );
+                        })
                       ) : (
                         <p className="muted-note">Aucun exercice n'a été consigné dans cette séance.</p>
                       )}

@@ -1,9 +1,10 @@
-import { useRef, useState, type TouchEvent } from 'react';
+import { Fragment, useRef, useState, type TouchEvent } from 'react';
 import { Icon } from './Icons';
 import { Stepper, TargetNote, type ActiveExercise, type ExerciseStats } from './ActiveExercise';
 import { DEFAULT_STEP, detectEquipment, formatKg, loggingGuide } from '../lib/loadMath';
 import { beatsRecord, previousFor, resolveSetTarget } from '../lib/overload';
 import { SET_TYPE_LABELS, markOf, typeOf } from '../lib/setTypes';
+import { segmentBySuperset, supersetLabels } from '../lib/supersets';
 
 interface GymFocusProps {
   workout: ActiveExercise[];
@@ -62,6 +63,7 @@ export function GymFocus({
   const recorded = reps > 0 ? (weight > 0 ? `${formatKg(weight)} kg × ${reps}` : `${reps} reps`) : null;
 
   const nextPending = workout.findIndex((ex, i) => i !== index && ex.sets.some((s) => !s.completed));
+  const supersetLabel = supersetLabels(workout)[index];
 
   // The new exercise slides in from the side it came from (state adjusted while rendering)
   const [shown, setShown] = useState<{ index: number; direction: 'next' | 'prev' | null }>({ index, direction: null });
@@ -105,6 +107,7 @@ export function GymFocus({
           <p className="gym-meta">
             Exercice {index + 1} sur {total}
             {exercise.category ? ` · ${exercise.category}` : ''}
+            {supersetLabel && <span className="gym-meta-superset"> · Superset {supersetLabel}</span>}
           </p>
         </div>
         <button
@@ -120,17 +123,27 @@ export function GymFocus({
 
       {total > 1 && (
         <div className="gym-dots" role="group" aria-label="Exercices de la séance">
-          {workout.map((ex, i) => {
-            const done = ex.sets.length > 0 && ex.sets.every((s) => s.completed);
-            return (
-              <button
-                key={ex.exerciseId + i}
-                type="button"
-                className={`gym-dot${i === index ? ' is-current' : ''}${done ? ' is-done' : ''}`}
-                onClick={() => go(i)}
-                aria-label={`Exercice ${i + 1} : ${ex.name}${done ? ', terminé' : ''}`}
-                aria-current={i === index ? 'step' : undefined}
-              />
+          {/* The dots of a superset sit together on one track */}
+          {segmentBySuperset(workout).map(({ run, items }) => {
+            const dots = items.map(({ item: ex, index: i }) => {
+              const done = ex.sets.length > 0 && ex.sets.every((s) => s.completed);
+              return (
+                <button
+                  key={ex.exerciseId + i}
+                  type="button"
+                  className={`gym-dot${i === index ? ' is-current' : ''}${done ? ' is-done' : ''}`}
+                  onClick={() => go(i)}
+                  aria-label={`Exercice ${i + 1} : ${ex.name}${run ? ', superset' : ''}${done ? ', terminé' : ''}`}
+                  aria-current={i === index ? 'step' : undefined}
+                />
+              );
+            });
+            return run ? (
+              <span key={`superset-${items[0].index}`} className="gym-dot-superset">
+                {dots}
+              </span>
+            ) : (
+              <Fragment key={items[0].index}>{dots}</Fragment>
             );
           })}
         </div>

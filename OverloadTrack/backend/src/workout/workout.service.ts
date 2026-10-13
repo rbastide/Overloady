@@ -12,6 +12,7 @@ import { AiService, CoachChatMessage } from '../ai/ai.service';
 import { calibrationLoadFactor, describeAthlete, scaleCalibrationLoad } from '../user/athlete-profile';
 import { orderRoutineExercises } from '../routine/routine.service';
 import { drivesTarget, isWorkSet, parseSetType } from './set-type';
+import { sanitizeSupersetIds } from './superset';
 
 const COACH_MAX_MESSAGES = 12;
 const COACH_MAX_MESSAGE_LENGTH = 2000;
@@ -28,6 +29,8 @@ interface FinishSetDto {
 interface FinishExerciseDto {
   exerciseId: string;
   sets: FinishSetDto[];
+  /** Shared by neighbouring exercises done as a superset. */
+  supersetId?: string | null;
 }
 
 export interface FinishWorkoutDto {
@@ -160,12 +163,17 @@ export class WorkoutService implements OnApplicationBootstrap {
         ex.sets?.some((s) => s.completed === true),
       );
 
-      for (const exDto of data.exercises) {
+      // Neighbours judged on the list as sent: a dropped entry never glues two supersets together
+      const supersetIds = sanitizeSupersetIds(data.exercises.map((ex) => ex.supersetId));
+
+      for (const [index, exDto] of data.exercises.entries()) {
         if (!exDto.exerciseId) continue;
+        // Created in session order: the cuid ids keep the supersets' exercises next to each other
         const exLog = await this.prisma.exerciseLog.create({
           data: {
             sessionId: data.sessionId,
             exerciseId: exDto.exerciseId,
+            supersetId: supersetIds[index],
           },
         });
 
@@ -221,6 +229,7 @@ export class WorkoutService implements OnApplicationBootstrap {
       } as any,
       include: {
         exercises: {
+          orderBy: { id: 'asc' },
           include: {
             exercise: true,
             sets: { orderBy: { id: 'asc' } },
@@ -244,6 +253,8 @@ export class WorkoutService implements OnApplicationBootstrap {
       include: {
         routine: true,
         exercises: {
+          // Session order, so the exercises of a superset come out side by side
+          orderBy: { id: 'asc' },
           include: {
             exercise: true,
             // cuid ids grow with insertion: warm-ups stay ahead of the work sets

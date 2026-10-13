@@ -22,6 +22,8 @@ export interface ActiveExercise {
   /** Who planned the targets of the sets; none when they come from the last performance. */
   source?: PlanSource;
   sets: ActiveSet[];
+  /** Shared with the neighbouring exercises done in the same superset; absent on older drafts. */
+  supersetId?: string;
 }
 
 /** Best marks on finished sessions, from /workout/stats/:exerciseId. */
@@ -163,6 +165,12 @@ interface ActiveExerciseCardProps {
   /** Machine taken: swap for an equivalent. Absent once every set is done. */
   onReplace?: () => void;
   onRemove: () => void;
+  /** "A1" and the other exercises of its superset, when it is in one. */
+  superset?: { label: string; partners: string[] };
+  /** Name of the exercise "Superset avec le suivant" would link to. */
+  nextName?: string;
+  onLinkNext?: () => void;
+  onUnlink?: () => void;
 }
 
 export function ActiveExerciseCard({
@@ -181,6 +189,10 @@ export function ActiveExerciseCard({
   onCalculator,
   onReplace,
   onRemove,
+  superset,
+  nextName,
+  onLinkNext,
+  onUnlink,
 }: ActiveExerciseCardProps) {
   const equipment = detectEquipment(exercise.name);
   // The first set not validated yet is the one being performed: it gets the steppers.
@@ -199,6 +211,14 @@ export function ActiveExerciseCard({
       <header className="exercise-focus-head">
         <div className="exercise-focus-body">
           <h2 className="exercise-focus-title">{exercise.name}</h2>
+          {superset && (
+            <p className="exercise-superset">
+              <Icon name="link" size={13} />
+              <span>
+                Superset {superset.label} avec {superset.partners.join(', ')}
+              </span>
+            </p>
+          )}
           <div className="exercise-focus-meta">
             <span>
               Exercice {position} sur {total}
@@ -441,6 +461,18 @@ export function ActiveExerciseCard({
             <button type="button" className="text-action" onClick={onCompleteAll}>
               <Icon name="checkCircle" size={15} />
               Tout valider
+            </button>
+          )}
+          {onLinkNext && (
+            <button type="button" className="text-action" onClick={onLinkNext} title={nextName ? `Enchaîner avec ${nextName}` : undefined}>
+              <Icon name="link" size={15} />
+              Superset avec le suivant
+            </button>
+          )}
+          {onUnlink && (
+            <button type="button" className="text-action" onClick={onUnlink}>
+              <Icon name="close" size={15} />
+              Retirer du superset
             </button>
           )}
         </div>
