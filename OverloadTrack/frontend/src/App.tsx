@@ -22,6 +22,7 @@ import { CoachChat, type CoachWorkout } from './components/CoachChat';
 import { ActiveExerciseCard, type ActiveExercise, type ActiveSet, type ExerciseStats } from './components/ActiveExercise';
 import { MuscleFocusCard, RecordCard } from './components/SessionInsights';
 import { GymFocus } from './components/GymFocus';
+import { ReplaceExerciseModal } from './components/ReplaceExerciseModal';
 import { ConsistencyHeatmap } from './components/ConsistencyHeatmap';
 import { GlossaryTerm } from './components/Glossary';
 import { RPE_MEANINGS } from './lib/rpe';
@@ -194,6 +195,10 @@ function App() {
   const [isAbandonOpen, setIsAbandonOpen] = useState<boolean>(false);
   // The exercise picker stays folded during a session until the athlete asks for it
   const [isPickerOpen, setIsPickerOpen] = useState<boolean>(false);
+  // Exercise whose machine is taken, while its replacement is being chosen
+  const [replacingIndex, setReplacingIndex] = useState<number | null>(null);
+  // Equivalent picked for an exercise with validated sets: those sets are dropped once confirmed
+  const [pendingReplacement, setPendingReplacement] = useState<any | null>(null);
   const [isRecalibrateOpen, setIsRecalibrateOpen] = useState<boolean>(false);
   // Session left open when the app was closed, offered back on the next launch
   const [resumeDraft, setResumeDraft] = useState<SessionDraft | null>(null);
@@ -719,6 +724,35 @@ function App() {
         sets: [emptySet(), emptySet(), emptySet()],
       },
     ]);
+  };
+
+  // Machine taken: an equivalent takes the place of the exercise, with every planned set to do and its
+  // own target from its own history. Sets validated on the original are dropped with it.
+  const replaceExerciseInSession = (index: number, exercise: any) => {
+    const original = workout[index];
+    setReplacingIndex(null);
+    setPendingReplacement(null);
+    if (!original) return;
+    // No planned target, coach advice or source: those were written for the original movement
+    const replacement: ActiveExercise = {
+      exerciseId: exercise.id,
+      name: exercise.name,
+      category: exercise.category,
+      sets: Array.from({ length: original.sets.length || 3 }, emptySet),
+    };
+    const updated = [...workout];
+    updated.splice(index, 1, replacement);
+    setWorkout(updated);
+    setFocusedExercise(index);
+    // Its last performance gives the ghost targets of the new sets
+    loadStats(exercise.id);
+  };
+
+  // Validated sets would be lost: ask first, otherwise replace straight away
+  const pickReplacement = (exercise: any) => {
+    if (replacingIndex === null) return;
+    if (workout[replacingIndex]?.sets.some((s) => s.completed)) setPendingReplacement(exercise);
+    else replaceExerciseInSession(replacingIndex, exercise);
   };
 
   const removeExerciseFromSession = (index: number) => {
@@ -1949,6 +1983,7 @@ function App() {
                         onAddSet={() => addSet(activeExerciseIndex)}
                         onWarmup={() => openWarmupForExercise(activeExerciseIndex)}
                         onCalculator={() => openPlateCalculator(activeExercise)}
+                        onReplace={() => setReplacingIndex(activeExerciseIndex)}
                       />
                     ) : activeExercise ? (
                       <ActiveExerciseCard
@@ -1964,6 +1999,7 @@ function App() {
                         onCompleteAll={() => completeAllSets(activeExerciseIndex)}
                         onWarmup={() => openWarmupForExercise(activeExerciseIndex)}
                         onCalculator={() => openPlateCalculator(activeExercise)}
+                        onReplace={() => setReplacingIndex(activeExerciseIndex)}
                         onRemove={() => removeExerciseFromSession(activeExerciseIndex)}
                       />
                     ) : (
@@ -2708,6 +2744,32 @@ function App() {
           showToast(`Programme « ${newRoutine.name} » enregistré`);
         }}
       />
+
+      {/* The picker steps aside while the loss of validated sets is confirmed, and comes back on cancel */}
+      <ReplaceExerciseModal
+        exercise={replacingIndex !== null && !pendingReplacement ? workout[replacingIndex] ?? null : null}
+        library={exercises}
+        sessionIds={workout.map((ex) => ex.exerciseId)}
+        onPick={pickReplacement}
+        onClose={() => setReplacingIndex(null)}
+      />
+
+      {(() => {
+        const original = replacingIndex !== null ? workout[replacingIndex] : undefined;
+        const done = original ? original.sets.filter((s) => s.completed).length : 0;
+        return (
+          <ConfirmDialog
+            isOpen={!!pendingReplacement && !!original}
+            tone="danger"
+            icon="swap"
+            title={`Remplacer par ${pendingReplacement?.name ?? ''} ?`}
+            message={`${done} série${done > 1 ? 's' : ''} validée${done > 1 ? 's' : ''} sur ${original?.name ?? ''} ${done > 1 ? 'seront supprimées' : 'sera supprimée'}.`}
+            confirmLabel="Remplacer"
+            onConfirm={() => replaceExerciseInSession(replacingIndex!, pendingReplacement)}
+            onCancel={() => setPendingReplacement(null)}
+          />
+        );
+      })()}
 
       <WarmupModal
         isOpen={warmupModalData.isOpen}

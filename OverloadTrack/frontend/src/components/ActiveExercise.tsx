@@ -155,6 +155,8 @@ interface ActiveExerciseCardProps {
   onCompleteAll: () => void;
   onWarmup: () => void;
   onCalculator: () => void;
+  /** Machine taken: swap for an equivalent. Absent once every set is done. */
+  onReplace?: () => void;
   onRemove: () => void;
 }
 
@@ -171,6 +173,7 @@ export function ActiveExerciseCard({
   onCompleteAll,
   onWarmup,
   onCalculator,
+  onReplace,
   onRemove,
 }: ActiveExerciseCardProps) {
   const equipment = detectEquipment(exercise.name);
@@ -219,6 +222,17 @@ export function ActiveExerciseCard({
           <button type="button" className="icon-btn" onClick={onCalculator} title="Calculatrice de charge" aria-label="Calculatrice de charge">
             <Icon name="calculator" size={18} />
           </button>
+          {onReplace && !allDone && (
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={onReplace}
+              title="Remplacer l'exercice (machine prise)"
+              aria-label="Remplacer l'exercice par un équivalent"
+            >
+              <Icon name="swap" size={18} />
+            </button>
+          )}
           <button
             type="button"
             className="icon-btn danger"

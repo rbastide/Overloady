@@ -3486,6 +3486,25 @@ select optgroup {
   margin-top: -0.25rem;
 }
 
+/* Phones: four tools side by side, icon over label, each a full thumb-wide target */
+@media (max-width: 480px) {
+  .gym-tools {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .gym-tools .text-action {
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.2rem;
+    min-height: 44px;
+    padding: 0.25rem 0.125rem;
+    font-size: 0.6875rem;
+  }
+}
+
 .gym-actions {
   position: relative;
 }
@@ -4315,6 +4334,32 @@ select optgroup {
 
 .modal-card h2 {
   font-size: 1.4rem;
+}
+
+/* Replace an exercise: the equivalents scroll inside the sheet, its head stays in view */
+.replace-modal {
+  display: flex;
+  flex-direction: column;
+  height: min(720px, 90vh);
+}
+
+.replace-modal .modal-head {
+  margin-bottom: 1rem;
+}
+
+.replace-modal h2 {
+  font-size: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+.replace-modal .routine-picker {
+  min-height: 0;
+}
+
+@media (max-width: 767px) {
+  .replace-modal {
+    height: 88dvh;
+  }
 }
 
 /* Session recap: the story card, previewed at phone height */

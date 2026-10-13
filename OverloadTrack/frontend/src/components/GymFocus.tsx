@@ -16,6 +16,8 @@ interface GymFocusProps {
   onAddSet: () => void;
   onWarmup: () => void;
   onCalculator: () => void;
+  /** Machine taken: swap the exercise on screen for an equivalent. */
+  onReplace?: () => void;
 }
 
 // A horizontal swipe longer than this (px), and clearly more horizontal than vertical, changes exercise
@@ -36,6 +38,7 @@ export function GymFocus({
   onAddSet,
   onWarmup,
   onCalculator,
+  onReplace,
 }: GymFocusProps) {
   const exercise = workout[index];
   const total = workout.length;
@@ -214,6 +217,13 @@ export function GymFocus({
           <Icon name="calculator" size={15} />
           Calculatrice
         </button>
+        {/* Only while sets are left: a finished exercise has nothing to hand over */}
+        {onReplace && (set || exercise.sets.length === 0) && (
+          <button type="button" className="text-action" onClick={onReplace}>
+            <Icon name="swap" size={15} />
+            Remplacer
+          </button>
+        )}
       </div>
 
       {(set || nextPending !== -1) && (

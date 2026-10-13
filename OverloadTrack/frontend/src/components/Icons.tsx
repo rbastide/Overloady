@@ -163,6 +163,7 @@ const paths: Record<string, React.ReactNode> = {
       <path d="M20 4v5h-5" />
     </>
   ),
+  swap: <path d="M7 4 3 8l4 4M3 8h13M17 20l4-4-4-4M21 16H8" />,
   download: <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />,
   share: (
     <>

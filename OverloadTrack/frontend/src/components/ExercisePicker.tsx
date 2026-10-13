@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createNameMatcher } from '../lib/exerciseSearch';
-import { Icon } from './Icons';
+import { Icon, type IconName } from './Icons';
 import { MUSCLE_GROUPS, muscleGroupsOf } from '../lib/muscleGroups';
 
 const MORE_PAGE_SIZE = 40;
@@ -15,11 +15,29 @@ interface ExercisePickerProps {
   selectedIds: string[];
   onPick: (exercise: any) => void;
   searchInputRef?: React.Ref<HTMLInputElement>;
+  /** Muscle group open at first, e.g. the one of the exercise being replaced. */
+  initialGroup?: string;
+  /** Exercises left out of the list, e.g. those already in the session when replacing one. */
+  excludeIds?: string[];
+  /** Icon of an exercise not chosen yet: "plus" to add it, "swap" to put it in place of another. */
+  pickIcon?: IconName;
 }
 
 /** Browse the library by muscle group, or search it by name in French or English. */
-export const ExercisePicker: React.FC<ExercisePickerProps> = ({ exercises, selectedIds, onPick, searchInputRef }) => {
-  const [group, setGroup] = useState(MUSCLE_GROUPS[0]);
+export const ExercisePicker: React.FC<ExercisePickerProps> = ({
+  exercises: library,
+  selectedIds,
+  onPick,
+  searchInputRef,
+  initialGroup,
+  excludeIds,
+  pickIcon = 'plus',
+}) => {
+  const exercises = useMemo(
+    () => (excludeIds?.length ? library.filter((ex) => !excludeIds.includes(ex.id)) : library),
+    [library, excludeIds],
+  );
+  const [group, setGroup] = useState(initialGroup || MUSCLE_GROUPS[0]);
   const [search, setSearch] = useState('');
   const [moreLimit, setMoreLimit] = useState(0);
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -65,7 +83,7 @@ export const ExercisePicker: React.FC<ExercisePickerProps> = ({ exercises, selec
         <span className="routine-tile-name">{ex.name}</span>
         {searchResults && <span className="routine-tile-cat">{ex.category || 'Général'}</span>}
         <span className="routine-tile-check" aria-hidden="true">
-          <Icon name={isSelected ? 'check' : 'plus'} size={15} strokeWidth={isSelected ? 2.6 : 2} />
+          <Icon name={isSelected ? 'check' : pickIcon} size={15} strokeWidth={isSelected ? 2.6 : 2} />
         </span>
       </button>
     );
