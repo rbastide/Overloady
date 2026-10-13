@@ -2,7 +2,8 @@ import { useRef, useState, type TouchEvent } from 'react';
 import { Icon } from './Icons';
 import { Stepper, TargetNote, type ActiveExercise, type ExerciseStats } from './ActiveExercise';
 import { DEFAULT_STEP, detectEquipment, formatKg, loggingGuide } from '../lib/loadMath';
-import { beatsRecord, resolveSetTarget } from '../lib/overload';
+import { beatsRecord, previousFor, resolveSetTarget } from '../lib/overload';
+import { SET_TYPE_LABELS, markOf, typeOf } from '../lib/setTypes';
 
 interface GymFocusProps {
   workout: ActiveExercise[];
@@ -13,6 +14,8 @@ interface GymFocusProps {
   onNavigate: (index: number) => void;
   onSetChange: (setIndex: number, field: 'weight' | 'reps', value: string) => void;
   onToggleSet: (setIndex: number) => void;
+  /** Opens the set type sheet (normal, warm-up, drop set, failure) for one set. */
+  onEditSetType: (setIndex: number) => void;
   onAddSet: () => void;
   onWarmup: () => void;
   onCalculator: () => void;
@@ -35,6 +38,7 @@ export function GymFocus({
   onNavigate,
   onSetChange,
   onToggleSet,
+  onEditSetType,
   onAddSet,
   onWarmup,
   onCalculator,
@@ -49,7 +53,8 @@ export function GymFocus({
   const set = exercise.sets[setIndex];
   const n = setIndex + 1;
   const target = set ? resolveSetTarget(exercise, setIndex, stats, goal) : null;
-  const previous = set ? stats?.previousSets[setIndex] : undefined;
+  const previous = set ? previousFor(exercise, setIndex, stats) : null;
+  const type = set ? typeOf(set) : 'normal';
 
   // What "Valider" records: the fields typed, the ghost targets for the others
   const weight = set ? Number(set.weight) || target?.weight || 0 : 0;
@@ -140,11 +145,26 @@ export function GymFocus({
         {set ? (
           <>
             <div className="gym-set-head">
-              <span className="gym-set-label">
-                Série {n} <span>sur {exercise.sets.length}</span>
+              <span className="gym-set-title">
+                <span className="gym-set-label">
+                  Série {n} <span>sur {exercise.sets.length}</span>
+                </span>
+                <button
+                  type="button"
+                  className="set-type-chip"
+                  onClick={() => onEditSetType(setIndex)}
+                  aria-label={`Type de la série ${n} : ${SET_TYPE_LABELS[type].toLowerCase()}. Changer`}
+                >
+                  <span>{SET_TYPE_LABELS[type]}</span>
+                  <Icon name="chevronDown" size={13} strokeWidth={2.4} />
+                </button>
               </span>
               <span className="gym-prev">
-                {previous ? `Précédent ${formatKg(previous.weight)} kg × ${previous.reps}` : 'Pas de précédent'}
+                {previous
+                  ? `Précédent ${formatKg(previous.weight)} kg × ${previous.reps}`
+                  : type === 'normal' || type === 'failure'
+                  ? 'Pas de précédent'
+                  : 'Hors progression'}
               </span>
             </div>
             <TargetNote exercise={exercise} setIndex={setIndex} stats={stats} goal={goal} compact />
@@ -190,13 +210,29 @@ export function GymFocus({
           <ol className="gym-sets" aria-label="Séries de l'exercice">
             {exercise.sets.map((s, i) => {
               const record = beatsRecord(s, stats);
+              const sType = typeOf(s);
+              const mark = markOf(s);
               return (
                 <li
                   key={i}
-                  className={`gym-set${s.completed ? ' is-done' : ''}${i === setIndex ? ' is-current' : ''}${record ? ' is-record' : ''}`}
+                  className={`gym-set${s.completed ? ' is-done' : ''}${i === setIndex ? ' is-current' : ''}${record ? ' is-record' : ''}${
+                    sType !== 'normal' ? ` is-${sType}` : ''
+                  }`}
+                  title={sType !== 'normal' ? SET_TYPE_LABELS[sType] : undefined}
                 >
                   {record && <Icon name="trophy" size={11} />}
-                  {s.completed ? `${formatKg(s.weight)}×${s.reps}` : i === setIndex ? 'En cours' : i + 1}
+                  {s.completed ? (
+                    <>
+                      {mark && <span className="gym-set-mark">{mark}</span>}
+                      {`${formatKg(s.weight)}×${s.reps}`}
+                    </>
+                  ) : i === setIndex ? (
+                    'En cours'
+                  ) : mark ? (
+                    mark
+                  ) : (
+                    i + 1
+                  )}
                 </li>
               );
             })}

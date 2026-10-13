@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { isWorkSet } from '../lib/setTypes';
 
 const WEEKS = 12;
 const DAY_MS = 24 * 3600 * 1000;
@@ -16,7 +17,10 @@ const sessionVolume = (session: any) =>
   (session.exercises || []).reduce(
     (total: number, ex: any) =>
       total +
-      (ex.sets || []).reduce((v: number, s: any) => (s.completed ? v + (Number(s.weight) || 0) * (Number(s.reps) || 0) : v), 0),
+      (ex.sets || []).reduce(
+        (v: number, s: any) => (s.completed && isWorkSet(s) ? v + (Number(s.weight) || 0) * (Number(s.reps) || 0) : v),
+        0,
+      ),
     0,
   );
 

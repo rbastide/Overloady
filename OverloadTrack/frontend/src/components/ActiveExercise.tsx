@@ -1,7 +1,8 @@
 import React from 'react';
 import { Icon } from './Icons';
 import { BAR_PLATES, DEFAULT_STEP, breakdownPlates, detectEquipment, formatKg, loggingGuide } from '../lib/loadMath';
-import { beatsRecord, explainTarget, resolveSetTarget, type PlanSource, type SetTarget } from '../lib/overload';
+import { beatsRecord, explainTarget, previousFor, resolveSetTarget, type PlanSource, type SetTarget } from '../lib/overload';
+import { SET_TYPE_LABELS, SET_TYPE_MARKS, SET_TYPE_SHORT, typeOf, type SetType } from '../lib/setTypes';
 
 export interface ActiveSet {
   reps: number;
@@ -9,6 +10,8 @@ export interface ActiveSet {
   completed: boolean;
   /** Planned by the coach or the protocol: shown as a ghost value until the athlete types. */
   target?: SetTarget;
+  /** Absent on normal sets, and on every set of a draft saved before set types existed. */
+  type?: SetType;
 }
 
 export interface ActiveExercise {
@@ -26,8 +29,8 @@ export interface ExerciseStats {
   maxWeight: number;
   maxEstimated1RM: number;
   lastSet: { weight: number; reps: number } | null;
-  /** Sets done on this exercise during the latest session, in logging order. */
-  previousSets: { weight: number; reps: number }[];
+  /** Work sets done on this exercise during the latest session, in logging order (no warm-up nor drop set). */
+  previousSets: { weight: number; reps: number; type?: SetType }[];
   /** Session RPE of that latest session. */
   lastRpe?: number | null;
 }
@@ -150,6 +153,8 @@ interface ActiveExerciseCardProps {
   goal?: string;
   onSetChange: (setIndex: number, field: 'weight' | 'reps', value: string) => void;
   onToggleSet: (setIndex: number) => void;
+  /** Opens the set type sheet (normal, warm-up, drop set, failure) for one set. */
+  onEditSetType: (setIndex: number) => void;
   onAddSet: () => void;
   onRemoveSet: (setIndex: number) => void;
   onCompleteAll: () => void;
@@ -168,6 +173,7 @@ export function ActiveExerciseCard({
   goal,
   onSetChange,
   onToggleSet,
+  onEditSetType,
   onAddSet,
   onRemoveSet,
   onCompleteAll,
@@ -185,7 +191,6 @@ export function ActiveExerciseCard({
   const plateSet = exercise.sets[plateIndex];
   const plateWeight = plateSet ? Number(plateSet.weight) || targets[plateIndex]?.weight || 0 : 0;
   const plateHint = equipment === 'barbell' && plateWeight > 0 ? describePlates(plateWeight, barWeightFor(exercise.name)) : null;
-  const previousSets = stats?.previousSets ?? [];
   // What the load and reps fields mean for this movement (one dumbbell, reps per arm…)
   const guide = loggingGuide(exercise.name);
 
@@ -272,17 +277,40 @@ export function ActiveExerciseCard({
         {exercise.sets.map((set, sIndex) => {
           const isActive = sIndex === activeSetIndex;
           const n = sIndex + 1;
-          const previous = previousSets[sIndex];
+          const type = typeOf(set);
+          const previous = previousFor(exercise, sIndex, stats);
           // Ghost values only on sets still to do: a validated set shows what was lifted
           const target = set.completed ? null : targets[sIndex];
           const record = beatsRecord(set, stats);
           return (
             <div
               key={sIndex}
-              className={`set-row${set.completed ? ' is-done' : ''}${isActive ? ' is-active' : ''}${record ? ' is-record' : ''}`}
+              className={`set-row${set.completed ? ' is-done' : ''}${isActive ? ' is-active' : ''}${record ? ' is-record' : ''}${
+                type !== 'normal' ? ` is-${type}` : ''
+              }`}
             >
               <div className="set-label">
-                <span className="set-index">{n}</span>
+                <button
+                  type="button"
+                  className="set-index"
+                  onClick={() => onEditSetType(sIndex)}
+                  aria-label={`Série ${n}, ${SET_TYPE_LABELS[type].toLowerCase()} : changer le type`}
+                  title={`${SET_TYPE_LABELS[type]} · changer le type`}
+                >
+                  {type === 'normal' ? n : SET_TYPE_MARKS[type]}
+                </button>
+                {/* The set being logged shows its type in words, so changing it needs no hunting */}
+                {isActive && (
+                  <button
+                    type="button"
+                    className="set-type-chip"
+                    onClick={() => onEditSetType(sIndex)}
+                    aria-label={`Type de la série ${n} : ${SET_TYPE_LABELS[type].toLowerCase()}. Changer`}
+                  >
+                    <span>{SET_TYPE_SHORT[type]}</span>
+                    <Icon name="chevronDown" size={13} strokeWidth={2.4} />
+                  </button>
+                )}
               </div>
               <span className="set-prev">
                 {/* Phones: the active set leaves the columns, so its previous value says what it is */}

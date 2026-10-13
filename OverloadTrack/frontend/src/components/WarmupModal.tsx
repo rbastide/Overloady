@@ -14,7 +14,7 @@ interface WarmupModalProps {
   onClose: () => void;
   exerciseName: string;
   targetWeight: number;
-  onApplyWarmup: (warmupSets: Array<{ weight: number; reps: number; completed: boolean }>) => void;
+  onApplyWarmup: (warmupSets: Array<{ weight: number; reps: number; completed: boolean; type: 'warmup' }>) => void;
 }
 
 export const WarmupModal: React.FC<WarmupModalProps> = ({
@@ -53,10 +53,12 @@ export const WarmupModal: React.FC<WarmupModalProps> = ({
   if (!isOpen) return null;
 
   const handleApply = () => {
+    // Warm-up sets: logged, but out of the volume, the records and the next targets
     const formatted = warmupSets.map((s) => ({
       weight: s.weight,
       reps: s.reps,
       completed: false,
+      type: 'warmup' as const,
     }));
     onApplyWarmup(formatted);
     onClose();

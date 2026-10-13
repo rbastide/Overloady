@@ -11,6 +11,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AiService, CoachChatMessage } from '../ai/ai.service';
 import { calibrationLoadFactor, describeAthlete, scaleCalibrationLoad } from '../user/athlete-profile';
 import { orderRoutineExercises } from '../routine/routine.service';
+import { drivesTarget, isWorkSet, parseSetType } from './set-type';
 
 const COACH_MAX_MESSAGES = 12;
 const COACH_MAX_MESSAGE_LENGTH = 2000;
@@ -20,6 +21,8 @@ interface FinishSetDto {
   reps: number;
   weight: number;
   completed: boolean;
+  /** normal (default), warmup, drop or failure. */
+  type?: string;
 }
 
 interface FinishExerciseDto {
@@ -111,7 +114,8 @@ export class WorkoutService implements OnApplicationBootstrap {
         const lastLog = await this.prisma.exerciseLog.findFirst({
           where: { exerciseId: ex.id, session: { userId, endedAt: { not: null } } },
           orderBy: { session: { startedAt: 'desc' } },
-          select: { sets: { where: { completed: true }, select: { id: true } } },
+          // Same number of work sets: neither the warm-ups nor the drop sets become full sets
+          select: { sets: { where: { completed: true, type: { in: ['normal', 'failure'] } }, select: { id: true } } },
         });
 
         await this.createEmptySets(newExerciseLog.id, lastLog?.sets.length || 3);
@@ -166,20 +170,18 @@ export class WorkoutService implements OnApplicationBootstrap {
         });
 
         if (exDto.sets && exDto.sets.length > 0) {
-          for (const set of exDto.sets) {
-            const isCompleted = anyCompletedExplicitly
-              ? Boolean(set.completed)
-              : Number(set.weight) > 0 && Number(set.reps) > 0;
-
-            await this.prisma.setLog.create({
-              data: {
-                exerciseLogId: exLog.id,
-                reps: Number(set.reps) || 0,
-                weight: Number(set.weight) || 0,
-                completed: isCompleted,
-              },
-            });
-          }
+          // One insert per exercise; the cuid ids still grow in the order the sets were logged
+          await this.prisma.setLog.createMany({
+            data: exDto.sets.map((set) => ({
+              exerciseLogId: exLog.id,
+              reps: Number(set.reps) || 0,
+              weight: Number(set.weight) || 0,
+              completed: anyCompletedExplicitly
+                ? Boolean(set.completed)
+                : Number(set.weight) > 0 && Number(set.reps) > 0,
+              type: parseSetType(set.type),
+            })),
+          });
         }
       }
     }
@@ -221,7 +223,7 @@ export class WorkoutService implements OnApplicationBootstrap {
         exercises: {
           include: {
             exercise: true,
-            sets: true,
+            sets: { orderBy: { id: 'asc' } },
           },
         },
       },
@@ -244,7 +246,8 @@ export class WorkoutService implements OnApplicationBootstrap {
         exercises: {
           include: {
             exercise: true,
-            sets: true,
+            // cuid ids grow with insertion: warm-ups stay ahead of the work sets
+            sets: { orderBy: { id: 'asc' } },
           },
         },
       },
@@ -301,8 +304,9 @@ export class WorkoutService implements OnApplicationBootstrap {
     let maxWeight = 0;
     let maxEstimated1RM = 0;
     let lastSet: { weight: number; reps: number; completed: boolean } | null = null;
-    // Sets done on this exercise during the latest session, shown as "Précédent" in the logger
-    let previousSets: Array<{ weight: number; reps: number }> = [];
+    // Sets done on this exercise during the latest session, shown as "Précédent" in the logger and
+    // progressed into the next targets: no warm-up nor drop set, and a set to failure says so
+    let previousSets: Array<{ weight: number; reps: number; type: string }> = [];
     // Session RPE of that latest session: the next target holds the load after an all-out session
     let lastRpe: number | null = null;
     const historyPoints: Array<{ date: string; maxWeight: number; totalVolume: number; estimated1RM: number }> = [];
@@ -313,20 +317,20 @@ export class WorkoutService implements OnApplicationBootstrap {
       let sessionVolume = 0;
 
       for (const set of log.sets) {
-        if (set.completed && set.weight > 0 && set.reps > 0) {
+        if (set.completed && set.weight > 0 && set.reps > 0 && isWorkSet(set)) {
           const estimated1RM = Math.round(set.weight * (1 + set.reps / 30) * 10) / 10;
           if (set.weight > maxWeight) maxWeight = set.weight;
           if (estimated1RM > maxEstimated1RM) maxEstimated1RM = estimated1RM;
           if (set.weight > sessionMaxWeight) sessionMaxWeight = set.weight;
           if (estimated1RM > sessionMax1RM) sessionMax1RM = estimated1RM;
           sessionVolume += set.weight * set.reps;
-          lastSet = { weight: set.weight, reps: set.reps, completed: set.completed };
+          if (drivesTarget(set)) lastSet = { weight: set.weight, reps: set.reps, completed: set.completed };
         }
       }
 
-      const doneSets = log.sets.filter((set) => set.completed && set.weight > 0 && set.reps > 0);
+      const doneSets = log.sets.filter((set) => set.completed && set.weight > 0 && set.reps > 0 && drivesTarget(set));
       if (doneSets.length > 0) {
-        previousSets = doneSets.map((set) => ({ weight: set.weight, reps: set.reps }));
+        previousSets = doneSets.map((set) => ({ weight: set.weight, reps: set.reps, type: set.type }));
         lastRpe = log.session.rpe || null;
       }
 
@@ -409,7 +413,7 @@ export class WorkoutService implements OnApplicationBootstrap {
       let sessionVolume = 0;
       for (const ex of session.exercises) {
         for (const set of ex.sets) {
-          if (set.completed) {
+          if (set.completed && isWorkSet(set)) {
             sessionVolume += (set.weight || 0) * (set.reps || 0);
           }
         }
@@ -544,7 +548,7 @@ export class WorkoutService implements OnApplicationBootstrap {
 
         let topSet: { weight: number; reps: number } | null = null;
         for (const set of exLog.sets) {
-          if (set.completed && set.weight > 0 && set.reps > 0) {
+          if (set.completed && set.weight > 0 && set.reps > 0 && isWorkSet(set)) {
             if (!topSet || set.weight > topSet.weight || (set.weight === topSet.weight && set.reps > topSet.reps)) {
               topSet = { weight: set.weight, reps: set.reps };
             }
@@ -811,8 +815,10 @@ export class WorkoutService implements OnApplicationBootstrap {
           title: (lastSession as any)?.title || 'Dernière séance',
           startedAt: lastSession.startedAt.toISOString().split('T')[0],
           exercises: lastSession.exercises.map((el) => {
-            const maxW = el.sets.reduce((max, s) => (s.completed && s.weight > max ? s.weight : max), 0);
-            const rep = el.sets.find((s) => s.weight === maxW)?.reps || 10;
+            // Atlas reads the work sets only: a warm-up or a drop set says nothing of the working load
+            const workSets = el.sets.filter((s) => s.completed && drivesTarget(s));
+            const maxW = workSets.reduce((max, s) => (s.weight > max ? s.weight : max), 0);
+            const rep = workSets.find((s) => s.weight === maxW)?.reps || 10;
             return {
               name: el.exercise.name,
               category: (el.exercise as any).category,
@@ -960,7 +966,7 @@ export class WorkoutService implements OnApplicationBootstrap {
 
       let baseWeight = 20;
       if (lastLog && lastLog.sets.length > 0) {
-        const completedSets = lastLog.sets.filter((s) => s.completed && s.weight > 0);
+        const completedSets = lastLog.sets.filter((s) => s.completed && s.weight > 0 && drivesTarget(s));
         if (completedSets.length > 0) {
           baseWeight = Math.max(...completedSets.map((s) => s.weight));
         }
@@ -1772,7 +1778,7 @@ export class WorkoutService implements OnApplicationBootstrap {
         const exName = exLog.exercise.name;
         if (keyExercises.some((k) => exName.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(exName.toLowerCase()))) {
           for (const s of exLog.sets) {
-            if (s.completed && s.weight > 0 && s.reps > 0) {
+            if (s.completed && s.weight > 0 && s.reps > 0 && isWorkSet(s)) {
               const e1RM = Math.round(s.weight * (1 + s.reps / 30) * 10) / 10;
               if (!benchmarks[exName] || e1RM > benchmarks[exName].estimated1RM) {
                 benchmarks[exName] = {

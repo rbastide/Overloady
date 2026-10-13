@@ -3,6 +3,7 @@ import { Icon } from './Icons';
 import { formatKg } from '../lib/loadMath';
 import { GlossaryTerm } from './Glossary';
 import type { ActiveExercise, ExerciseStats } from './ActiveExercise';
+import { isWorkSet } from '../lib/setTypes';
 
 // Same Epley formula as the API's exercise stats, so both 1RM figures can be compared.
 const estimate1RM = (weight: number, reps: number) => Math.round(weight * (1 + reps / 30) * 10) / 10;
@@ -10,7 +11,7 @@ const estimate1RM = (weight: number, reps: number) => Math.round(weight * (1 + r
 /** Personal record of the focused exercise, and whether today's sets beat it. */
 export function RecordCard({ exercise, stats }: { exercise: ActiveExercise; stats?: ExerciseStats }) {
   const best = exercise.sets
-    .filter((s) => s.completed && s.weight > 0 && s.reps > 0)
+    .filter((s) => s.completed && s.weight > 0 && s.reps > 0 && isWorkSet(s))
     .reduce<{ weight: number; reps: number } | null>(
       (top, s) => (!top || s.weight > top.weight || (s.weight === top.weight && s.reps > top.reps) ? s : top),
       null,
@@ -131,9 +132,11 @@ export function MuscleFocusCard({ exercises }: { exercises: ActiveExercise[] }) 
   const groups: { name: string; sets: number }[] = [];
   exercises.forEach((ex) => {
     const name = ex.category || 'Général';
+    // Work sets only: a warm-up doesn't load the muscle group
+    const count = ex.sets.filter(isWorkSet).length;
     const group = groups.find((g) => g.name === name);
-    if (group) group.sets += ex.sets.length;
-    else groups.push({ name, sets: ex.sets.length });
+    if (group) group.sets += count;
+    else groups.push({ name, sets: count });
   });
   const tail = groups.slice(SLOT_COLORS.length);
   const segments: Segment[] = [

@@ -1,6 +1,7 @@
 // End-of-session recap as an image in story format (1080 × 1920): volume, records, total time,
 // drawn on a canvas in the app's own palette so it can be shared rather than pasted as text.
 import { formatKg } from './loadMath';
+import { isWorkSet } from './setTypes';
 
 export interface RecapRecord {
   name: string;
@@ -21,8 +22,9 @@ export interface SessionRecap {
   records: RecapRecord[];
 }
 
+// Warm-ups are left out: they count in neither the volume, the sets nor the records
 const doneSets = (exLog: any) =>
-  (exLog.sets || []).filter((s: any) => s.completed && Number(s.reps) > 0) as { weight: number; reps: number }[];
+  (exLog.sets || []).filter((s: any) => s.completed && Number(s.reps) > 0 && isWorkSet(s)) as { weight: number; reps: number }[];
 
 const heaviest = (sets: { weight: number; reps: number }[]) =>
   sets.reduce<{ weight: number; reps: number } | null>(

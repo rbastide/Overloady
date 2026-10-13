@@ -2191,11 +2191,111 @@ select optgroup {
   min-width: 0;
 }
 
+/* The set number also opens the set type sheet; the set being logged adds a labelled chip */
 .set-index {
+  position: relative;
+  min-width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: none;
   color: inherit;
   font-family: var(--font-mono);
   font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+/* A thumb-sized target around a small mark */
+.set-index::after {
+  content: '';
+  position: absolute;
+  inset: -10px -12px;
+}
+
+.set-index:hover {
+  background: var(--bg-raised);
+}
+
+/* Warm-up, drop set, failure: a letter in a hairline ring, neutral, in place of the number */
+.set-row.is-warmup .set-index,
+.set-row.is-drop .set-index,
+.set-row.is-failure .set-index {
+  border-color: var(--line-strong);
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+/* The type of the set being logged, in words: tapping it opens the four types, explained */
+.set-type-chip {
+  position: relative;
+  min-width: 0;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0 0.4rem 0 0.6rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--bg-inset);
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.set-type-chip > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.set-type-chip svg {
+  flex-shrink: 0;
+  color: var(--text-dim);
+}
+
+/* A thumb-sized target around the slim chip */
+.set-type-chip::after {
+  content: '';
+  position: absolute;
+  inset: -9px -4px;
+}
+
+.set-type-chip:hover {
+  background: var(--bg-raised-hover);
+  color: var(--text-main);
+}
+
+.set-type-chip:active {
+  transform: scale(0.97);
+}
+
+/* Desktop: the set table keeps its narrow number column, the chip folds to its chevron */
+@media (min-width: 768px) {
+  .set-row .set-type-chip {
+    width: 26px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .set-row .set-type-chip > span {
+    display: none;
+  }
+}
+
+/* A validated warm-up stays readable but quieter: it counts in nothing */
+.set-row.is-warmup.is-done,
+.set-row.is-warmup.is-done .set-input {
+  color: var(--text-muted);
 }
 
 .set-row.is-done .set-index {
@@ -2209,6 +2309,7 @@ select optgroup {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  border-color: transparent;
   border-radius: 50%;
   background: var(--accent);
   color: var(--accent-ink);
@@ -3357,10 +3458,19 @@ select optgroup {
 
 .gym-set-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 0.25rem 1rem;
+}
+
+/* "Série n sur N" and the type of that set, right beside it */
+.gym-set-title {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.375rem 0.625rem;
+  min-height: 36px;
 }
 
 .gym-set-label {
@@ -3452,6 +3562,26 @@ select optgroup {
 .gym-set.is-record {
   background: var(--pr-soft);
   color: var(--pr-text);
+}
+
+/* A warm-up isn't progress: no sage once validated */
+.gym-set.is-warmup.is-done {
+  background: var(--bg-inset);
+  color: var(--text-muted);
+}
+
+.gym-set-mark,
+.history-set-mark {
+  font-weight: 600;
+  opacity: 0.75;
+}
+
+.history-set-mark {
+  margin-right: 0.3rem;
+}
+
+.history-set.is-warmup.is-done {
+  color: var(--text-muted);
 }
 
 .gym-done {
@@ -4334,6 +4464,102 @@ select optgroup {
 
 .modal-card h2 {
   font-size: 1.4rem;
+}
+
+/* Set type sheet: four rows, each named and explained, the current one checked */
+.set-type-sheet {
+  max-width: 440px;
+}
+
+.set-type-sheet .modal-head {
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.set-type-sheet h2 {
+  font-size: 1.125rem;
+}
+
+.set-type-options {
+  display: flex;
+  flex-direction: column;
+}
+
+.set-type-option {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 0.875rem;
+  min-height: 60px;
+  padding: 0.625rem 0.5rem;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: none;
+  color: var(--text-main);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.set-type-option:last-child {
+  border-bottom: none;
+}
+
+.set-type-option:hover {
+  background: rgba(28, 32, 37, 0.5);
+}
+
+.set-type-option.is-selected {
+  background: var(--accent-soft);
+  border-radius: var(--radius-md);
+}
+
+.set-type-mark {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.set-type-option.is-selected .set-type-mark {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.set-type-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.set-type-name {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.set-type-option.is-selected .set-type-name {
+  color: var(--accent-bright);
+}
+
+.set-type-help {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.set-type-check {
+  color: var(--accent-bright);
 }
 
 /* Replace an exercise: the equivalents scroll inside the sheet, its head stays in view */

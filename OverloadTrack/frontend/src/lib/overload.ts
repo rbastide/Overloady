@@ -2,6 +2,7 @@
 // empty fields. "The app proposes, the athlete validates": an untouched field records its target.
 import type { ActiveExercise, ExerciseStats } from '../components/ActiveExercise';
 import { DEFAULT_STEP, detectEquipment } from './loadMath';
+import { drivesTarget, isWorkSet, type SetType } from './setTypes';
 
 export interface SetTarget {
   weight: number;
@@ -9,7 +10,7 @@ export interface SetTarget {
 }
 
 /** How a target was derived from the last performance. */
-export type OverloadRule = 'reps' | 'load' | 'hold';
+export type OverloadRule = 'reps' | 'load' | 'hold' | 'failure';
 
 /** Rep range of each training goal (same ranges as the coach and the profile). */
 export const GOAL_REP_RANGES: Record<string, [number, number]> = {
@@ -30,16 +31,18 @@ export const toTarget = (set?: { weight?: number; reps?: number } | null): SetTa
 /**
  * Double progression from the last performance: one more rep at the same load until the top of
  * the goal's range, then the smallest real load jump with the reps back to the bottom.
- * A last session felt at RPE 10 is repeated as is.
+ * A set taken to failure, or a last session felt at RPE 10, is repeated as is.
  */
 export function progressFrom(
-  previous: SetTarget,
+  previous: SetTarget & { type?: SetType },
   exerciseName: string,
   goal?: string,
   lastRpe?: number | null,
 ): { target: SetTarget; rule: OverloadRule } {
+  const same = { weight: previous.weight, reps: previous.reps };
+  if (previous.type === 'failure') return { target: same, rule: 'failure' };
   if (lastRpe !== undefined && lastRpe !== null && lastRpe >= 10) {
-    return { target: { ...previous }, rule: 'hold' };
+    return { target: same, rule: 'hold' };
   }
   const [bottom, top] = repRange(goal);
   const equipment = detectEquipment(exerciseName);
@@ -55,11 +58,29 @@ export function progressFrom(
 }
 
 /** The set lifted last time at the same position, else the last one of that session. */
-const previousSetAt = (stats: ExerciseStats | undefined, setIndex: number): SetTarget | null => {
+const previousSetAt = (stats: ExerciseStats | undefined, setIndex: number): (SetTarget & { type?: SetType }) | null => {
   const sets = stats?.previousSets ?? [];
   if (sets.length > 0) return sets[Math.min(setIndex, sets.length - 1)];
   return stats?.lastSet ?? null;
 };
+
+/** Position among the sets that drive targets: the warm-ups and drop sets before it don't count. */
+const workIndexOf = (exercise: ActiveExercise, setIndex: number) =>
+  exercise.sets.slice(0, setIndex).filter(drivesTarget).length;
+
+/**
+ * Last time's set facing this one, for the "Précédent" column. Warm-up and drop sets are left out
+ * on both sides: the third work set faces last time's third work set, whatever came before.
+ */
+export function previousFor(
+  exercise: ActiveExercise,
+  setIndex: number,
+  stats: ExerciseStats | undefined,
+): (SetTarget & { type?: SetType }) | null {
+  const set = exercise.sets[setIndex];
+  if (set && !drivesTarget(set)) return null;
+  return stats?.previousSets[workIndexOf(exercise, setIndex)] ?? null;
+}
 
 /**
  * Target of one set: the one planned by the coach or the protocol, else the progression of what
@@ -71,9 +92,11 @@ export function resolveSetTarget(
   stats: ExerciseStats | undefined,
   goal?: string,
 ): SetTarget | null {
-  const planned = exercise.sets[setIndex]?.target;
-  if (planned) return planned;
-  const previous = previousSetAt(stats, setIndex);
+  const set = exercise.sets[setIndex];
+  // Warm-up and drop sets: the athlete sets them, no plan nor history speaks for them
+  if (set && !drivesTarget(set)) return null;
+  if (set?.target) return set.target;
+  const previous = previousSetAt(stats, workIndexOf(exercise, setIndex));
   if (!previous || previous.reps <= 0) return null;
   return progressFrom(previous, exercise.name, goal, stats?.lastRpe).target;
 }
@@ -82,8 +105,8 @@ export function resolveSetTarget(
  * Record live: a validated set heavier than the best ever lifted on this exercise.
  * Not on a first session, where every set would be one.
  */
-export const beatsRecord = (set: { weight: number; completed: boolean }, stats?: ExerciseStats) =>
-  !!stats && stats.maxWeight > 0 && set.completed && set.weight > stats.maxWeight;
+export const beatsRecord = (set: { weight: number; completed: boolean; type?: SetType }, stats?: ExerciseStats) =>
+  !!stats && stats.maxWeight > 0 && set.completed && isWorkSet(set) && set.weight > stats.maxWeight;
 
 /** Heaviest set of a list, the most reps breaking ties: what "last time" means for a movement. */
 export const topSet = (sets: SetTarget[]): SetTarget | null =>
@@ -150,7 +173,8 @@ export function explainTarget(
   }
   if (!stats) return null;
 
-  const previous = topSet(stats.previousSets) ?? stats.lastSet;
+  // The set the target came from, so a set taken to failure explains its own held target
+  const previous = planned ? topSet(stats.previousSets) ?? stats.lastSet : previousSetAt(stats, workIndexOf(exercise, setIndex));
   const gap = describeGap(target, previous);
   if (!previous) {
     return { source, who, gap: null, why: 'première fois sur ce mouvement : prends tes repères, la suite se calera dessus.' };
@@ -162,7 +186,9 @@ export function explainTarget(
     const { rule } = progressFrom(previous, exercise.name, goal, stats.lastRpe);
     const [, top] = repRange(goal);
     why =
-      rule === 'hold'
+      rule === 'failure'
+        ? 'série menée à l’échec la dernière fois : on garde la charge et les reps avant de monter.'
+        : rule === 'hold'
         ? 'séance à fond la dernière fois (RPE 10) : on consolide avant de monter.'
         : rule === 'load'
         ? `${previous.reps} reps la dernière fois, le haut de ta fourchette : la charge monte.`

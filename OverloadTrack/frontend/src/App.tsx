@@ -23,6 +23,7 @@ import { ActiveExerciseCard, type ActiveExercise, type ActiveSet, type ExerciseS
 import { MuscleFocusCard, RecordCard } from './components/SessionInsights';
 import { GymFocus } from './components/GymFocus';
 import { ReplaceExerciseModal } from './components/ReplaceExerciseModal';
+import { SetTypeSheet } from './components/SetTypeSheet';
 import { ConsistencyHeatmap } from './components/ConsistencyHeatmap';
 import { GlossaryTerm } from './components/Glossary';
 import { RPE_MEANINGS } from './lib/rpe';
@@ -38,6 +39,7 @@ import { formatKg } from './lib/loadMath';
 import { HAPTICS, useWakeLock, vibrate } from './lib/device';
 import { describeGap, fillFromTarget, resolveSetTarget, toTarget, topSet, type SetTarget } from './lib/overload';
 import { createNameMatcher } from './lib/exerciseSearch';
+import { SET_TYPE_LABELS, drivesTarget, isWorkSet, markOf, typeOf, type SetType } from './lib/setTypes';
 import {
   clearSessionDraft,
   currentUserId,
@@ -87,13 +89,17 @@ const DEFAULT_REST_SECONDS = 90;
 const emptySet = (): ActiveSet => ({ weight: 0, reps: 0, completed: false });
 
 const describeSets = (exercise: ActiveExercise) => {
-  const first = exercise.sets[0];
-  if (!first) return 'Aucune série prévue';
+  // The work sets: a warm-up added ahead doesn't change what the exercise asks
+  const work = exercise.sets.filter(drivesTarget);
+  const count = work.length;
+  const first = work[0];
+  if (exercise.sets.length === 0) return 'Aucune série prévue';
+  if (count === 0) return `${exercise.sets.length} série${exercise.sets.length > 1 ? 's' : ''} d'échauffement`;
   // Sets start empty: the planned target stands in until the athlete logs the first one
-  const reps = first.reps || first.target?.reps || 0;
-  const weight = first.weight || first.target?.weight || 0;
-  if (!reps) return `${exercise.sets.length} série${exercise.sets.length > 1 ? 's' : ''}`;
-  return `${exercise.sets.length} × ${reps}${weight > 0 ? ` · ${formatKg(weight)} kg` : ''}`;
+  const reps = first?.reps || first?.target?.reps || 0;
+  const weight = first?.weight || first?.target?.weight || 0;
+  if (!reps) return `${count} série${count > 1 ? 's' : ''}`;
+  return `${count} × ${reps}${weight > 0 ? ` · ${formatKg(weight)} kg` : ''}`;
 };
 
 // Training cycle named on the dashboard greeting ("Cycle Hypertrophie").
@@ -195,6 +201,8 @@ function App() {
   const [isAbandonOpen, setIsAbandonOpen] = useState<boolean>(false);
   // The exercise picker stays folded during a session until the athlete asks for it
   const [isPickerOpen, setIsPickerOpen] = useState<boolean>(false);
+  // Set whose type is being picked in the sheet
+  const [typingSet, setTypingSet] = useState<{ eIndex: number; sIndex: number } | null>(null);
   // Exercise whose machine is taken, while its replacement is being chosen
   const [replacingIndex, setReplacingIndex] = useState<number | null>(null);
   // Equivalent picked for an exercise with validated sets: those sets are dropped once confirmed
@@ -304,7 +312,7 @@ function App() {
         maxEstimated1RM: Number(data?.maxEstimated1RM) || 0,
         lastSet: data?.lastSet ? { weight: Number(data.lastSet.weight) || 0, reps: Number(data.lastSet.reps) || 0 } : null,
         previousSets: Array.isArray(data?.previousSets)
-          ? data.previousSets.map((s: any) => ({ weight: Number(s.weight) || 0, reps: Number(s.reps) || 0 }))
+          ? data.previousSets.map((s: any) => ({ weight: Number(s.weight) || 0, reps: Number(s.reps) || 0, type: typeOf(s) }))
           : [],
         lastRpe: Number(data?.lastRpe) || null,
       },
@@ -738,7 +746,8 @@ function App() {
       exerciseId: exercise.id,
       name: exercise.name,
       category: exercise.category,
-      sets: Array.from({ length: original.sets.length || 3 }, emptySet),
+      // Same plan, same set types: a warm-up stays a warm-up on the new movement
+      sets: original.sets.length > 0 ? original.sets.map((s) => ({ ...emptySet(), type: s.type })) : [emptySet(), emptySet(), emptySet()],
     };
     const updated = [...workout];
     updated.splice(index, 1, replacement);
@@ -764,8 +773,9 @@ function App() {
 
   const addSet = (exerciseIndex: number) => {
     const updated = [...workout];
-    const prevSet = updated[exerciseIndex].sets[updated[exerciseIndex].sets.length - 1];
-    // A further set repeats the one just entered, the first one starts empty
+    const sets = updated[exerciseIndex].sets;
+    // A further set repeats the last work set entered (not a warm-up), the first one starts empty
+    const prevSet = [...sets].reverse().find(drivesTarget) ?? sets[sets.length - 1];
     updated[exerciseIndex].sets.push(
       prevSet ? { weight: prevSet.weight, reps: prevSet.reps, completed: false, target: prevSet.target } : emptySet(),
     );
@@ -775,6 +785,17 @@ function App() {
   const removeSet = (exerciseIndex: number, setIndex: number) => {
     const updated = [...workout];
     updated[exerciseIndex].sets.splice(setIndex, 1);
+    setWorkout(updated);
+  };
+
+  // Type picked in the sheet: a normal set carries no type, like the sets of older drafts
+  const changeSetType = (eIndex: number, sIndex: number, type: SetType) => {
+    setTypingSet(null);
+    const updated = [...workout];
+    if (!updated[eIndex]?.sets[sIndex]) return;
+    const sets = [...updated[eIndex].sets];
+    sets[sIndex] = { ...sets[sIndex], type: type === 'normal' ? undefined : type };
+    updated[eIndex] = { ...updated[eIndex], sets };
     setWorkout(updated);
   };
 
@@ -804,7 +825,8 @@ function App() {
 
     if (!currentVal) {
       const maxWeight = exerciseStats[updated[eIndex].exerciseId]?.maxWeight || 0;
-      vibrate(maxWeight > 0 && updated[eIndex].sets[sIndex].weight > maxWeight ? HAPTICS.record : HAPTICS.set);
+      const set = updated[eIndex].sets[sIndex];
+      vibrate(maxWeight > 0 && isWorkSet(set) && set.weight > maxWeight ? HAPTICS.record : HAPTICS.set);
     }
 
     // Last set of the exercise done: move on to the next exercise with sets left.
@@ -922,6 +944,7 @@ function App() {
           completed: anyCompletedExplicitly
             ? Boolean(s.completed)
             : Number(s.weight) > 0 && Number(s.reps) > 0,
+          type: typeOf(s),
         })),
       }));
 
@@ -1011,9 +1034,10 @@ function App() {
   const openWarmupForExercise = (eIndex: number) => {
     const ex = workout[eIndex];
     // Sets start empty: the warm-up builds up to the load entered, else the target, else the one lifted last time
+    const firstWork = Math.max(0, ex.sets.findIndex(drivesTarget));
     const targetWeight =
-      ex.sets.find((s) => s.weight > 0)?.weight ||
-      targetOf(eIndex, 0)?.weight ||
+      ex.sets.find((s) => drivesTarget(s) && s.weight > 0)?.weight ||
+      targetOf(eIndex, firstWork)?.weight ||
       exerciseStats[ex.exerciseId]?.lastSet?.weight ||
       80;
     setWarmupModalData({
@@ -1024,7 +1048,7 @@ function App() {
     });
   };
 
-  const handleApplyWarmupSets = (warmupSets: Array<{ weight: number; reps: number; completed: boolean }>) => {
+  const handleApplyWarmupSets = (warmupSets: ActiveSet[]) => {
     if (warmupModalData.exerciseIndex < 0) return;
     const updated = [...workout];
     const currentSets = updated[warmupModalData.exerciseIndex].sets;
@@ -1040,7 +1064,7 @@ function App() {
       return;
     }
 
-    const headers = ['Date', 'Programme', 'RPE', 'Notes', 'Exercice', 'Categorie', 'Serie', 'Poids_kg', 'Reps', 'Valide'];
+    const headers = ['Date', 'Programme', 'RPE', 'Notes', 'Exercice', 'Categorie', 'Serie', 'Poids_kg', 'Reps', 'Valide', 'Type'];
     const rows: string[] = [headers.join(';')];
 
     history.forEach((session) => {
@@ -1064,6 +1088,7 @@ function App() {
             st.weight,
             st.reps,
             st.completed ? 'Oui' : 'Non',
+            SET_TYPE_LABELS[typeOf(st)],
           ].join(';'));
         });
       });
@@ -1101,8 +1126,10 @@ function App() {
 
     (session.exercises || []).forEach((exLog: any) => {
       const setsStr = (exLog.sets || []).map((s: any) => {
-        if (s.completed) totalVol += (s.weight || 0) * (s.reps || 0);
-        return `${s.weight}kg × ${s.reps}${s.completed ? ' ✓' : ''}`;
+        if (s.completed && isWorkSet(s)) totalVol += (s.weight || 0) * (s.reps || 0);
+        const type = typeOf(s);
+        const kind = type !== 'normal' ? ` (${SET_TYPE_LABELS[type].toLowerCase()})` : '';
+        return `${s.weight}kg × ${s.reps}${kind}${s.completed ? ' ✓' : ''}`;
       }).join(', ');
       lines.push(`• ${exLog.exercise?.name || 'Exercice'} : ${setsStr}`);
     });
@@ -1166,7 +1193,8 @@ function App() {
   const completedSets = workout.reduce((n, ex) => n + ex.sets.filter((s) => s.completed).length, 0);
   const sessionVolume = workout.reduce(
     (volume, ex) =>
-      volume + ex.sets.reduce((v, s) => (s.completed ? v + (Number(s.weight) || 0) * (Number(s.reps) || 0) : v), 0),
+      volume +
+      ex.sets.reduce((v, s) => (s.completed && isWorkSet(s) ? v + (Number(s.weight) || 0) * (Number(s.reps) || 0) : v), 0),
     0,
   );
   const remainingExercises = workout.filter((ex, i) => i !== activeExerciseIndex && !isExerciseDone(ex)).length;
@@ -1980,6 +2008,7 @@ function App() {
                         onNavigate={setFocusedExercise}
                         onSetChange={(sIndex, field, value) => updateSet(activeExerciseIndex, sIndex, field, value)}
                         onToggleSet={(sIndex) => toggleSetCompleted(activeExerciseIndex, sIndex)}
+                        onEditSetType={(sIndex) => setTypingSet({ eIndex: activeExerciseIndex, sIndex })}
                         onAddSet={() => addSet(activeExerciseIndex)}
                         onWarmup={() => openWarmupForExercise(activeExerciseIndex)}
                         onCalculator={() => openPlateCalculator(activeExercise)}
@@ -1994,6 +2023,7 @@ function App() {
                         goal={profile.goal}
                         onSetChange={(sIndex, field, value) => updateSet(activeExerciseIndex, sIndex, field, value)}
                         onToggleSet={(sIndex) => toggleSetCompleted(activeExerciseIndex, sIndex)}
+                        onEditSetType={(sIndex) => setTypingSet({ eIndex: activeExerciseIndex, sIndex })}
                         onAddSet={() => addSet(activeExerciseIndex)}
                         onRemoveSet={(sIndex) => removeSet(activeExerciseIndex, sIndex)}
                         onCompleteAll={() => completeAllSets(activeExerciseIndex)}
@@ -2274,7 +2304,7 @@ function App() {
               let sessionVolume = 0;
               (session.exercises || []).forEach((ex: any) => {
                 (ex.sets || []).forEach((s: any) => {
-                  if (s.completed || (s.weight > 0 && s.reps > 0)) {
+                  if (isWorkSet(s) && (s.completed || (s.weight > 0 && s.reps > 0))) {
                     sessionVolume += (s.weight || 0) * (s.reps || 0);
                   }
                 });
@@ -2359,15 +2389,20 @@ function App() {
                             </div>
 
                             <div className="history-sets">
-                              {exLog.sets?.map((st: any, idx: number) => (
-                                <span
-                                  key={st.id || idx}
-                                  className={`history-set${st.completed ? ' is-done' : ''}`}
-                                  title={st.completed ? 'Série validée' : 'Série non validée'}
-                                >
-                                  {formatKg(Number(st.weight) || 0)} × {st.reps}
-                                </span>
-                              ))}
+                              {exLog.sets?.map((st: any, idx: number) => {
+                                const mark = markOf(st);
+                                const kind = mark ? `${SET_TYPE_LABELS[typeOf(st)]} · ` : '';
+                                return (
+                                  <span
+                                    key={st.id || idx}
+                                    className={`history-set${st.completed ? ' is-done' : ''}${mark ? ` is-${typeOf(st)}` : ''}`}
+                                    title={`${kind}${st.completed ? 'Série validée' : 'Série non validée'}`}
+                                  >
+                                    {mark && <span className="history-set-mark">{mark}</span>}
+                                    {formatKg(Number(st.weight) || 0)} × {st.reps}
+                                  </span>
+                                );
+                              })}
                             </div>
                           </div>
                         ))
@@ -2744,6 +2779,18 @@ function App() {
           showToast(`Programme « ${newRoutine.name} » enregistré`);
         }}
       />
+
+      {(() => {
+        const set = typingSet ? workout[typingSet.eIndex]?.sets[typingSet.sIndex] : undefined;
+        return (
+          <SetTypeSheet
+            setNumber={typingSet && set ? typingSet.sIndex + 1 : null}
+            current={set ? typeOf(set) : 'normal'}
+            onPick={(type) => typingSet && changeSetType(typingSet.eIndex, typingSet.sIndex, type)}
+            onClose={() => setTypingSet(null)}
+          />
+        );
+      })()}
 
       {/* The picker steps aside while the loss of validated sets is confirmed, and comes back on cancel */}
       <ReplaceExerciseModal

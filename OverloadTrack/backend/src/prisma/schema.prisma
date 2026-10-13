@@ -88,6 +88,16 @@ model SetLog {
   reps          Int
   weight        Float
   completed     Boolean     @default(true)
+  // Warm-up sets count in nothing; drop sets count but never drive the next targets.
+  // The default keeps every set logged before set types existed a normal one.
+  type          SetType     @default(normal)
+}
+
+enum SetType {
+  normal
+  warmup
+  drop
+  failure
 }
 
 // A device that receives the rest timer notifications (Web Push, home-screen app on iOS 16.4+)
