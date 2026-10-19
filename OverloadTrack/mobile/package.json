@@ -1,0 +1,28 @@
+{
+  "name": "overloady-mobile",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "expo": "~57.0.30",
+    "expo-clipboard": "~57.0.2",
+    "expo-constants": "~57.0.22",
+    "expo-haptics": "~57.0.3",
+    "expo-keep-awake": "~57.0.2",
+    "expo-status-bar": "~57.0.1",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-webview": "13.16.1"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.4",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start",
+    "tunnel": "expo start --tunnel",
+    "typecheck": "tsc --noEmit",
+    "doctor": "expo-doctor"
+  },
+  "private": true
+}
