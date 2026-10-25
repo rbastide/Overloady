@@ -9,6 +9,8 @@ export interface SessionDraft {
   userId: string;
   sessionId: string;
   routineName: string | null;
+  /** Programme the session follows; absent on drafts saved before offline sessions. */
+  routineId?: string | null;
   testStep: number | null;
   workout: ActiveExercise[];
   notes: string;

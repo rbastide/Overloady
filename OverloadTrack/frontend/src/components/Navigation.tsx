@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { SyncStatus } from './SyncStatus';
 import { Icon, type IconName } from './Icons';
 
 export type AppTab = 'dashboard' | 'logger' | 'analytics' | 'routines' | 'history' | 'exercises' | 'profile';
@@ -163,6 +164,7 @@ export function Navigation({
           )}
 
           <div className="desk-topbar-actions">
+            <SyncStatus />
             {testWeekStatus && !testWeekStatus.testWeekCompleted && (
               <button type="button" className="topbar-chip is-active" onClick={onOpenTestWeek} title={testWeekLabel || ''}>
                 <Icon name="flask" size={15} />
@@ -193,6 +195,7 @@ export function Navigation({
           <span className="brand-title">Overloady</span>
         </button>
         <div className="mobile-topbar-actions">
+          <SyncStatus />
           {session && (
             <button type="button" className="topbar-clock" onClick={() => go('logger')} aria-label="Revenir à la séance">
               <span className="topbar-clock-dot" aria-hidden="true" />

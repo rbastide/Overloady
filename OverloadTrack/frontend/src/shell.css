@@ -926,3 +926,70 @@ a,
     opacity: 0.35;
   }
 }
+
+/* ---------- Network status: offline, sessions waiting to be sent, then a brief "Synchronisé" ---------- */
+.sync-status-slot {
+  display: inline-flex;
+}
+
+/* Nothing to say: the empty live region takes no room in the bar */
+.desk-topbar-actions > .sync-status-slot:empty {
+  margin-right: -0.75rem;
+}
+
+.sync-status {
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0 0.625rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--bg-inset);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.sync-status.is-pending {
+  color: var(--text-secondary);
+}
+
+.sync-status.is-synced {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent-bright);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 767px) {
+  .mobile-topbar-actions > .sync-status-slot:empty {
+    margin-right: -0.4rem;
+  }
+
+  .sync-status {
+    height: 24px;
+    padding: 0 0.5rem;
+  }
+}
+
+/* Narrow phones: only "Hors ligne" keeps its words, the other states fold to their icon */
+@media (max-width: 389px) {
+  .sync-status:not(.is-offline) .sync-status-label {
+    display: none;
+  }
+}

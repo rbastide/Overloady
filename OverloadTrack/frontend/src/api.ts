@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { isNetworkError, setSyncState } from './lib/connectivity';
 
 // Prioritize environment variable (e.g. from Vercel / Render deployment)
 // Fall back to current hostname on port 3000 for local network / dev
@@ -16,21 +17,25 @@ const api = axios.create({
 });
 
 /**
- * The login lives in sessionStorage: it survives a reload of the tab, but every new visit
- * (new tab, browser or app reopened) starts on the login page.
+ * The login stays on the device (30-day token): the installed app reopens straight on the athlete's
+ * data, even in a gym without network. "Se déconnecter" clears it.
  */
 const TOKEN_KEY = 'token';
 
-// Logins kept by older versions in localStorage would skip the login page: dropped once.
+// Logins of the version that kept them per tab move to the device once
 try {
-  localStorage.removeItem(TOKEN_KEY);
+  const tabToken = sessionStorage.getItem(TOKEN_KEY);
+  if (tabToken) {
+    localStorage.setItem(TOKEN_KEY, tabToken);
+    sessionStorage.removeItem(TOKEN_KEY);
+  }
 } catch {
-  // Storage unavailable: nothing was kept there either.
+  // Storage unavailable: there is nothing to move.
 }
 
 export const getToken = (): string | null => {
   try {
-    return sessionStorage.getItem(TOKEN_KEY);
+    return localStorage.getItem(TOKEN_KEY);
   } catch {
     return null;
   }
@@ -38,7 +43,7 @@ export const getToken = (): string | null => {
 
 export const setToken = (token: string) => {
   try {
-    sessionStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(TOKEN_KEY, token);
   } catch {
     // Storage unavailable (private mode): the login only lasts until the next reload.
   }
@@ -46,6 +51,7 @@ export const setToken = (token: string) => {
 
 export const clearToken = () => {
   try {
+    localStorage.removeItem(TOKEN_KEY);
     sessionStorage.removeItem(TOKEN_KEY);
   } catch {
     // Nothing to clear.
@@ -90,8 +96,15 @@ api.interceptors.request.use((config) => {
 });
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // An answer kept on the device by the service worker: the app is still offline
+    setSyncState({ online: !response.headers?.['x-overloady-offline'] });
+    return response;
+  },
   (error) => {
+    // No answer at all: offline for the app, until a request gets through again
+    if (isNetworkError(error)) setSyncState({ online: false });
+    else setSyncState({ online: true });
     // A 401 on an authenticated call means the session is gone; a failed login keeps its own message.
     if (error.response?.status === 401 && error.config?.headers?.Authorization) {
       clearToken();

@@ -38,7 +38,22 @@ export interface FinishWorkoutDto {
   rpe: number;
   notes?: string;
   exercises?: FinishExerciseDto[];
+  /** Real end of the session: its end may reach the server later, queued on the device offline. */
+  endedAt?: string;
+  /** How to create the session if the server lacks it: started offline, under the id the app gave it. */
+  offline?: { startedAt?: string; title?: string; routineId?: string };
 }
+
+/** Ids the app gives to sessions started offline ("local-…"); the server's own are cuids. */
+const OFFLINE_SESSION_ID = /^local-[a-z0-9-]{8,60}$/;
+
+/** A date sent by the app, kept only if it is real and not in the future (5 min of clock drift). */
+const parseClientDate = (value: unknown): Date | null => {
+  if (typeof value !== 'string') return null;
+  const date = new Date(value);
+  const time = date.getTime();
+  return Number.isFinite(time) && time > Date.UTC(2020, 0, 1) && time <= Date.now() + 5 * 60_000 ? date : null;
+};
 
 @Injectable()
 export class WorkoutService implements OnApplicationBootstrap {
@@ -141,9 +156,13 @@ export class WorkoutService implements OnApplicationBootstrap {
   }
 
   async finishWorkout(userId: string, data: FinishWorkoutDto) {
-    const session = await this.prisma.workoutSession.findUnique({
+    let session = await this.prisma.workoutSession.findUnique({
       where: { id: data.sessionId },
     });
+    // Started offline: the first sync creates it. Sent again (answer lost), it finds the same one.
+    if (!session && data.offline && typeof data.sessionId === 'string' && OFFLINE_SESSION_ID.test(data.sessionId)) {
+      session = await this.createOfflineSession(userId, data.sessionId, data.offline);
+    }
 
     if (!session) {
       throw new NotFoundException('Session introuvable');
@@ -152,13 +171,10 @@ export class WorkoutService implements OnApplicationBootstrap {
       throw new ForbiddenException('Non autorisé');
     }
 
-    // Save actual logged exercises and sets if sent from client
+    // Save actual logged exercises and sets if sent from client. One transaction that first locks
+    // the session row: an end sent twice at once (answer lost, then queued and sent again) replaces
+    // the logs one after the other instead of leaving both copies.
     if (data.exercises && data.exercises.length > 0) {
-      // Remove any temporary exercise logs
-      await this.prisma.exerciseLog.deleteMany({
-        where: { sessionId: data.sessionId },
-      });
-
       const anyCompletedExplicitly = data.exercises.some((ex) =>
         ex.sets?.some((s) => s.completed === true),
       );
@@ -166,32 +182,44 @@ export class WorkoutService implements OnApplicationBootstrap {
       // Neighbours judged on the list as sent: a dropped entry never glues two supersets together
       const supersetIds = sanitizeSupersetIds(data.exercises.map((ex) => ex.supersetId));
 
-      for (const [index, exDto] of data.exercises.entries()) {
-        if (!exDto.exerciseId) continue;
-        // Created in session order: the cuid ids keep the supersets' exercises next to each other
-        const exLog = await this.prisma.exerciseLog.create({
-          data: {
-            sessionId: data.sessionId,
-            exerciseId: exDto.exerciseId,
-            supersetId: supersetIds[index],
-          },
-        });
+      // Created in session order: the cuid ids keep the supersets' exercises next to each other,
+      // and the sets in the order they were logged
+      const logs = data.exercises.flatMap((exDto, index) =>
+        exDto.exerciseId
+          ? [
+              this.prisma.exerciseLog.create({
+                data: {
+                  sessionId: data.sessionId,
+                  exerciseId: exDto.exerciseId,
+                  supersetId: supersetIds[index],
+                  ...(exDto.sets?.length
+                    ? {
+                        sets: {
+                          createMany: {
+                            data: exDto.sets.map((set) => ({
+                              reps: Number(set.reps) || 0,
+                              weight: Number(set.weight) || 0,
+                              completed: anyCompletedExplicitly
+                                ? Boolean(set.completed)
+                                : Number(set.weight) > 0 && Number(set.reps) > 0,
+                              type: parseSetType(set.type),
+                            })),
+                          },
+                        },
+                      }
+                    : {}),
+                },
+              }),
+            ]
+          : [],
+      );
 
-        if (exDto.sets && exDto.sets.length > 0) {
-          // One insert per exercise; the cuid ids still grow in the order the sets were logged
-          await this.prisma.setLog.createMany({
-            data: exDto.sets.map((set) => ({
-              exerciseLogId: exLog.id,
-              reps: Number(set.reps) || 0,
-              weight: Number(set.weight) || 0,
-              completed: anyCompletedExplicitly
-                ? Boolean(set.completed)
-                : Number(set.weight) > 0 && Number(set.reps) > 0,
-              type: parseSetType(set.type),
-            })),
-          });
-        }
-      }
+      await this.prisma.$transaction([
+        this.prisma.workoutSession.update({ where: { id: data.sessionId }, data: { rpe: data.rpe ?? 7 } }),
+        // Remove any temporary exercise logs
+        this.prisma.exerciseLog.deleteMany({ where: { sessionId: data.sessionId } }),
+        ...logs,
+      ]);
     }
 
     this.recommendationCache.delete(userId);
@@ -219,10 +247,14 @@ export class WorkoutService implements OnApplicationBootstrap {
       }).catch(() => null);
     }
 
+    // The real end of the session, not the time its queued end reached the server
+    const sentEnd = parseClientDate(data.endedAt);
+    const endedAt = sentEnd && sentEnd >= session.startedAt ? sentEnd : new Date();
+
     return this.prisma.workoutSession.update({
       where: { id: data.sessionId },
       data: {
-        endedAt: new Date(),
+        endedAt,
         rpe: data.rpe ?? 7,
         // Notes are the athlete's own text: an emptied field clears them.
         notes: stripLegacyMarkers(data.notes) || null,
@@ -237,6 +269,29 @@ export class WorkoutService implements OnApplicationBootstrap {
         },
       },
     });
+  }
+
+  /** A session started without network, created at its first sync with the app's id and start time. */
+  private async createOfflineSession(
+    userId: string,
+    id: string,
+    offline: NonNullable<FinishWorkoutDto['offline']>,
+  ) {
+    const startedAt = parseClientDate(offline.startedAt) ?? new Date();
+    const title = typeof offline.title === 'string' ? offline.title.trim().slice(0, 120) || null : null;
+    const routine =
+      typeof offline.routineId === 'string'
+        ? await this.prisma.routine.findFirst({ where: { id: offline.routineId, userId }, select: { id: true } })
+        : null;
+    try {
+      return await this.prisma.workoutSession.create({
+        data: { id, userId, startedAt, rpe: 0, title, routineId: routine?.id ?? null } as any,
+      });
+    } catch (err: any) {
+      // Two syncs of the same session at once: the id is the primary key, the second finds the first
+      if (err?.code === 'P2002') return this.prisma.workoutSession.findUnique({ where: { id } });
+      throw err;
+    }
   }
 
   async getHistory(userId: string) {

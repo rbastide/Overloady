@@ -171,6 +171,13 @@ const paths: Record<string, React.ReactNode> = {
     </>
   ),
   download: <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />,
+  cloud: <path d="M7 18a4.5 4.5 0 0 1-.6-8.96 6 6 0 0 1 11.48 1.46A3.75 3.75 0 0 1 17.25 18H7z" />,
+  cloudOff: (
+    <>
+      <path d="M8.5 6.4A6 6 0 0 1 17.88 10.5 3.75 3.75 0 0 1 19.9 17M15.5 18H7a4.5 4.5 0 0 1-1.62-8.7" />
+      <path d="M3 3l18 18" />
+    </>
+  ),
   share: (
     <>
       <path d="M12 15V3.5M8 7.5l4-4 4 4" />

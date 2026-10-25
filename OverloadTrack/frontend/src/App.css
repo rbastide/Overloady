@@ -4383,6 +4383,27 @@ select optgroup {
 }
 
 /* History */
+/* Sessions finished offline, kept on the device until the network comes back */
+.history-pending {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.history-pending svg {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+  color: var(--text-dim);
+}
+
 .history-card {
   margin-bottom: 1rem;
 }

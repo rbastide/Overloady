@@ -48,6 +48,16 @@ import {
   saveSessionDraft,
   type SessionDraft,
 } from './lib/sessionDraft';
+import { getSyncState, isNetworkError, useSyncState } from './lib/connectivity';
+import {
+  flushPendingFinishes,
+  isOfflineSessionId,
+  newOfflineSessionId,
+  pendingFinishes,
+  queueFinish,
+  refreshPendingCount,
+  type FinishPayload,
+} from './lib/offlineQueue';
 
 const GOAL_OPTIONS: {
   id: 'FORCE' | 'BODYBUILDING' | 'ENDURANCE';
@@ -89,6 +99,32 @@ const DEFAULT_REST_SECONDS = 90;
 /** A set with nothing entered yet: sessions start empty, the athlete logs what they actually lift. */
 const emptySet = (): ActiveSet => ({ weight: 0, reps: 0, completed: false });
 
+/** Who planned a recommended session: the calibration protocol, Atlas, or the local engine. */
+const recommendationSource = (rec: any) =>
+  rec.isTestWeek ? 'protocol' : rec.aiGenerated || !('aiModel' in rec) ? 'atlas' : 'engine';
+
+/**
+ * One exercise of a recommended session, ready to log: the recommended loads become the ghost
+ * values of its empty sets. `exLog` is the server's copy when the session started online.
+ */
+const fromRecommendation = (rec: any, recEx: any, exLog?: any): ActiveExercise => {
+  const planned = recEx?.sets ?? [];
+  const count = exLog ? (exLog.sets || []).length : planned.length || 3;
+  return {
+    exerciseId: exLog?.exerciseId ?? recEx.exerciseId,
+    name: exLog?.exercise?.name || recEx?.name || 'Exercice',
+    category: exLog?.exercise?.category || recEx?.category,
+    progressiveTarget:
+      recEx?.targetAdvice ||
+      (rec.goalDetails ? `${rec.goalDetails.label || ''} : ${rec.goalDetails.repTarget || ''}` : undefined),
+    source: recommendationSource(rec),
+    sets: Array.from({ length: count }, (_, i) => ({
+      ...emptySet(),
+      target: toTarget(planned[Math.min(i, planned.length - 1)]),
+    })),
+  };
+};
+
 const describeSets = (exercise: ActiveExercise) => {
   // The work sets: a warm-up added ahead doesn't change what the exercise asks
   const work = exercise.sets.filter(drivesTarget);
@@ -124,6 +160,9 @@ const formatDraftStart = (iso: string) => {
 
 // Key lifts of the "Aujourd'hui" card: their target and the gap with last time
 const TODAY_KEY_LIFTS = 3;
+// A slow gym network shouldn't freeze the start of a session: past this, it starts on the device
+const START_TIMEOUT_MS = 10_000;
+const FINISH_TIMEOUT_MS = 20_000;
 
 // Session layout picked by the athlete, kept on the device: the set table, or one exercise per screen
 type SessionView = 'list' | 'gym';
@@ -184,6 +223,8 @@ function App() {
   // Active Workout Session
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [activeRoutineName, setActiveRoutineName] = useState<string | null>(null);
+  // Programme of the running session: a session started offline is linked to it on sync
+  const [activeRoutineId, setActiveRoutineId] = useState<string | null>(null);
   // Calibration step (1-3) of the running session, null outside the test week
   const [activeTestStep, setActiveTestStep] = useState<number | null>(null);
   const [workout, setWorkout] = useState<ActiveExercise[]>([]);
@@ -196,6 +237,11 @@ function App() {
   // Best marks per exercise (finished sessions), to show the last performance and records.
   const [exerciseStats, setExerciseStats] = useState<Record<string, ExerciseStats>>({});
   const requestedStats = useRef(new Set<string>());
+  // A second tap on "Terminer" while the first one is on its way does nothing
+  const finishingRef = useRef(false);
+  // Stats fetched ahead for offline use, once per exercise and app launch
+  const prefetchedStats = useRef(new Set<string>());
+  const syncState = useSyncState();
   // Coaching cues of the running session (AI tips, coach notes or test protocol).
   const [sessionTips, setSessionTips] = useState<string[]>([]);
   const addExerciseRef = useRef<HTMLElement>(null);
@@ -341,6 +387,26 @@ function App() {
       .forEach((ex: any) => typeof ex.exerciseId === 'string' && loadStats(ex.exerciseId));
   }, [nextRecommendation]);
 
+  // Offline in the gym, targets come from the stats kept on the device: fetched ahead, gently,
+  // for the exercises of the next session and of the programmes
+  useEffect(() => {
+    if (!isAuthenticated || !syncState.online) return;
+    const ids = new Set<string>();
+    (nextRecommendation?.exercises || []).forEach((ex: any) => typeof ex.exerciseId === 'string' && ids.add(ex.exerciseId));
+    routines.forEach((routine: any) => (routine.exercises || []).forEach((ex: any) => typeof ex?.id === 'string' && ids.add(ex.id)));
+    // Once per exercise and app launch: the service worker keeps the answer for offline use
+    const toFetch = Array.from(ids)
+      .filter((id) => !prefetchedStats.current.has(id))
+      .slice(0, 40);
+    const timers = toFetch.map((id, i) =>
+      window.setTimeout(() => {
+        prefetchedStats.current.add(id);
+        loadStats(id);
+      }, 3000 + i * 250),
+    );
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, [isAuthenticated, nextRecommendation, routines, syncState.online]);
+
   // A session keeps the screen on: the phone lies on the bench between two sets
   useWakeLock(activeSessionId !== null);
 
@@ -358,6 +424,7 @@ function App() {
       userId,
       sessionId: activeSessionId,
       routineName: activeRoutineName,
+      routineId: activeRoutineId,
       testStep: activeTestStep,
       workout,
       notes: sessionNotes,
@@ -365,13 +432,18 @@ function App() {
       startedAt: workoutStartTime.toISOString(),
       tips: sessionTips,
     });
-  }, [activeSessionId, activeRoutineName, activeTestStep, workout, sessionNotes, sessionRpe, workoutStartTime, sessionTips]);
+  }, [activeSessionId, activeRoutineName, activeRoutineId, activeTestStep, workout, sessionNotes, sessionRpe, workoutStartTime, sessionTips]);
 
   // A session saved on the device is offered back, unless it was finished or deleted meanwhile
   const checkSessionDraft = async () => {
     const userId = currentUserId();
     const draft = userId ? loadSessionDraft(userId) : null;
     if (!draft) return;
+    // Started offline: the server only hears of it when it is finished
+    if (isOfflineSessionId(draft.sessionId)) {
+      setResumeDraft(draft);
+      return;
+    }
     try {
       const res = await api.get(`/workout/session/${draft.sessionId}`);
       if (res.data?.endedAt) {
@@ -392,6 +464,7 @@ function App() {
     prepareSession(draft.tips);
     setActiveSessionId(draft.sessionId);
     setActiveRoutineName(draft.routineName);
+    setActiveRoutineId(draft.routineId ?? null);
     setActiveTestStep(draft.testStep);
     setWorkout(draft.workout);
     setSessionNotes(draft.notes);
@@ -400,6 +473,33 @@ function App() {
     setActiveTab('logger');
     setResumeDraft(null);
   };
+
+  // Sessions finished without network go out as soon as the server answers again
+  const syncPendingSessions = async () => {
+    const sent = await flushPendingFinishes(currentUserId());
+    if (sent === 0) return;
+    requestedStats.current.clear();
+    setExerciseStats({});
+    showToast(`${sent} séance${sent > 1 ? 's envoyées' : ' envoyée'} : ton historique est à jour`, 'success');
+    fetchData();
+  };
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    refreshPendingCount(currentUserId());
+    syncPendingSessions();
+    const onOnline = () => syncPendingSessions();
+    const onVisible = () => document.visibilityState === 'visible' && syncPendingSessions();
+    window.addEventListener('online', onOnline);
+    document.addEventListener('visibilitychange', onVisible);
+    // navigator.onLine can miss the network coming back: a quiet retry while sessions wait
+    const retry = window.setInterval(() => getSyncState().pending > 0 && syncPendingSessions(), 60_000);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.clearInterval(retry);
+    };
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -491,6 +591,19 @@ function App() {
   };
 
   const handleLogout = () => {
+    const waiting = pendingFinishes(currentUserId()).length;
+    if (
+      waiting > 0 &&
+      !window.confirm(
+        `${waiting} séance${waiting > 1 ? "s n'ont" : " n'a"} pas encore été envoyée${waiting > 1 ? 's' : ''}. ` +
+          `${waiting > 1 ? 'Elles resteront' : 'Elle restera'} sur ce téléphone et partir${waiting > 1 ? 'ont' : 'a'} à ta prochaine connexion. ` +
+          'Te déconnecter quand même ?',
+      )
+    ) {
+      return;
+    }
+    // The athlete's data kept for offline use leaves the device with them
+    navigator.serviceWorker?.controller?.postMessage({ type: 'clear-api-cache' });
     clearToken();
     setIsAuthenticated(false);
     setActiveSessionId(null);
@@ -505,10 +618,31 @@ function App() {
     setIsPickerOpen(false);
   };
 
+  // No network: the session starts on the device, under an id of its own, and reaches the server
+  // when it is finished (the server creates it then)
+  const startOfflineSession = (
+    routineName: string | null,
+    plan: ActiveExercise[],
+    tips: string[] = [],
+    routineId: string | null = null,
+  ) => {
+    prepareSession(tips);
+    setActiveSessionId(newOfflineSessionId());
+    setActiveRoutineName(routineName);
+    setActiveRoutineId(routineId);
+    setActiveTestStep(null);
+    setWorkout(plan);
+    setSessionNotes('');
+    setSessionRpe(7);
+    setWorkoutStartTime(new Date());
+    setActiveTab('logger');
+    showToast('Hors ligne : ta séance se note sur le téléphone et partira au retour du réseau', 'info');
+  };
+
   // Start Blank Workout
   const startNewWorkout = async () => {
     try {
-      const res = await api.post('/workout/start', {});
+      const res = await api.post('/workout/start', {}, { timeout: START_TIMEOUT_MS });
       prepareSession();
       setActiveSessionId(res.data.id);
       setActiveRoutineName(null);
@@ -519,6 +653,10 @@ function App() {
       setWorkoutStartTime(new Date());
       setActiveTab('logger');
     } catch (err: any) {
+      if (isNetworkError(err)) {
+        startOfflineSession(null, []);
+        return;
+      }
       showToast("Impossible de démarrer la séance", 'error');
     }
   };
@@ -526,10 +664,11 @@ function App() {
   // Start from Routine
   const startRoutineWorkout = async (routine: any) => {
     try {
-      const res = await api.post('/workout/start', { routineId: routine.id });
+      const res = await api.post('/workout/start', { routineId: routine.id }, { timeout: START_TIMEOUT_MS });
       prepareSession();
       setActiveSessionId(res.data.id);
       setActiveRoutineName(routine.name);
+      setActiveRoutineId(routine.id);
       setActiveTestStep(null);
       setSessionNotes('');
       setSessionRpe(7);
@@ -546,6 +685,21 @@ function App() {
       setWorkout(prefilledExercises);
       setActiveTab('logger');
     } catch (err) {
+      if (isNetworkError(err)) {
+        // Same number of sets as last time, from the stats kept on the device (3 the first time)
+        startOfflineSession(
+          routine.name,
+          (routine.exercises || []).map((ex: any) => ({
+            exerciseId: ex.id,
+            name: ex.name || 'Exercice',
+            category: ex.category,
+            sets: Array.from({ length: exerciseStats[ex.id]?.previousSets.length || 3 }, emptySet),
+          })),
+          [],
+          routine.id,
+        );
+        return;
+      }
       showToast('Erreur lors du lancement de la routine', 'error');
     }
   };
@@ -566,7 +720,12 @@ function App() {
         showToast('Séance réajustée selon ta surcharge progressive', 'success');
       }
     } catch (err: any) {
-      showToast(err.response?.data?.message || 'Erreur lors de la consultation du Coach IA', 'error');
+      showToast(
+        isNetworkError(err)
+          ? 'Atlas a besoin du réseau. La séance déjà proposée reste disponible hors ligne.'
+          : err.response?.data?.message || 'Erreur lors de la consultation du Coach IA',
+        'error',
+      );
     } finally {
       setIsRegeneratingAi(false);
     }
@@ -578,11 +737,9 @@ function App() {
     if (!rec) return;
     setIsStartingRec(true);
     try {
-      const res = await api.post('/workout/start-recommended', { customRec: rec });
+      const res = await api.post('/workout/start-recommended', { customRec: rec }, { timeout: START_TIMEOUT_MS });
       // AI recommendations carry coaching tips, coach chat sessions a note.
       prepareSession(Array.isArray(rec.coachingTips) ? rec.coachingTips : rec.notes ? [rec.notes] : []);
-      // Coach chat sessions come from Atlas; dashboard ones say whether Atlas or the local engine made them
-      const source = rec.isTestWeek ? 'protocol' : rec.aiGenerated || !('aiModel' in rec) ? 'atlas' : 'engine';
       setActiveSessionId(res.data.id);
       setActiveRoutineName(rec.title);
       setActiveTestStep(res.data.testWeekStep || null);
@@ -590,29 +747,36 @@ function App() {
       setSessionRpe(7);
       setWorkoutStartTime(new Date());
 
-      const prefilledExercises: ActiveExercise[] = (res.data.exercises || []).map((exLog: any, idx: number) => {
-        const matchingRecEx =
-          rec.exercises?.[idx] || rec.exercises?.find((re: any) => re.exerciseId === exLog.exerciseId);
-        return {
-          exerciseId: exLog.exerciseId,
-          name: exLog.exercise?.name || matchingRecEx?.name || 'Exercice',
-          category: exLog.exercise?.category || matchingRecEx?.category,
-          progressiveTarget:
-            matchingRecEx?.targetAdvice ||
-            (rec.goalDetails ? `${rec.goalDetails.label || ''} : ${rec.goalDetails.repTarget || ''}` : undefined),
-          source,
-          // The recommended loads become the ghost values of the empty sets
-          sets: (exLog.sets || []).map((_: unknown, i: number) => {
-            const planned = matchingRecEx?.sets ?? [];
-            return { ...emptySet(), target: toTarget(planned[Math.min(i, planned.length - 1)]) };
-          }),
-        };
-      });
+      // Coach chat sessions come from Atlas; dashboard ones say whether Atlas or the local engine made them
+      const prefilledExercises: ActiveExercise[] = (res.data.exercises || []).map((exLog: any, idx: number) =>
+        fromRecommendation(
+          rec,
+          rec.exercises?.[idx] || rec.exercises?.find((re: any) => re.exerciseId === exLog.exerciseId),
+          exLog,
+        ),
+      );
 
       setWorkout(prefilledExercises);
       setActiveTab('logger');
     } catch (err: any) {
-      showToast(err.response?.data?.message || "Impossible de démarrer la séance recommandée", 'error');
+      // Offline: the proposed session kept on the device starts as is, targets included.
+      // A calibration step needs the server, which writes the protocol's progress.
+      if (isNetworkError(err) && !rec.isTestWeek) {
+        startOfflineSession(
+          rec.title || null,
+          (rec.exercises || [])
+            .filter((ex: any) => typeof ex.exerciseId === 'string')
+            .map((ex: any) => fromRecommendation(rec, ex)),
+          Array.isArray(rec.coachingTips) ? rec.coachingTips : rec.notes ? [rec.notes] : [],
+        );
+        return;
+      }
+      showToast(
+        isNetworkError(err)
+          ? 'La séance de calibration demande le réseau'
+          : err.response?.data?.message || "Impossible de démarrer la séance recommandée",
+        'error',
+      );
     } finally {
       setIsStartingRec(false);
     }
@@ -669,7 +833,10 @@ function App() {
       setActiveTab('logger');
       fetchData();
     } catch (err: any) {
-      showToast(err.response?.data?.message || 'Erreur lors du démarrage du test', 'error');
+      showToast(
+        isNetworkError(err) ? 'La séance de calibration demande le réseau' : err.response?.data?.message || 'Erreur lors du démarrage du test',
+        'error',
+      );
     } finally {
       setIsStartingTestStep(false);
     }
@@ -928,6 +1095,7 @@ function App() {
     clearSessionDraft(currentUserId());
     setActiveSessionId(null);
     setActiveRoutineName(null);
+    setActiveRoutineId(null);
     setActiveTestStep(null);
     setWorkout([]);
     setWorkoutStartTime(null);
@@ -938,13 +1106,17 @@ function App() {
   const abandonWorkout = async () => {
     if (!activeSessionId) return;
 
-    try {
-      await api.delete(`/workout/session/${activeSessionId}`);
-    } catch (err: any) {
-      // Already gone on the server: the session can still be closed here
-      if (err.response?.status !== 404) {
-        showToast("Impossible d'abandonner la séance", 'error');
-        return;
+    // Started offline: the server never heard of it, nothing to delete there
+    if (!isOfflineSessionId(activeSessionId)) {
+      try {
+        await api.delete(`/workout/session/${activeSessionId}`);
+      } catch (err: any) {
+        // Already gone on the server, or no network (an empty session never shows in the history):
+        // the session can still be closed here
+        if (err.response?.status !== 404 && !isNetworkError(err)) {
+          showToast("Impossible d'abandonner la séance", 'error');
+          return;
+        }
       }
     }
     setIsAbandonOpen(false);
@@ -957,7 +1129,7 @@ function App() {
 
   // Finish and Save Workout
   const finishWorkout = async () => {
-    if (!activeSessionId) return;
+    if (!activeSessionId || finishingRef.current) return;
 
     if (workout.length === 0) {
       if (!window.confirm('Votre séance ne contient aucun exercice. Voulez-vous quand même la terminer ?')) {
@@ -980,12 +1152,43 @@ function App() {
         })),
       }));
 
-      const res = await api.post('/workout/finish', {
+      const userId = currentUserId();
+      const payload: FinishPayload = {
         sessionId: activeSessionId,
         rpe: sessionRpe,
         notes: sessionNotes,
         exercises: exercisesPayload,
-      });
+        endedAt: new Date().toISOString(),
+        offline: {
+          startedAt: (workoutStartTime ?? new Date()).toISOString(),
+          ...(activeRoutineName ? { title: activeRoutineName } : {}),
+          ...(activeRoutineId ? { routineId: activeRoutineId } : {}),
+        },
+      };
+
+      // No network: kept on the device, sent once the server answers. Sending it twice finishes
+      // the same session again, never a second one.
+      const keepOnDevice = () => {
+        if (!userId) return false;
+        queueFinish(userId, payload);
+        resetActiveSession();
+        setActiveTab('history');
+        showToast('Séance gardée sur le téléphone : elle partira dès le retour du réseau', 'info');
+        return true;
+      };
+      // Clearly offline (no connection at all): no need to wait for a request to fail
+      if (navigator.onLine === false && keepOnDevice()) return;
+
+      finishingRef.current = true;
+      let res;
+      try {
+        res = await api.post('/workout/finish', payload, { timeout: FINISH_TIMEOUT_MS });
+      } catch (err) {
+        if (isNetworkError(err) && keepOnDevice()) return;
+        throw err;
+      } finally {
+        finishingRef.current = false;
+      }
 
       // The recap card says the session is saved, and offers to share it
       setRecapSession(res.data);
@@ -995,6 +1198,8 @@ function App() {
       setExerciseStats({});
       setActiveTab('history');
       await fetchData();
+      // The network is back: sessions kept earlier go out too
+      syncPendingSessions();
     } catch (err: any) {
       showToast(err.response?.data?.message || "Erreur lors de l'enregistrement", 'error');
     }
@@ -2373,6 +2578,16 @@ function App() {
                 </button>
               )}
             </div>
+
+            {syncState.pending > 0 && (
+              <p className="history-pending" role="status">
+                <Icon name="cloud" size={16} />
+                <span>
+                  {syncState.pending} séance{syncState.pending > 1 ? 's' : ''} en attente d'envoi : elle
+                  {syncState.pending > 1 ? 's apparaîtront' : ' apparaîtra'} ici dès le retour du réseau.
+                </span>
+              </p>
+            )}
 
             {history.map((session) => {
               const isExpanded = expandedHistoryId === session.id;
