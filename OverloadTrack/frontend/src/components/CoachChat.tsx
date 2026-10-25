@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import api from '../api';
 import { Icon } from './Icons';
+import { detectEquipment, formatKg } from '../lib/loadMath';
 
 export interface CoachExercise {
   exerciseId: string;
@@ -67,7 +68,11 @@ const toApiMessage = (m: ChatMessage) => ({
 const formatSets = (ex: CoachExercise) => {
   const first = ex.sets[0];
   if (!first) return '';
-  return `${ex.sets.length} × ${first.reps}${first.weight > 0 ? ` · ${first.weight} kg` : ''}`;
+  // On bodyweight work the load is a belt, never the whole weight lifted
+  if (detectEquipment(ex.name) === 'bodyweight') {
+    return `${ex.sets.length} × ${first.reps} · ${first.weight > 0 ? `+ ${formatKg(first.weight)} kg de lest` : 'poids du corps'}`;
+  }
+  return `${ex.sets.length} × ${first.reps}${first.weight > 0 ? ` · ${formatKg(first.weight)} kg` : ''}`;
 };
 
 export const CoachChat: React.FC<CoachChatProps> = ({ onStartWorkout, onSaveRoutine, onError }) => {

@@ -36,7 +36,7 @@ import {
   toAthleteProfileValue,
   type AthleteProfileValue,
 } from './components/AthleteProfileFields';
-import { formatKg } from './lib/loadMath';
+import { detectEquipment, formatKg } from './lib/loadMath';
 import { HAPTICS, useWakeLock, vibrate } from './lib/device';
 import { describeGap, fillFromTarget, resolveSetTarget, toTarget, topSet, type SetTarget } from './lib/overload';
 import { createNameMatcher } from './lib/exerciseSearch';
@@ -362,6 +362,7 @@ function App() {
           ? data.previousSets.map((s: any) => ({ weight: Number(s.weight) || 0, reps: Number(s.reps) || 0, type: typeOf(s) }))
           : [],
         lastRpe: Number(data?.lastRpe) || null,
+        lastDate: typeof data?.lastDate === 'string' ? data.lastDate : null,
       },
     }));
   };
@@ -1892,6 +1893,8 @@ function App() {
                             const stats = exerciseStats[ex.exerciseId];
                             // No gap until the history of the movement has loaded
                             const gap = stats ? describeGap(target, topSet(stats.previousSets)) : null;
+                            // On bodyweight work the load is a belt, never the whole weight lifted
+                            const bodyweight = detectEquipment(ex.name) === 'bodyweight';
                             return (
                               <li key={idx} className="today-lift">
                                 <div className="today-lift-text">
@@ -1899,6 +1902,7 @@ function App() {
                                   <p className="today-lift-sets">
                                     {ex.sets?.length || 3} séries
                                     {target && target.weight === 0 ? ' · poids du corps' : ''}
+                                    {target && target.weight > 0 && bodyweight ? ' · poids du corps + lest' : ''}
                                   </p>
                                 </div>
                                 {target ? (
@@ -1906,6 +1910,7 @@ function App() {
                                     <span className="today-lift-load">
                                       {target.weight > 0 && (
                                         <>
+                                          {bodyweight && '+ '}
                                           {formatKg(target.weight)}
                                           <small>kg</small>
                                           <span className="today-lift-times">×</span>

@@ -35,6 +35,8 @@ export interface ExerciseStats {
   previousSets: { weight: number; reps: number; type?: SetType }[];
   /** Session RPE of that latest session. */
   lastRpe?: number | null;
+  /** When that latest session took place (ISO): a long break lowers the next target. */
+  lastDate?: string | null;
 }
 
 interface StepperProps {
@@ -234,7 +236,13 @@ export function ActiveExerciseCard({
               <span className={`meta-item${stats.lastSet ? ' exercise-last' : ''}`}>
                 <span className="meta-sep" aria-hidden="true">•</span>
                 {stats.lastSet
-                  ? `Dernier passage : ${formatKg(stats.lastSet.weight)} kg × ${stats.lastSet.reps}`
+                  ? `Dernier passage : ${
+                      equipment !== 'bodyweight'
+                        ? `${formatKg(stats.lastSet.weight)} kg`
+                        : stats.lastSet.weight > 0
+                        ? `+ ${formatKg(stats.lastSet.weight)} kg de lest`
+                        : 'poids du corps'
+                    } × ${stats.lastSet.reps}`
                   : 'Première séance'}
               </span>
             )}

@@ -13,6 +13,16 @@ import { calibrationLoadFactor, describeAthlete, scaleCalibrationLoad } from '..
 import { orderRoutineExercises } from '../routine/routine.service';
 import { drivesTarget, isWorkSet, parseSetType } from './set-type';
 import { sanitizeSupersetIds } from './superset';
+import {
+  KnownLift,
+  Performance,
+  detectEquipment,
+  guardSets,
+  nextTarget,
+  startingTarget,
+  topPerformance,
+  usesRelatedLifts,
+} from './progression';
 
 const COACH_MAX_MESSAGES = 12;
 const COACH_MAX_MESSAGE_LENGTH = 2000;
@@ -375,6 +385,10 @@ export class WorkoutService implements OnApplicationBootstrap {
     let previousSets: Array<{ weight: number; reps: number; type: string }> = [];
     // Session RPE of that latest session: the next target holds the load after an all-out session
     let lastRpe: number | null = null;
+    // When that latest session took place: a long break lowers the next target
+    let lastDate: Date | null = null;
+    let lastPerformance: Performance | null = null;
+    const bodyweight = detectEquipment(exercise.name) === 'bodyweight';
     const historyPoints: Array<{ date: string; maxWeight: number; totalVolume: number; estimated1RM: number }> = [];
 
     for (const log of logs) {
@@ -383,6 +397,9 @@ export class WorkoutService implements OnApplicationBootstrap {
       let sessionVolume = 0;
 
       for (const set of log.sets) {
+        if (set.completed && set.reps > 0 && isWorkSet(set) && (set.weight > 0 || bodyweight)) {
+          if (drivesTarget(set)) lastSet = { weight: set.weight, reps: set.reps, completed: set.completed };
+        }
         if (set.completed && set.weight > 0 && set.reps > 0 && isWorkSet(set)) {
           const estimated1RM = Math.round(set.weight * (1 + set.reps / 30) * 10) / 10;
           if (set.weight > maxWeight) maxWeight = set.weight;
@@ -390,14 +407,18 @@ export class WorkoutService implements OnApplicationBootstrap {
           if (set.weight > sessionMaxWeight) sessionMaxWeight = set.weight;
           if (estimated1RM > sessionMax1RM) sessionMax1RM = estimated1RM;
           sessionVolume += set.weight * set.reps;
-          if (drivesTarget(set)) lastSet = { weight: set.weight, reps: set.reps, completed: set.completed };
         }
       }
 
-      const doneSets = log.sets.filter((set) => set.completed && set.weight > 0 && set.reps > 0 && drivesTarget(set));
+      // A bodyweight set at 0 kg is the movement done without a belt: it counts as last time
+      const doneSets = log.sets.filter(
+        (set) => set.completed && (set.weight > 0 || bodyweight) && set.reps > 0 && drivesTarget(set),
+      );
       if (doneSets.length > 0) {
         previousSets = doneSets.map((set) => ({ weight: set.weight, reps: set.reps, type: set.type }));
         lastRpe = log.session.rpe || null;
+        lastDate = log.session.startedAt;
+        lastPerformance = topPerformance(exercise.name, log.sets, log.session.startedAt, log.session.rpe);
       }
 
       if (sessionMaxWeight > 0) {
@@ -410,28 +431,21 @@ export class WorkoutService implements OnApplicationBootstrap {
       }
     }
 
-    // Calcul de la recommandation de surcharge progressive
-    let recommendedOverload = {
-      weight: 20,
-      reps: 10,
-      reason: 'Premier entraînement recommandé : 20kg × 10 reps',
+    // Next target, with the same rules as the session proposed on the dashboard
+    const [profile, known] = await Promise.all([
+      this.prisma.profile.findUnique({ where: { userId } }),
+      // Related lifts only help a movement never done that has some (deadlift from the squat...)
+      lastPerformance || !usesRelatedLifts(exercise.name) ? Promise.resolve(new Map()) : this.lastPerformances(userId),
+    ]);
+    const goal = (profile as any)?.goal;
+    const target = lastPerformance
+      ? nextTarget(lastPerformance, exercise.name, goal)
+      : startingTarget(exercise.name, goal, knownLifts(known), calibrationLoadFactor(profile as any));
+    const recommendedOverload = {
+      weight: target.weight,
+      reps: target.reps,
+      reason: target.note || describeTarget(target, detectEquipment(exercise.name) === 'bodyweight'),
     };
-
-    if (lastSet) {
-      if (lastSet.completed) {
-        recommendedOverload = {
-          weight: lastSet.weight + 2.5,
-          reps: lastSet.reps,
-          reason: `Objectif Surcharge : +2.5kg (${lastSet.weight + 2.5}kg × ${lastSet.reps} reps)`,
-        };
-      } else {
-        recommendedOverload = {
-          weight: lastSet.weight,
-          reps: lastSet.reps,
-          reason: `Valider la charge : ${lastSet.weight}kg × ${lastSet.reps} reps`,
-        };
-      }
-    }
 
     return {
       exercise,
@@ -440,6 +454,7 @@ export class WorkoutService implements OnApplicationBootstrap {
       lastSet,
       previousSets,
       lastRpe,
+      lastDate: lastDate ? lastDate.toISOString() : null,
       recommendedOverload,
       historyPoints,
     };
@@ -766,6 +781,53 @@ export class WorkoutService implements OnApplicationBootstrap {
     return allExercises[0];
   }
 
+  /** Last performance of each movement the athlete trained, by exercise id, in one query. */
+  private async lastPerformances(userId: string): Promise<Map<string, Performance & { name: string }>> {
+    // The whole history: a movement left for months still has its last load, lowered by the break
+    const logs = await this.prisma.exerciseLog.findMany({
+      where: { session: { userId, endedAt: { not: null } } },
+      orderBy: { session: { startedAt: 'desc' } },
+      select: {
+        exerciseId: true,
+        exercise: { select: { name: true } },
+        session: { select: { startedAt: true, rpe: true } },
+        sets: { select: { weight: true, reps: true, completed: true, type: true } },
+      },
+    });
+    const performances = new Map<string, Performance & { name: string }>();
+    for (const log of logs) {
+      if (performances.has(log.exerciseId)) continue;
+      // A log with nothing validated (session cut short) leaves the older one in charge
+      const top = topPerformance(log.exercise.name, log.sets, log.session.startedAt, log.session.rpe);
+      if (top) performances.set(log.exerciseId, { ...top, name: log.exercise.name });
+    }
+    return performances;
+  }
+
+  /** Target of one movement: its progression when the athlete trained it, else a starting load. */
+  private targetFor(
+    exercise: { id: string; name: string },
+    goal: string,
+    performances: Map<string, Performance & { name: string }>,
+    loadFactor: number,
+  ): { weight: number; reps: number; note?: string } {
+    const last = performances.get(exercise.id);
+    return last ? nextTarget(last, exercise.name, goal) : startingTarget(exercise.name, goal, knownLifts(performances), loadFactor);
+  }
+
+  /** The sets Atlas planned for one movement, kept within the same rules as the local engine. */
+  private guardAtlasSets(
+    exercise: { id: string; name: string },
+    sets: Array<{ weight: number; reps: number }>,
+    goal: string,
+    performances: Map<string, Performance & { name: string }>,
+    loadFactor: number,
+  ) {
+    const last = performances.get(exercise.id) || null;
+    const start = startingTarget(exercise.name, goal, knownLifts(performances), loadFactor);
+    return guardSets(sets, exercise.name, { goal, last, start });
+  }
+
   async getNextRecommendedWorkout(userId: string, forceFreshAi = false, instructions?: string) {
     const pending = this.recommendationInFlight.get(userId);
     // Dashboard loads (often two at once) share the running generation instead of queueing another AI call
@@ -872,6 +934,11 @@ export class WorkoutService implements OnApplicationBootstrap {
       return this.generateTestWeekRecommendation(userId, goal, nextStep, allExercises, currentMeta, profile);
     }
 
+    // Last performance of each movement, read while Atlas thinks: his loads and the local
+    // engine's follow the same rules. A failure is raised where it is awaited, below.
+    const performancesQuery = this.lastPerformances(userId);
+    performancesQuery.catch(() => undefined);
+
     // Try AI Generation with Pollinations Bodybuilding Coach
     let aiWorkout = null;
     try {
@@ -928,6 +995,9 @@ export class WorkoutService implements OnApplicationBootstrap {
       this.logger.warn(`AI Generation invocation error: ${aiErr.message}`);
     }
 
+    const performances = await performancesQuery;
+    const loadFactor = calibrationLoadFactor(profile as any);
+
     if (aiWorkout && aiWorkout.exercises && aiWorkout.exercises.length > 0) {
       // Map AI exercises to DB exercises
       const mappedExercises: any[] = [];
@@ -945,10 +1015,16 @@ export class WorkoutService implements OnApplicationBootstrap {
 
         if (matchedDbEx) {
           usedIds.add(matchedDbEx.id);
-          const sets = (aiEx.sets || []).map((s, idx) => ({
-            setNumber: s.setNumber || idx + 1,
-            weight: Number.isFinite(Number(s.weight)) && Number(s.weight) >= 0 ? Number(s.weight) : 20,
-            reps: Number(s.reps) || 10,
+          // Atlas's loads are bounded by the athlete's history: no jump, no drop on a target held
+          const aiSets = aiEx.sets?.length
+            ? aiEx.sets
+            : Array.from({ length: 3 }, (_, i) => ({ setNumber: i + 1, weight: 0, reps: 0 }));
+          const guarded = this.guardAtlasSets(matchedDbEx, aiSets, goal, performances, loadFactor);
+          const note = guarded.note;
+          const sets = guarded.sets.map((s, idx) => ({
+            setNumber: aiSets[idx].setNumber || idx + 1,
+            weight: s.weight,
+            reps: s.reps,
             completed: false,
           }));
 
@@ -957,12 +1033,8 @@ export class WorkoutService implements OnApplicationBootstrap {
             name: matchedDbEx.name,
             category: (matchedDbEx as any).category || aiEx.category || 'Général',
             targetAdvice: aiEx.targetAdvice || currentMeta.repTarget,
-            reason: aiEx.reason || 'Recommandé pour votre progression',
-            sets: sets.length > 0 ? sets : [
-              { setNumber: 1, weight: 20, reps: 10, completed: false },
-              { setNumber: 2, weight: 20, reps: 10, completed: false },
-              { setNumber: 3, weight: 20, reps: 10, completed: false },
-            ],
+            reason: note || aiEx.reason || 'Recommandé pour ta progression',
+            sets,
           });
         }
       }
@@ -1020,63 +1092,29 @@ export class WorkoutService implements OnApplicationBootstrap {
 
     const fallbackExercises = [];
 
+    const setsCount = goal === 'ENDURANCE' ? 3 : 4;
+    const targetAdvice =
+      goal === 'FORCE'
+        ? 'Charge lourde • Repos 3-4 min • Intensité 85% 1RM'
+        : goal === 'ENDURANCE'
+        ? 'Cadence continue • Repos 45s • Densité musculaire'
+        : 'Tension continue • Repos 75-90s • Focus congestion';
+
     for (const ex of finalExercises) {
-      const lastLog = await this.prisma.exerciseLog.findFirst({
-        where: {
-          exerciseId: ex.id,
-          session: { userId, endedAt: { not: null } },
-        },
-        orderBy: { session: { startedAt: 'desc' } },
-        include: { sets: true },
-      });
-
-      let baseWeight = 20;
-      if (lastLog && lastLog.sets.length > 0) {
-        const completedSets = lastLog.sets.filter((s) => s.completed && s.weight > 0 && drivesTarget(s));
-        if (completedSets.length > 0) {
-          baseWeight = Math.max(...completedSets.map((s) => s.weight));
-        }
-      }
-
-      let setsCount = 4;
-      let targetReps = 8;
-      let targetWeight = baseWeight;
-      let targetAdvice = '';
-
-      if (goal === 'FORCE') {
-        setsCount = 4;
-        targetReps = 5;
-        targetWeight = baseWeight > 20 ? baseWeight + 2.5 : 40;
-        targetAdvice = 'Charge lourde • Repos 3-4 min • Intensité 85% 1RM';
-      } else if (goal === 'ENDURANCE') {
-        setsCount = 3;
-        targetReps = 15;
-        targetWeight = Math.max(10, Math.round((baseWeight * 0.7) / 2.5) * 2.5);
-        targetAdvice = 'Cadence continue • Repos 45s • Densité musculaire';
-      } else {
-        setsCount = 4;
-        targetReps = 10;
-        targetWeight = baseWeight > 20 ? baseWeight : 30;
-        targetAdvice = 'Tension continue • Repos 75-90s • Focus congestion';
-      }
-
-      const sets = [];
-      for (let i = 0; i < setsCount; i++) {
-        sets.push({
-          setNumber: i + 1,
-          weight: targetWeight,
-          reps: targetReps,
-          completed: false,
-        });
-      }
-
+      // Double progression on the last performance, else a starting load scaled to the athlete
+      const target = this.targetFor(ex, goal, performances, loadFactor);
       fallbackExercises.push({
         exerciseId: ex.id,
         name: ex.name,
         category: (ex as any).category || 'Général',
         targetAdvice,
-        reason: 'Surcharge progressive calculée sur votre historique',
-        sets,
+        reason: target.note || 'Surcharge progressive calculée sur ton historique',
+        sets: Array.from({ length: setsCount }, (_, i) => ({
+          setNumber: i + 1,
+          weight: target.weight,
+          reps: target.reps,
+          completed: false,
+        })),
       });
     }
 
@@ -1118,7 +1156,7 @@ export class WorkoutService implements OnApplicationBootstrap {
       throw new BadRequestException('Dis à Atlas ce que tu veux travailler.');
     }
 
-    const [profile, benchmarks, recent, pool] = await Promise.all([
+    const [profile, benchmarks, recent, pool, performances] = await Promise.all([
       this.prisma.profile.findUnique({ where: { userId } }),
       this.getTestedBenchmarks(userId),
       this.prisma.workoutSession.findMany({
@@ -1128,10 +1166,13 @@ export class WorkoutService implements OnApplicationBootstrap {
         include: { exercises: { include: { exercise: true } } },
       }),
       this.getExercisePool(),
+      this.lastPerformances(userId),
     ]);
+    const goal = (profile as any)?.goal || 'BODYBUILDING';
+    const loadFactor = calibrationLoadFactor(profile as any);
 
     const reply = await this.aiService.coachChat({
-      goal: (profile as any)?.goal || 'BODYBUILDING',
+      goal,
       weight: (profile as any)?.weight,
       height: (profile as any)?.height,
       athlete: describeAthlete(profile as any),
@@ -1158,13 +1199,18 @@ export class WorkoutService implements OnApplicationBootstrap {
         notes: w.notes,
         exercises: w.exercises.map((ex) => {
           const dbEx = this.findMatchingExercise(ex.name, '', pool);
+          // Same guard-rails as the dashboard session: no jump, no drop on a target held
+          const guarded = this.guardAtlasSets(dbEx, [{ weight: ex.weight, reps: ex.reps }], goal, performances, loadFactor);
+          const target = { ...guarded.sets[0], note: guarded.note };
           return {
             exerciseId: dbEx.id,
             name: dbEx.name,
             category: dbEx.category,
             rest: ex.rest,
-            targetAdvice: [`${ex.sets}×${ex.reps}`, ex.rest && `repos ${ex.rest}`, ex.tip].filter(Boolean).join(' · '),
-            sets: Array.from({ length: ex.sets }, (_, i) => ({ setNumber: i + 1, weight: ex.weight, reps: ex.reps })),
+            targetAdvice: [`${ex.sets}×${target.reps}`, ex.rest && `repos ${ex.rest}`, target.note || ex.tip]
+              .filter(Boolean)
+              .join(' · '),
+            sets: Array.from({ length: ex.sets }, (_, i) => ({ setNumber: i + 1, weight: target.weight, reps: target.reps })),
           };
         }),
       })),
@@ -1889,6 +1935,22 @@ export class WorkoutService implements OnApplicationBootstrap {
     this.recommendationCache.delete(userId);
     return { success: true, message: 'Semaine de test réinitialisée. Prêt pour une nouvelle calibration.' };
   }
+}
+
+/** Movements already measured, to guess the starting load of a related one. */
+function knownLifts(performances: Map<string, Performance & { name: string }>): KnownLift[] {
+  return [...performances.values()].map(({ name, weight, reps }) => ({ name, weight, reps }));
+}
+
+/** The next target in one sentence, e.g. "Objectif : 52,5 kg × 11 reps". */
+function describeTarget(target: { weight: number; reps: number }, bodyweight: boolean): string {
+  const load =
+    target.weight > 0
+      ? `${bodyweight ? '+ ' : ''}${String(target.weight).replace('.', ',')} kg${bodyweight ? ' de lest' : ''} × `
+      : bodyweight
+      ? 'poids du corps × '
+      : '';
+  return `Objectif : ${load}${target.reps} reps`;
 }
 
 /**

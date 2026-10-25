@@ -32,6 +32,12 @@ export interface AiWorkoutPromptContext {
   }>;
 }
 
+/**
+ * What a load means, for both prompts. The server still bounds every load Atlas proposes
+ * (workout/progression.ts): these lines only keep the proposals close to what will be kept.
+ */
+const LOAD_RULES = `Charges : pour les haltères, "weight" est le poids d'UN haltère, pas de la paire. Pour un exercice au poids du corps (tractions, dips, pompes), "weight" vaut 0 ; il ne vaut le lest ajouté que si l'athlète en utilise déjà un. D'une séance à l'autre, ne baisse jamais la charge d'un exercice réussi et ne la monte pas de plus de 10 %.`;
+
 export interface AiGeneratedExercise {
   name: string;
   category: string;
@@ -112,6 +118,7 @@ Tu conçois une séance d'entraînement optimisée selon l'objectif de l'athlèt
 Exercices autorisés disponibles dans l'application : ${catalogNames.join(', ')}.
 Par défaut, sélectionne 4 à 6 exercices pertinents. Si l'athlète demande un nombre d'exercices ou une répartition par muscle (ex : "4 pecs, 3 épaules, 2 triceps"), respecte-les EXACTEMENT, jusqu'à 12 exercices, sans doublon et sans ajouter d'exercice non demandé.
 "weight" est une charge réaliste en kg propre à CHAQUE exercice et au niveau de l'athlète (une élévation latérale est bien plus légère qu'un développé couché ; 0 pour un exercice au poids du corps). Ne recopie pas les valeurs de l'exemple.
+${LOAD_RULES}
 Si l'athlète formule une demande, elle est prioritaire : respecte-la tant qu'elle reste sûre, et indique dans "rationale" ce que tu as changé.
 
 La réponse est limitée en longueur : sois TRÈS concis ("reason" : 6 mots max, "rationale" : 1 phrase, 2 conseils courts), une ligne par exercice. Tout le texte est en français.
@@ -189,6 +196,7 @@ L'athlète te décrit ce qu'il veut : une séance, un programme de plusieurs sé
 - Pour modifier une séance déjà proposée, renvoie la version complète mise à jour.
 - Choisis les exercices UNIQUEMENT dans cette liste, en recopiant le nom exact : ${context.availableExercises.join(', ')}.
 - 4 à 7 exercices par séance selon la durée demandée. Charges en kg réalistes pour ce profil (0 pour le poids du corps), adaptées à l'objectif et aux records connus.
+${LOAD_RULES}
 - Messages courts (3 phrases max), conseils de 1 phrase.
 
 Réponds STRICTEMENT avec un objet JSON valide (aucun markdown) suivant ce schéma :

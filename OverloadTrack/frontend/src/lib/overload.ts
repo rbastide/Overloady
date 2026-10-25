@@ -10,7 +10,27 @@ export interface SetTarget {
 }
 
 /** How a target was derived from the last performance. */
-export type OverloadRule = 'reps' | 'load' | 'hold' | 'failure';
+export type OverloadRule = 'reps' | 'load' | 'hold' | 'failure' | 'pause';
+
+/**
+ * Share of the load kept after a break on the movement (same rule as the server,
+ * backend/src/workout/progression.ts). One session a week is the normal rhythm.
+ */
+export function pauseFactor(days: number): number {
+  if (days >= 24) return 0.5;
+  if (days >= 17) return 0.75;
+  if (days >= 10) return 0.9;
+  return 1;
+}
+
+/** Whole days since the last session on the movement, or 0 when unknown. */
+export const daysSince = (isoDate?: string | null, now = Date.now()) => {
+  const time = isoDate ? Date.parse(isoDate) : NaN;
+  return Number.isFinite(time) ? Math.floor((now - time) / 86_400_000) : 0;
+};
+
+/** Lightest load that exists: the empty bar, the smallest dumbbell, one plate of the stack. */
+const MIN_LOAD = { barbell: 20, dumbbell: 2, machine: 5, cable: 2.5, bodyweight: 0 } as const;
 
 /** Rep range of each training goal (same ranges as the coach and the profile). */
 export const GOAL_REP_RANGES: Record<string, [number, number]> = {
@@ -31,28 +51,41 @@ export const toTarget = (set?: { weight?: number; reps?: number } | null): SetTa
 /**
  * Double progression from the last performance: one more rep at the same load until the top of
  * the goal's range, then the smallest real load jump with the reps back to the bottom.
- * A set taken to failure, or a last session felt at RPE 10, is repeated as is.
+ * A set taken to failure, or a last session felt at RPE 10, is repeated as is. The load only goes
+ * down after a break on the movement (see pauseFactor).
  */
 export function progressFrom(
   previous: SetTarget & { type?: SetType },
   exerciseName: string,
   goal?: string,
   lastRpe?: number | null,
+  lastDate?: string | null,
 ): { target: SetTarget; rule: OverloadRule } {
+  const [bottom, top] = repRange(goal);
+  const equipment = detectEquipment(exerciseName);
+  const factor = pauseFactor(daysSince(lastDate));
+  if (factor < 1) {
+    if (previous.weight <= 0) {
+      return { target: { weight: 0, reps: Math.max(1, Math.round(previous.reps * factor)) }, rule: 'pause' };
+    }
+    const step = DEFAULT_STEP[equipment];
+    const weight = Math.max(MIN_LOAD[equipment], Math.round((previous.weight * factor) / step) * step);
+    return { target: { weight: Math.round(weight * 100) / 100, reps: Math.min(previous.reps, top) }, rule: 'pause' };
+  }
+
   const same = { weight: previous.weight, reps: previous.reps };
   if (previous.type === 'failure') return { target: same, rule: 'failure' };
   if (lastRpe !== undefined && lastRpe !== null && lastRpe >= 10) {
     return { target: same, rule: 'hold' };
   }
-  const [bottom, top] = repRange(goal);
-  const equipment = detectEquipment(exerciseName);
   // Bodyweight without a belt: progress only comes from reps
   if (previous.reps < top || previous.weight <= 0 || equipment === 'bodyweight') {
     return { target: { weight: previous.weight, reps: previous.reps + 1 }, rule: 'reps' };
   }
   const step = DEFAULT_STEP[equipment];
   return {
-    target: { weight: Math.round((previous.weight + step) * 100) / 100, reps: bottom },
+    // Next load of the grid: 12,5 → 14 kg and 15 → 16 kg on dumbbells, 42 → 42,5 kg on a bar
+    target: { weight: Math.round((Math.floor(previous.weight / step + 1e-9) * step + step) * 100) / 100, reps: bottom },
     rule: 'load',
   };
 }
@@ -98,7 +131,7 @@ export function resolveSetTarget(
   if (set?.target) return set.target;
   const previous = previousSetAt(stats, workIndexOf(exercise, setIndex));
   if (!previous || previous.reps <= 0) return null;
-  return progressFrom(previous, exercise.name, goal, stats?.lastRpe).target;
+  return progressFrom(previous, exercise.name, goal, stats?.lastRpe, stats?.lastDate).target;
 }
 
 /**
@@ -180,19 +213,32 @@ export function explainTarget(
     return { source, who, gap: null, why: 'première fois sur ce mouvement : prends tes repères, la suite se calera dessus.' };
   }
 
+  // A drop is always said: after a break, the load (or the reps) start lower on purpose
+  const breakDays = daysSince(stats.lastDate);
+  const pause = pauseFactor(breakDays);
+  const breakWeeks = Math.max(1, Math.round((breakDays - 7) / 7));
+  const pauseShare = Math.round((1 - pause) * 100);
+  const pauseWhy = `${plural(breakWeeks, 'semaine')} de pause sur ce mouvement : ${
+    previous && previous.weight <= 0 ? `${pauseShare} % de reps en moins pour reprendre.` : `on reprend ${pauseShare} % plus léger.`
+  }`;
+
   let why: string;
   if (!planned) {
     // Derived here: say which rule of the double progression applied
-    const { rule } = progressFrom(previous, exercise.name, goal, stats.lastRpe);
+    const { rule } = progressFrom(previous, exercise.name, goal, stats.lastRpe, stats.lastDate);
     const [, top] = repRange(goal);
     why =
-      rule === 'failure'
+      rule === 'pause'
+        ? pauseWhy
+        : rule === 'failure'
         ? 'série menée à l’échec la dernière fois : on garde la charge et les reps avant de monter.'
         : rule === 'hold'
         ? 'séance à fond la dernière fois (RPE 10) : on consolide avant de monter.'
         : rule === 'load'
         ? `${previous.reps} reps la dernière fois, le haut de ta fourchette : la charge monte.`
         : `${previous.reps} reps la dernière fois : une de plus avant de monter la charge (objectif ${top}).`;
+  } else if (pause < 1 && gap?.tone === 'down') {
+    why = pauseWhy;
   } else if (stats.lastRpe) {
     why = `${rpeContext(stats.lastRpe)}.`;
   } else {
