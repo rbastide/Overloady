@@ -37,6 +37,7 @@ export const GOAL_REP_RANGES: Record<string, [number, number]> = {
   FORCE: [3, 5],
   BODYBUILDING: [8, 12],
   ENDURANCE: [15, 20],
+  HEALTH: [12, 15],
 };
 
 const repRange = (goal?: string) => GOAL_REP_RANGES[(goal || 'BODYBUILDING').toUpperCase()] || GOAL_REP_RANGES.BODYBUILDING;

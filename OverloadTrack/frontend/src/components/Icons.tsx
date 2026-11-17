@@ -216,6 +216,7 @@ const paths: Record<string, React.ReactNode> = {
     </>
   ),
   activity: <path d="M3 12h4l3-7.5 4 15 3-7.5h4" />,
+  heart: <path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.3a4.3 4.3 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20Z" />,
   search: (
     <>
       <circle cx="11" cy="11" r="7" />

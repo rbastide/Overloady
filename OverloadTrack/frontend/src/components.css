@@ -1569,7 +1569,8 @@
   min-width: 0;
 }
 
-.athlete-field label {
+.athlete-field label,
+.athlete-field-label {
   color: var(--text-secondary);
   font-size: 0.78rem;
   font-weight: 600;
@@ -1642,6 +1643,109 @@
 .athlete-experience-detail {
   color: var(--text-dim);
   font-size: 0.72rem;
+}
+
+/* Two groups: who the athlete is, how they train */
+.athlete-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.athlete-group + .athlete-group {
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--line-strong);
+}
+
+.athlete-group legend {
+  float: left; /* lets the legend sit in the flex flow, under the group's gap */
+  width: 100%;
+  padding: 0;
+  margin-bottom: 0.1rem;
+  color: var(--text-main);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.athlete-fields-row.is-two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.athlete-field-hint {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.athlete-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.athlete-chip,
+.athlete-segment {
+  min-height: 44px;
+  padding: 0 0.95rem;
+  border-radius: var(--radius-md);
+  border: 1px solid #252a32;
+  background: var(--bg-inset);
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.athlete-chip:hover,
+.athlete-segment:hover {
+  border-color: #2f353e;
+}
+
+.athlete-chip.selected,
+.athlete-segment.selected {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+/* Several pains can be ticked: a check mark tells them apart from the single choices */
+.athlete-chip.is-check.selected::before {
+  content: '';
+  display: inline-block;
+  width: 0.7em;
+  height: 0.38em;
+  margin-right: 0.45em;
+  border-left: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-0.2em) rotate(-45deg);
+}
+
+.athlete-chip:focus-visible,
+.athlete-segment:focus-visible,
+.athlete-experience-option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.athlete-segments {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.athlete-segment {
+  padding: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.athlete-field input.athlete-pain-note {
+  margin-top: 0.1rem;
 }
 
 .athlete-hint {

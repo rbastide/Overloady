@@ -1,6 +1,7 @@
 import {
   Performance,
   detectEquipment,
+  fitsEquipment,
   guardProposal,
   guardSets,
   maxIncrease,
@@ -242,5 +243,63 @@ describe('other rules', () => {
       daysAgo(3),
     );
     expect(last).toMatchObject({ weight: 52.5, reps: 10 });
+  });
+});
+
+describe('health / fitness goal', () => {
+  const HEALTH = 'HEALTH';
+
+  it('works between 12 and 15 reps', () => {
+    expect(nextTarget(perf(20, 14), 'Squat (Barbell)', HEALTH, NOW)).toMatchObject({ weight: 20, reps: 15 });
+    expect(nextTarget(perf(20, 15), 'Squat (Barbell)', HEALTH, NOW)).toMatchObject({ weight: 22.5, reps: 12 });
+  });
+
+  it('starts lighter than bodybuilding, reps in reserve', () => {
+    const health = startingTarget('Bench Press (Barbell)', HEALTH, [], FACTOR);
+    expect(health.reps).toBe(12);
+    expect(health.weight).toBeLessThan(startingTarget('Bench Press (Barbell)', BB, [], FACTOR).weight);
+  });
+
+  it('lets Atlas raise one step at most', () => {
+    expect(maxIncrease(100, 'machine', HEALTH)).toBe(5);
+    const start = startingTarget('Leg Press', HEALTH, [], FACTOR);
+    expect(guardProposal({ weight: 120, reps: 12 }, 'Leg Press', { goal: HEALTH, last: perf(100, 15), start, now: NOW }).weight).toBe(105);
+  });
+});
+
+describe('equipment the athlete has', () => {
+  it('keeps everything in a full gym, and when the profile says nothing', () => {
+    expect(fitsEquipment('Leg Press (Machine)', 'FULL_GYM')).toBe(true);
+    expect(fitsEquipment('Leg Press (Machine)', undefined)).toBe(true);
+  });
+
+  it('leaves machines and cables out of a home gym', () => {
+    expect(fitsEquipment('Squat (Barbell)', 'HOME_GYM')).toBe(true);
+    expect(fitsEquipment('Squat (Smith Machine)', 'HOME_GYM')).toBe(false);
+    expect(fitsEquipment('Lat Pulldown (Cable)', 'HOME_GYM')).toBe(false);
+    expect(fitsEquipment('Chin Up (Assisted)', 'HOME_GYM')).toBe(false);
+  });
+
+  it('keeps dumbbells and bodyweight with dumbbells only', () => {
+    expect(fitsEquipment('Bicep Curl (Dumbbell)', 'DUMBBELLS')).toBe(true);
+    expect(fitsEquipment('Pull-up', 'DUMBBELLS')).toBe(true);
+    expect(fitsEquipment('Bench Press (Barbell)', 'DUMBBELLS')).toBe(false);
+  });
+
+  it('keeps band work with bands, bodyweight work only without anything', () => {
+    expect(fitsEquipment('Pull Up (Band)', 'BANDS')).toBe(true);
+    expect(fitsEquipment('Pull Up (Band)', 'BODYWEIGHT')).toBe(true);
+    expect(fitsEquipment('Plank', 'BODYWEIGHT')).toBe(true);
+    expect(fitsEquipment('Leg Raise Parallel Bars', 'BODYWEIGHT')).toBe(true);
+    expect(fitsEquipment('Hammer Curl (Dumbbell)', 'BODYWEIGHT')).toBe(false);
+  });
+
+  it('reads bodyweight work named with a bar, and keeps unlabelled movements at home', () => {
+    expect(fitsEquipment('Traction barre fixe', 'BODYWEIGHT')).toBe(true);
+    expect(fitsEquipment('Dips barres parallèles', 'BODYWEIGHT')).toBe(true);
+    expect(fitsEquipment('Lateral Raise', 'DUMBBELLS')).toBe(true);
+    expect(fitsEquipment('Lunge', 'HOME_GYM')).toBe(true);
+    expect(fitsEquipment('Leg Extension (Machine)', 'HOME_GYM')).toBe(false);
+    expect(fitsEquipment('Face Pull', 'HOME_GYM')).toBe(false);
   });
 });

@@ -1,4 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type { athleteConstraints } from '../user/athlete-profile';
+
+export type AthleteConstraints = ReturnType<typeof athleteConstraints>;
 
 export interface AiWorkoutPromptContext {
   goal: string;
@@ -6,6 +9,8 @@ export interface AiWorkoutPromptContext {
   height?: number;
   /** Weight, experience and body fat in one line (see describeAthlete). */
   athlete?: string;
+  /** Age, equipment, session length and pains from the profile. Not read by the prompts yet (prompt C). */
+  constraints?: AthleteConstraints;
   age?: number;
   benchmarks?: Record<string, any> | null;
   lastSession?: {
@@ -68,6 +73,8 @@ export interface CoachChatContext {
   weight?: number;
   height?: number;
   athlete?: string;
+  /** Age, equipment, session length and pains from the profile. Not read by the prompts yet (prompt C). */
+  constraints?: AthleteConstraints;
   benchmarks?: Record<string, any> | null;
   recentSessions: Array<{ date: string; title: string; exercises: string[] }>;
   availableExercises: string[];

@@ -31,6 +31,7 @@ const GOAL_LABELS: Record<string, string> = {
   FORCE: 'Force',
   BODYBUILDING: 'Hypertrophie',
   ENDURANCE: 'Endurance',
+  HEALTH: 'Santé',
 };
 
 const itemById = (id: AppTab) => NAV_ITEMS.find((i) => i.id === id)!;

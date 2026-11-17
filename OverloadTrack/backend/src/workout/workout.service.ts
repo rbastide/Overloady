@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService, CoachChatMessage } from '../ai/ai.service';
-import { calibrationLoadFactor, describeAthlete, scaleCalibrationLoad } from '../user/athlete-profile';
+import { athleteConstraints, calibrationLoadFactor, describeAthlete, scaleCalibrationLoad } from '../user/athlete-profile';
 import { orderRoutineExercises } from '../routine/routine.service';
 import { drivesTarget, isWorkSet, parseSetType } from './set-type';
 import { sanitizeSupersetIds } from './superset';
@@ -17,6 +17,7 @@ import {
   KnownLift,
   Performance,
   detectEquipment,
+  fitsEquipment,
   guardSets,
   nextTarget,
   startingTarget,
@@ -876,7 +877,10 @@ export class WorkoutService implements OnApplicationBootstrap {
       },
     });
 
-    const allExercises = await this.getExercisePool();
+    // Only the movements the athlete's equipment allows, for Atlas as for the local engine
+    const pool = await this.getExercisePool();
+    const equipment = (profile as any)?.equipment;
+    const allExercises = pool.filter((e) => fitsEquipment(e.name, equipment));
 
     const goalMetadata: Record<
       string,
@@ -920,6 +924,16 @@ export class WorkoutService implements OnApplicationBootstrap {
         restTime: '30 - 45s',
         restTarget: '30 - 45s',
       },
+      HEALTH: {
+        label: 'Santé / remise en forme',
+        icon: '🔵',
+        description:
+          'Bouger mieux et se renforcer sans se mettre dans le rouge. Séries de 12 à 15 reps en gardant de la marge, jamais jusqu’à l’échec.',
+        repRange: '12 - 15 reps',
+        repTarget: '12 - 15 reps, avec de la marge',
+        restTime: '60s',
+        restTarget: '60s',
+      },
     };
 
     const currentMeta = goalMetadata[goal] || goalMetadata.BODYBUILDING;
@@ -931,7 +945,7 @@ export class WorkoutService implements OnApplicationBootstrap {
 
     if (isTestWeekActive) {
       const nextStep = Math.min(3, Number((profile as any)?.testWeekProgress || 0) + 1);
-      return this.generateTestWeekRecommendation(userId, goal, nextStep, allExercises, currentMeta, profile);
+      return this.generateTestWeekRecommendation(userId, goal, nextStep, pool, currentMeta, profile);
     }
 
     // Last performance of each movement, read while Atlas thinks: his loads and the local
@@ -969,6 +983,7 @@ export class WorkoutService implements OnApplicationBootstrap {
         weight: (profile as any)?.weight || 75,
         height: (profile as any)?.height || 178,
         athlete: describeAthlete(profile as any),
+        constraints: athleteConstraints(profile as any),
         benchmarks: testedBenchmarks,
         lastSession: lastSessionContext,
         athleteRequest: athleteRequest || undefined,
@@ -1092,12 +1107,14 @@ export class WorkoutService implements OnApplicationBootstrap {
 
     const fallbackExercises = [];
 
-    const setsCount = goal === 'ENDURANCE' ? 3 : 4;
+    const setsCount = goal === 'ENDURANCE' || goal === 'HEALTH' ? 3 : 4;
     const targetAdvice =
       goal === 'FORCE'
         ? 'Charge lourde • Repos 3-4 min • Intensité 85% 1RM'
         : goal === 'ENDURANCE'
         ? 'Cadence continue • Repos 45s • Densité musculaire'
+        : goal === 'HEALTH'
+        ? 'Garde 3 reps en réserve • Repos 60s • Jamais jusqu’à l’échec'
         : 'Tension continue • Repos 75-90s • Focus congestion';
 
     for (const ex of finalExercises) {
@@ -1156,7 +1173,7 @@ export class WorkoutService implements OnApplicationBootstrap {
       throw new BadRequestException('Dis à Atlas ce que tu veux travailler.');
     }
 
-    const [profile, benchmarks, recent, pool, performances] = await Promise.all([
+    const [profile, benchmarks, recent, fullPool, performances] = await Promise.all([
       this.prisma.profile.findUnique({ where: { userId } }),
       this.getTestedBenchmarks(userId),
       this.prisma.workoutSession.findMany({
@@ -1170,12 +1187,14 @@ export class WorkoutService implements OnApplicationBootstrap {
     ]);
     const goal = (profile as any)?.goal || 'BODYBUILDING';
     const loadFactor = calibrationLoadFactor(profile as any);
+    const pool = fullPool.filter((e) => fitsEquipment(e.name, (profile as any)?.equipment));
 
     const reply = await this.aiService.coachChat({
       goal,
       weight: (profile as any)?.weight,
       height: (profile as any)?.height,
       athlete: describeAthlete(profile as any),
+      constraints: athleteConstraints(profile as any),
       benchmarks,
       recentSessions: recent.map((s) => ({
         date: s.startedAt.toISOString().split('T')[0],

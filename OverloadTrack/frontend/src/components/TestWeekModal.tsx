@@ -1,10 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import {
-  AthleteProfileFields,
-  EXPERIENCE_OPTIONS,
-  toAthleteProfileValue,
-  type AthleteProfileValue,
-} from './AthleteProfileFields';
+import React from 'react';
+import { EXPERIENCE_OPTIONS } from './AthleteProfileFields';
 import { Icon } from './Icons';
 
 interface ExercisePlan {
@@ -48,20 +43,12 @@ interface TestWeekModalProps {
   onResetTestWeek: () => void;
   isStarting: boolean;
   profile: any;
-  onSaveProfile: (value: AthleteProfileValue) => Promise<void>;
+  /** Closes the window and opens the Profil tab, where the athlete profile is edited. */
+  onOpenProfile: () => void;
 }
 
-const CalibrationProfile: React.FC<{
-  profile: any;
-  onSave: (value: AthleteProfileValue) => Promise<void>;
-  defaultOpen: boolean;
-}> = ({ profile, onSave, defaultOpen }) => {
-  const [isEditing, setIsEditing] = useState(defaultOpen);
-  const [value, setValue] = useState<AthleteProfileValue>(toAthleteProfileValue(profile));
-  const [isSaving, setIsSaving] = useState(false);
-
-  useEffect(() => setValue(toAthleteProfileValue(profile)), [profile]);
-
+/** The profile the test loads come from, edited in the Profil tab only (one form, not two). */
+const CalibrationProfile: React.FC<{ profile: any; onOpenProfile: () => void }> = ({ profile, onOpenProfile }) => {
   const experience = EXPERIENCE_OPTIONS.find((o) => o.id === (profile?.experience || 'BEGINNER'));
   const summary = [
     profile?.weight ? `${profile.weight} kg` : null,
@@ -71,16 +58,6 @@ const CalibrationProfile: React.FC<{
   ]
     .filter(Boolean)
     .join(' · ');
-
-  const save = async () => {
-    setIsSaving(true);
-    try {
-      await onSave(value);
-      setIsEditing(false);
-    } finally {
-      setIsSaving(false);
-    }
-  };
 
   return (
     <div className="calibration-profile">
@@ -92,29 +69,14 @@ const CalibrationProfile: React.FC<{
           </div>
           <div className="calibration-profile-summary">{summary}</div>
         </div>
-        {!isEditing && (
-          <button type="button" className="link-btn" onClick={() => setIsEditing(true)}>
-            Modifier
-          </button>
-        )}
+        <button type="button" className="link-btn" onClick={onOpenProfile}>
+          Modifier dans le Profil
+        </button>
       </div>
-      {isEditing && (
-        <>
-          <p className="calibration-profile-note">
-            Les charges de base des séances test sont calculées à partir de ton poids, de ta masse maigre et de ton
-            expérience.
-          </p>
-          <AthleteProfileFields value={value} onChange={setValue} idPrefix="calibration" />
-          <div className="calibration-profile-actions">
-            <button type="button" className="btn-secondary" onClick={() => setIsEditing(false)} disabled={isSaving}>
-              Annuler
-            </button>
-            <button type="button" className="btn-primary" onClick={save} disabled={isSaving}>
-              {isSaving ? 'Enregistrement...' : 'Enregistrer et recalculer'}
-            </button>
-          </div>
-        </>
-      )}
+      <p className="calibration-profile-note">
+        Les charges des séances test partent de ton poids, de ta masse maigre et de ton expérience. Elles sont
+        recalculées dès que tu enregistres ton profil.
+      </p>
     </div>
   );
 };
@@ -128,7 +90,7 @@ export const TestWeekModal: React.FC<TestWeekModalProps> = ({
   onResetTestWeek,
   isStarting,
   profile,
-  onSaveProfile,
+  onOpenProfile,
 }) => {
   if (!isOpen || !status) return null;
 
@@ -179,11 +141,7 @@ export const TestWeekModal: React.FC<TestWeekModalProps> = ({
           </div>
         </div>
 
-        <CalibrationProfile
-          profile={profile}
-          onSave={onSaveProfile}
-          defaultOpen={!status.testWeekCompleted && status.testWeekProgress === 0}
-        />
+        <CalibrationProfile profile={profile} onOpenProfile={onOpenProfile} />
 
         {/* Recorded Benchmarks Grid (if any) */}
         {status.benchmarks && Object.keys(status.benchmarks).length > 0 && (

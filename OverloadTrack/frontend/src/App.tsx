@@ -59,8 +59,10 @@ import {
   type FinishPayload,
 } from './lib/offlineQueue';
 
+type GoalId = 'FORCE' | 'BODYBUILDING' | 'ENDURANCE' | 'HEALTH';
+
 const GOAL_OPTIONS: {
-  id: 'FORCE' | 'BODYBUILDING' | 'ENDURANCE';
+  id: GoalId;
   name: string;
   icon: IconName;
   badge: string;
@@ -90,6 +92,14 @@ const GOAL_OPTIONS: {
     badge: '15-20 reps • 50-60% 1RM',
     rest: 'Repos 30-45s',
     desc: 'Séries longues et intensité métabolique pour développer votre résistance et votre tonicité.',
+  },
+  {
+    id: 'HEALTH',
+    name: 'Santé & Forme',
+    icon: 'heart',
+    badge: '12-15 reps • RPE 6',
+    rest: 'Repos 60s',
+    desc: 'Te renforcer et bouger mieux sans te mettre dans le rouge : tu gardes toujours de la marge, jamais jusqu’à l’échec.',
   },
 ];
 
@@ -144,6 +154,7 @@ const GOAL_CYCLE_LABELS: Record<string, string> = {
   FORCE: 'Force',
   BODYBUILDING: 'Hypertrophie',
   ENDURANCE: 'Endurance',
+  HEALTH: 'Santé',
 };
 
 // The library holds ~900 exercises (wger import): cards are rendered in pages.
@@ -188,9 +199,9 @@ function App() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
-  const [signupGoal, setSignupGoal] = useState<'FORCE' | 'BODYBUILDING' | 'ENDURANCE'>('BODYBUILDING');
-  // Calibration week asked at sign-up: without it, no test sessions at all
-  const [signupCalibration, setSignupCalibration] = useState<boolean>(true);
+  const [signupGoal, setSignupGoal] = useState<GoalId>('BODYBUILDING');
+  // Calibration week offered at sign-up, never assumed: it can also be started later from the profile
+  const [signupCalibration, setSignupCalibration] = useState<boolean>(false);
   const [confirmPassword, setConfirmPassword] = useState('');
   // Sign-up: 1 = account, 2 = athlete profile used to calibrate the test week and the AI coach
   const [signupStep, setSignupStep] = useState<1 | 2>(1);
@@ -1236,33 +1247,18 @@ function App() {
   const saveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.put('/profile', {
+      const res = await api.put('/profile', {
         ...toAthleteProfilePayload(toAthleteProfileValue(profile)),
         goal: profile.goal || 'BODYBUILDING',
       });
+      // The server's cleaned values (trimmed first name, "KNEE,BACK"...) replace what was typed
+      setProfile((prev: any) => ({ ...prev, ...res.data }));
       showToast('Profil enregistré', 'success');
       api.get('/workout/test-week').then((res) => setTestWeekStatus(res.data)).catch(() => {});
       const recRes = await api.get('/workout/next-recommendation').catch(() => ({ data: null }));
       if (recRes?.data) {
         setNextRecommendation(recRes.data);
       }
-    } catch (err: any) {
-      showToast(err.response?.data?.message || 'Erreur lors de la sauvegarde du profil', 'error');
-    }
-  };
-
-  // Athlete profile edited from the calibration window: saved, then the test loads are recomputed
-  const saveCalibrationProfile = async (value: AthleteProfileValue) => {
-    try {
-      const res = await api.put('/profile', toAthleteProfilePayload(value));
-      setProfile((prev: any) => ({ ...prev, ...res.data }));
-      const [testWeekRes, recRes] = await Promise.all([
-        api.get('/workout/test-week'),
-        api.get('/workout/next-recommendation').catch(() => ({ data: null })),
-      ]);
-      setTestWeekStatus(testWeekRes.data);
-      if (recRes.data) setNextRecommendation(recRes.data);
-      showToast('Profil enregistré, charges de calibration recalculées', 'success');
     } catch (err: any) {
       showToast(err.response?.data?.message || 'Erreur lors de la sauvegarde du profil', 'error');
     }
@@ -1420,8 +1416,9 @@ function App() {
     return matchSearch && matchCategory;
   });
 
-  // Legacy accounts use their former email as identifier
-  const displayName = profile.user?.username?.split('@')[0] || 'Athlète';
+  // The first name when the athlete gave one; legacy accounts use their former email as identifier
+  const firstName = (profile.firstName || '').trim();
+  const displayName = firstName || profile.user?.username?.split('@')[0] || 'Athlète';
 
   const allCategories = ['Tous', ...Array.from(new Set(exercises.map((e) => e.category || 'Général')))];
 
@@ -1556,7 +1553,26 @@ function App() {
 
               <form onSubmit={handleAuthSubmit} className="auth-form">
                 {isSignupProfile ? (
-                  <AthleteProfileFields value={signupAthlete} onChange={setSignupAthlete} idPrefix="signup" />
+                  <>
+                    <AthleteProfileFields value={signupAthlete} onChange={setSignupAthlete} idPrefix="signup" />
+                    <label className="auth-contrast">
+                      <input
+                        type="checkbox"
+                        checked={highContrast}
+                        onChange={(e) => {
+                          setHighContrast(e.target.checked);
+                          setHighContrastState(e.target.checked);
+                        }}
+                      />
+                      <span>
+                        Contraste élevé
+                        <span className="checkbox-hint">
+                          Texte plus clair et filets plus nets, pour les salles très éclairées ou dehors. Appliqué tout
+                          de suite, sur cet appareil.
+                        </span>
+                      </span>
+                    </label>
+                  </>
                 ) : (
                   <>
                     <div className="auth-field">
@@ -1761,7 +1777,7 @@ function App() {
         {activeTab === 'dashboard' && (
           <div className="home">
             <section className="home-greeting">
-              <h1>Bonjour {displayName}</h1>
+              <h1>{firstName ? `Bonjour ${firstName}` : 'Bonjour'}</h1>
               <p>
                 <span>Cycle {GOAL_CYCLE_LABELS[profile.goal || 'BODYBUILDING'] || 'Hypertrophie'}</span>
                 <span aria-hidden="true">·</span>
@@ -3143,7 +3159,10 @@ function App() {
         onResetTestWeek={handleResetTestWeek}
         isStarting={isStartingTestStep}
         profile={profile}
-        onSaveProfile={saveCalibrationProfile}
+        onOpenProfile={() => {
+          setIsTestWeekModalOpen(false);
+          setActiveTab('profile');
+        }}
       />
     </div>
   );

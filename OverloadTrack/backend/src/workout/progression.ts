@@ -27,10 +27,15 @@ export const GOAL_REP_RANGES: Record<string, [number, number]> = {
   FORCE: [3, 5],
   BODYBUILDING: [8, 12],
   ENDURANCE: [15, 20],
+  HEALTH: [12, 15],
 };
 
 /** Reps of a first session on a movement, for each goal. */
-const START_REPS: Record<string, number> = { FORCE: 5, BODYBUILDING: 10, ENDURANCE: 15 };
+const START_REPS: Record<string, number> = { FORCE: 5, BODYBUILDING: 10, ENDURANCE: 15, HEALTH: 12 };
+
+/** Health / fitness: about RPE 6, so the loads leave a few reps in reserve and rise one step at a time. */
+const isHealth = (goal?: string) => (goal || '').toUpperCase() === 'HEALTH';
+const HEALTH_REPS_IN_RESERVE = 3;
 
 export const repRange = (goal?: string) =>
   GOAL_REP_RANGES[(goal || 'BODYBUILDING').toUpperCase()] || GOAL_REP_RANGES.BODYBUILDING;
@@ -53,7 +58,7 @@ export function detectEquipment(exerciseName: string): Equipment {
   }
   if (
     hasAny(name, ['pull up', 'pull-up', 'pullup', 'chin up', 'chin-up', 'traction', 'dip', 'push up', 'push-up', 'pompe',
-      'muscle up', 'bodyweight', 'poids du corps', 'plank', 'gainage', 'hanging', 'suspendu', 'crunch', 'sit up',
+      'muscle up', 'bodyweight', 'poids du corps', 'plank', 'gainage', 'hanging', 'suspendu', 'parallel bars', 'crunch', 'sit up',
       'sit-up', 'ab wheel'])
   ) {
     return 'bodyweight';
@@ -65,6 +70,35 @@ export function detectEquipment(exerciseName: string): Equipment {
   return 'machine';
 }
 
+/**
+ * Whether a movement can be done with the equipment the athlete has (Profile.equipment).
+ * A pull-up bar and parallel bars are taken for granted at home; a full gym has everything.
+ */
+export function fitsEquipment(exerciseName: string, access?: string | null): boolean {
+  const name = normalize(exerciseName);
+  const gymOnly = hasAny(name, ['smith', 'machine', 'hyperextension', 'back extension', 'assisted', 'cable', 'poulie']);
+  if (gymOnly) return (access || 'FULL_GYM').toUpperCase() === 'FULL_GYM';
+  const band = hasAny(name, ['band', 'elastique']);
+  const equipment = detectEquipment(exerciseName);
+  // Read before the bar: "Traction barre fixe" or "Dips barres parallèles" need no barbell
+  const bodyweight = equipment === 'bodyweight' || hasAny(name, ['traction', 'dips', 'pompe', 'push up', 'push-up']);
+  // detectEquipment calls "machine" any name it can't place ("Lateral Raise", "Lunge"): not a proof of a machine
+  const namedMachine = hasAny(name, ['leg press', 'presse', 'hack squat', 'pec deck', 'butterfly', 'leg extension', 'leg curl']);
+  const unknown = equipment === 'machine' && !namedMachine;
+  switch ((access || 'FULL_GYM').toUpperCase()) {
+    case 'HOME_GYM':
+      return bodyweight || unknown || equipment === 'barbell' || equipment === 'dumbbell';
+    case 'DUMBBELLS':
+      return bodyweight || unknown || equipment === 'dumbbell';
+    case 'BANDS':
+      return bodyweight || band;
+    case 'BODYWEIGHT':
+      return bodyweight;
+    default:
+      return true;
+  }
+}
+
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /** Nearest load the equipment allows, never under its lightest load. */
@@ -74,8 +108,9 @@ export function roundLoad(value: number, equipment: Equipment): number {
 }
 
 /** Largest rise in one session: 10 % of the last load, at least one step, at most two. */
-export function maxIncrease(lastWeight: number, equipment: Equipment): number {
+export function maxIncrease(lastWeight: number, equipment: Equipment, goal?: string): number {
   const step = LOAD_STEP[equipment];
+  if (isHealth(goal)) return step;
   const tenPercent = Math.floor((lastWeight * 0.1) / step) * step;
   return round2(Math.min(2 * step, Math.max(step, tenPercent)));
 }
@@ -257,6 +292,8 @@ const DEFAULT_10RM: Record<Equipment, number> = { barbell: 30, dumbbell: 8, mach
 export function startingTarget(exerciseName: string, goal: string | undefined, known: KnownLift[], factor: number): Target {
   const equipment = detectEquipment(exerciseName);
   const reps = START_REPS[(goal || 'BODYBUILDING').toUpperCase()] || START_REPS.BODYBUILDING;
+  // The load is the one lifted for the reps plus the reserve the goal keeps
+  const loadReps = reps + (isHealth(goal) ? HEALTH_REPS_IN_RESERVE : 0);
   const note = 'Première fois sur ce mouvement : ajuste après la 1re série.';
   if (equipment === 'bodyweight') {
     return { weight: 0, reps: repRange(goal)[0], rule: 'start', note };
@@ -268,7 +305,7 @@ export function startingTarget(exerciseName: string, goal: string | undefined, k
     const guesses = related.from
       .map(({ match, ratio }) => {
         const lift = known.find((k) => normalize(k.name).includes(match) && k.weight > 0 && k.reps > 0);
-        return lift ? loadForReps(epley(lift.weight, lift.reps) * ratio, reps) : 0;
+        return lift ? loadForReps(epley(lift.weight, lift.reps) * ratio, loadReps) : 0;
       })
       .filter((g) => g > 0);
     // The most careful guess when several lifts speak
@@ -277,7 +314,7 @@ export function startingTarget(exerciseName: string, goal: string | undefined, k
 
   const reference = REFERENCE_10RM.find(([match]) => name.includes(match))?.[1] ?? DEFAULT_10RM[equipment];
   const tenRepLoad = reference * (factor > 0 ? factor : 1);
-  return { weight: roundLoad(loadForReps(epley(tenRepLoad, 10), reps), equipment), reps, rule: 'start', note };
+  return { weight: roundLoad(loadForReps(epley(tenRepLoad, 10), loadReps), equipment), reps, rule: 'start', note };
 }
 
 /**
@@ -308,7 +345,7 @@ export function guardProposal(
       const lest = Math.min(Math.max(asked, last.weight), holds ? last.weight : last.weight + LOAD_STEP.bodyweight);
       return { weight: round2(Math.round(lest / 2.5) * 2.5), reps };
     }
-    const upper = holds ? last.weight : last.weight + maxIncrease(last.weight, equipment);
+    const upper = holds ? last.weight : last.weight + maxIncrease(last.weight, equipment, context.goal);
     const weight = Math.min(Math.max(roundLoad(asked, equipment), last.weight), upper);
     return { weight: round2(weight), reps };
   }

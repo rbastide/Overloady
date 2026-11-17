@@ -29,6 +29,13 @@ model Profile {
   goal        String   @default("BODYBUILDING")
   experience  String   @default("BEGINNER") // NONE | BEGINNER | INTERMEDIATE | ADVANCED
   bodyFat     Float?   // optional, in %
+  // dateOfBirth was filled with the sign-up date: the age comes from birthYear
+  firstName      String?  // shown in greetings instead of the username
+  birthYear      Int?
+  equipment      String   @default("FULL_GYM") // FULL_GYM | HOME_GYM | DUMBBELLS | BANDS | BODYWEIGHT
+  sessionMinutes Int?     // usual length of a session
+  painAreas      String?  // comma-separated: KNEE,BACK,SHOULDER,WRIST,ELBOW,HIP,OTHER
+  painNote       String?  // what "OTHER" means, in the athlete's words
   testWeekCompleted Boolean @default(false)
   testWeekProgress  Int     @default(0)
   testWeekSkipped   Boolean @default(false) // the athlete declined the calibration: no test UI at all

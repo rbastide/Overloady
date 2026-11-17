@@ -43,7 +43,7 @@ export function detectEquipment(exerciseName: string): Equipment {
   }
   if (
     hasAny(name, ['pull up', 'pull-up', 'pullup', 'chin up', 'chin-up', 'traction', 'dip', 'push up', 'push-up', 'pompe',
-      'muscle up', 'bodyweight', 'poids du corps', 'plank', 'gainage', 'hanging', 'suspendu', 'crunch', 'sit up',
+      'muscle up', 'bodyweight', 'poids du corps', 'plank', 'gainage', 'hanging', 'suspendu', 'parallel bars', 'crunch', 'sit up',
       'sit-up', 'ab wheel'])
   ) {
     return 'bodyweight';

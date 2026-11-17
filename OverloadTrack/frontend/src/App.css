@@ -1401,8 +1401,31 @@ select optgroup {
 /* Compact goal picker (sign-up) */
 .auth-goal-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.5rem;
+}
+
+/* High contrast offered on the profile step, before the first session in a bright gym */
+.auth-contrast {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--line-strong);
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1.45;
+  text-align: left;
+  cursor: pointer;
+}
+
+.auth-contrast input {
+  width: 18px;
+  height: 18px;
+  margin-top: 0.1rem;
+  accent-color: var(--accent);
+  flex-shrink: 0;
 }
 
 .auth-goal-grid.is-two {
