@@ -3,6 +3,7 @@ import api from '../api';
 import { Icon } from './Icons';
 import { ExercisePicker } from './ExercisePicker';
 import { muscleGroupsOf } from '../lib/muscleGroups';
+import { displayName } from '../lib/exerciseNames';
 
 interface RoutineModalProps {
   isOpen: boolean;
@@ -121,7 +122,7 @@ export const RoutineModal: React.FC<RoutineModalProps> = ({ isOpen, onClose, exe
                   return (
                     <li key={id} className="routine-order-row">
                       <span className="routine-order-num">{index + 1}</span>
-                      <span className="routine-order-name">{ex?.name || 'Exercice'}</span>
+                      <span className="routine-order-name">{displayName(ex?.name)}</span>
                       <span className="badge-category">{ex?.category || 'Général'}</span>
                       <span className="routine-order-actions">
                         <button
@@ -129,7 +130,7 @@ export const RoutineModal: React.FC<RoutineModalProps> = ({ isOpen, onClose, exe
                           className="btn-icon"
                           onClick={() => moveExercise(index, -1)}
                           disabled={index === 0}
-                          aria-label={`Monter ${ex?.name || "l'exercice"}`}
+                          aria-label={`Monter ${ex?.name ? displayName(ex.name) : "l'exercice"}`}
                         >
                           <Icon name="chevronUp" size={16} />
                         </button>
@@ -138,7 +139,7 @@ export const RoutineModal: React.FC<RoutineModalProps> = ({ isOpen, onClose, exe
                           className="btn-icon"
                           onClick={() => moveExercise(index, 1)}
                           disabled={index === selectedExerciseIds.length - 1}
-                          aria-label={`Descendre ${ex?.name || "l'exercice"}`}
+                          aria-label={`Descendre ${ex?.name ? displayName(ex.name) : "l'exercice"}`}
                         >
                           <Icon name="chevronDown" size={16} />
                         </button>
@@ -146,7 +147,7 @@ export const RoutineModal: React.FC<RoutineModalProps> = ({ isOpen, onClose, exe
                           type="button"
                           className="btn-icon is-danger"
                           onClick={() => toggleExercise(id)}
-                          aria-label={`Retirer ${ex?.name || "l'exercice"}`}
+                          aria-label={`Retirer ${ex?.name ? displayName(ex.name) : "l'exercice"}`}
                         >
                           <Icon name="close" size={16} />
                         </button>

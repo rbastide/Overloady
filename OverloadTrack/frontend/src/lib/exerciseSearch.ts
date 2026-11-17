@@ -153,15 +153,50 @@ const queryTokens = (query: string) =>
     .filter((word) => word && !STOP_WORDS.has(word))
     .map((word) => (word.length > 3 && word.endsWith('s') && !word.endsWith('ss') ? word.slice(0, -1) : word));
 
+export interface SearchableExercise {
+  name: string;
+  nameFr?: string | null;
+  source?: string;
+  isVariant?: boolean | null;
+}
+
+// How closely one name answers the query: exact name, then start of the name, then every word
+// of the query starting a word of the name, then a match through the gym glossary only.
+const closeness = (name: string, query: string, tokens: string[]): number | null => {
+  const text = normalizeText(name);
+  if (text === query) return 0;
+  if (text.startsWith(query)) return 1;
+  const padded = ` ${text} `;
+  if (tokens.every((token) => containsPrefix(padded, token))) return 2;
+  if (tokens.every((token) => containsPrefix(searchIndex(name), token))) return 3;
+  return null;
+};
+
 /**
- * Returns a predicate matching exercise names against a French or English query, or null for an
- * empty query. Every word of the query must appear in the name or in its translation.
+ * Exercises matching a French or English query, best answers first: the exact name and the start
+ * of a name before partial matches, the app's own exercises before the imported ones, and the
+ * variants after everything else. Null for an empty query.
  */
-export const createNameMatcher = (query: string): ((name: string) => boolean) | null => {
+export function rankExercises<T extends SearchableExercise>(query: string, exercises: T[]): T[] | null {
   const tokens = queryTokens(query);
   if (tokens.length === 0) return null;
-  return (name: string) => {
-    const index = searchIndex(name);
-    return tokens.every((token) => containsPrefix(index, token));
-  };
-};
+  const normalized = normalizeText(query);
+
+  const scored = exercises.flatMap((ex) => {
+    const scores = [ex.nameFr, ex.name]
+      .filter((name): name is string => !!name)
+      .map((name) => closeness(name, normalized, tokens))
+      .filter((score): score is number => score !== null);
+    return scores.length > 0 ? [{ ex, score: Math.min(...scores) }] : [];
+  });
+
+  return scored
+    .sort(
+      (a, b) =>
+        Number(!!a.ex.isVariant) - Number(!!b.ex.isVariant) ||
+        a.score - b.score ||
+        Number(a.ex.source === 'wger') - Number(b.ex.source === 'wger') ||
+        (a.ex.nameFr || a.ex.name).length - (b.ex.nameFr || b.ex.name).length,
+    )
+    .map(({ ex }) => ex);
+}

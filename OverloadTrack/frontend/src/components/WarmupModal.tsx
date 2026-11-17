@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api';
 import { Icon } from './Icons';
+import { displayName } from '../lib/exerciseNames';
 
 interface WarmupSet {
   setNumber: number;
@@ -70,7 +71,7 @@ export const WarmupModal: React.FC<WarmupModalProps> = ({
         <div className="modal-head">
           <div>
             <h2>Échauffement</h2>
-            <p>{exerciseName}</p>
+            <p>{displayName(exerciseName)}</p>
           </div>
           <button className="btn-icon" onClick={onClose} aria-label="Fermer">
             <Icon name="close" size={20} />

@@ -3,6 +3,8 @@ import api from '../api';
 import { Icon } from './Icons';
 import { PainNotes } from './PainNotes';
 import { detectEquipment, formatKg } from '../lib/loadMath';
+import { ExerciseName } from './ExerciseName';
+import { frenchifyText } from '../lib/exerciseNames';
 
 export interface CoachExercise {
   exerciseId: string;
@@ -175,7 +177,7 @@ export const CoachChat: React.FC<CoachChatProps> = ({ onStartWorkout, onSaveRout
 
         {messages.map((m, mi) => (
           <div key={mi} className={`coach-msg coach-msg-${m.role}`}>
-            <div className="coach-bubble">{m.content}</div>
+            <div className="coach-bubble">{m.role === 'assistant' ? frenchifyText(m.content) : m.content}</div>
             {m.workouts?.map((w, wi) => {
               const key = `${mi}-${wi}`;
               return (
@@ -192,10 +194,12 @@ export const CoachChat: React.FC<CoachChatProps> = ({ onStartWorkout, onSaveRout
                     {w.exercises.map((ex, ei) => (
                       <li key={ei}>
                         <div className="coach-ex-line">
-                          <span className="coach-ex-name">{ex.name}</span>
+                          <span className="coach-ex-name">
+                            <ExerciseName name={ex.name} />
+                          </span>
                           <span className="coach-ex-sets">{formatSets(ex)}</span>
                         </div>
-                        {ex.targetAdvice && <span className="coach-ex-advice">{ex.targetAdvice}</span>}
+                        {ex.targetAdvice && <span className="coach-ex-advice">{frenchifyText(ex.targetAdvice)}</span>}
                       </li>
                     ))}
                   </ol>

@@ -75,6 +75,12 @@ model Exercise {
   name      String
   category  String        @default("Général")
   source    String        @default("custom") // local | wger | custom
+  // Name shown to the athlete; `name` stays the English key the engine reads
+  nameFr    String?
+  // Picture of the movement (wger), loaded on demand by the app
+  imageUrl  String?
+  // Obscure or duplicate entry: never deleted (history), listed behind "Voir plus de variantes"
+  isVariant Boolean?
   routines  Routine[]
   logs      ExerciseLog[]
 }

@@ -1,13 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { createNameMatcher } from '../lib/exerciseSearch';
+import { rankExercises } from '../lib/exerciseSearch';
 import { Icon, type IconName } from './Icons';
 import { MUSCLE_GROUPS, muscleGroupsOf } from '../lib/muscleGroups';
+import { ExerciseName } from './ExerciseName';
 
 const MORE_PAGE_SIZE = 40;
 const SEARCH_LIMIT = 80;
 
-// The base catalog and the athlete's own exercises come first; the imported wger database is "more".
-const isCommon = (ex: any) => ex.source !== 'wger';
+// The base catalog and the athlete's own exercises come first; the imported wger database and the
+// variants (duplicates, obscure names) wait behind "Voir plus de variantes".
+const isCommon = (ex: any) => ex.source !== 'wger' && !ex.isVariant;
 
 interface ExercisePickerProps {
   exercises: any[];
@@ -47,14 +49,13 @@ export const ExercisePicker: React.FC<ExercisePickerProps> = ({
 
   const groupExercises = useMemo(() => {
     const inGroup = exercises.filter((ex) => (ex.category || 'Général') === group);
-    return { common: inGroup.filter(isCommon), more: inGroup.filter((ex) => !isCommon(ex)) };
+    const more = inGroup.filter((ex) => !isCommon(ex));
+    // Well-named wger exercises before the variants
+    return { common: inGroup.filter(isCommon), more: [...more.filter((ex) => !ex.isVariant), ...more.filter((ex) => ex.isVariant)] };
   }, [exercises, group]);
 
   const searchResults = useMemo(() => {
-    const matches = createNameMatcher(search);
-    if (!matches) return null;
-    const found = exercises.filter((ex) => matches(ex.name));
-    return [...found.filter(isCommon), ...found.filter((ex) => !isCommon(ex))];
+    return rankExercises(search, exercises);
   }, [exercises, search]);
 
   useEffect(() => {
@@ -80,8 +81,15 @@ export const ExercisePicker: React.FC<ExercisePickerProps> = ({
         onClick={() => onPick(ex)}
         aria-pressed={isSelected}
       >
-        <span className="routine-tile-name">{ex.name}</span>
-        {searchResults && <span className="routine-tile-cat">{ex.category || 'Général'}</span>}
+        <span className="routine-tile-name">
+          <ExerciseName name={ex.name} />
+        </span>
+        {searchResults && (
+          <span className="routine-tile-cat">
+            {ex.category || 'Général'}
+            {ex.isVariant ? ' · variante' : ''}
+          </span>
+        )}
         <span className="routine-tile-check" aria-hidden="true">
           <Icon name={isSelected ? 'check' : pickIcon} size={15} strokeWidth={isSelected ? 2.6 : 2} />
         </span>

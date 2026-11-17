@@ -3,6 +3,7 @@
 import type { ActiveExercise, ExerciseStats } from '../components/ActiveExercise';
 import { DEFAULT_STEP, detectEquipment } from './loadMath';
 import { drivesTarget, isWorkSet, type SetType } from './setTypes';
+import { displayName } from './exerciseNames';
 
 export interface SetTarget {
   weight: number;
@@ -188,8 +189,10 @@ export interface OverloadSummary {
 }
 
 /** "Squat et Bench", "Squat, Bench et 3 autres". */
-const listNames = (names: string[]) =>
-  names.length <= 2 ? names.join(' et ') : `${names[0]}, ${names[1]} et ${plural(names.length - 2, 'autre')}`;
+const listNames = (englishNames: string[]) => {
+  const names = englishNames.map(displayName);
+  return names.length <= 2 ? names.join(' et ') : `${names[0]}, ${names[1]} et ${plural(names.length - 2, 'autre')}`;
+};
 
 /**
  * The overload card in words: "5 sur 7" movements up, which ones, and the real load drops named.
@@ -209,7 +212,7 @@ export function describeOverload(summary: OverloadSummary | null | undefined) {
       ? 'Aucune charge en baisse.'
       : `Charge en baisse : ${drops
           .slice(0, 2)
-          .map((d) => `${d.name} (−${kg(-d.delta)})`)
+          .map((d) => `${displayName(d.name)} (−${kg(-d.delta)})`)
           .join(', ')}${drops.length > 2 ? ` et ${plural(drops.length - 2, 'autre')}` : ''}.`;
   return {
     trend: summary.trend,

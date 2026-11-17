@@ -3,6 +3,7 @@
 import { formatKg } from './loadMath';
 import { isWorkSet } from './setTypes';
 import { supersetLabels } from './supersets';
+import { displayName } from './exerciseNames';
 
 export interface RecapRecord {
   name: string;
@@ -51,7 +52,7 @@ export function buildRecap(session: any, history: any[]): SessionRecap {
     sets += done.length;
     volume += done.reduce((v, s) => v + (Number(s.weight) || 0) * (Number(s.reps) || 0), 0);
     const best = heaviest(done.map((s) => ({ weight: Number(s.weight) || 0, reps: Number(s.reps) || 0 })));
-    const name = exLog.exercise?.name || 'Exercice';
+    const name = displayName(exLog.exercise?.name);
     exercises.push({ name: labels[exIndex] ? `${labels[exIndex]} ${name}` : name, best });
 
     if (!best || best.weight <= 0) return;

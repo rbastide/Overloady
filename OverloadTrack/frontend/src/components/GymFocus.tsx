@@ -5,6 +5,9 @@ import { DEFAULT_STEP, detectEquipment, formatKg, loggingGuide } from '../lib/lo
 import { beatsRecord, previousFor, resolveSetTarget } from '../lib/overload';
 import { SET_TYPE_LABELS, markOf, typeOf } from '../lib/setTypes';
 import { segmentBySuperset, supersetLabels } from '../lib/supersets';
+import { ExerciseName } from './ExerciseName';
+import { MovementImage } from './MovementImage';
+import { displayName } from '../lib/exerciseNames';
 
 interface GymFocusProps {
   workout: ActiveExercise[];
@@ -91,7 +94,7 @@ export function GymFocus({
   };
 
   return (
-    <section className="gym" aria-label={`Mode salle : ${exercise.name}`}>
+    <section className="gym" aria-label={`Mode salle : ${displayName(exercise.name)}`}>
       <header className="gym-head">
         <button
           type="button"
@@ -103,7 +106,10 @@ export function GymFocus({
           <Icon name="chevronLeft" size={20} />
         </button>
         <div className="gym-head-text">
-          <h2 className="gym-title">{exercise.name}</h2>
+          <h2 className="gym-title">
+            <ExerciseName name={exercise.name} />
+          </h2>
+          <MovementImage key={exercise.name} name={exercise.name} onDemand />
           <p className="gym-meta">
             Exercice {index + 1} sur {total}
             {exercise.category ? ` · ${exercise.category}` : ''}
@@ -133,7 +139,7 @@ export function GymFocus({
                   type="button"
                   className={`gym-dot${i === index ? ' is-current' : ''}${done ? ' is-done' : ''}`}
                   onClick={() => go(i)}
-                  aria-label={`Exercice ${i + 1} : ${ex.name}${run ? ', superset' : ''}${done ? ', terminé' : ''}`}
+                  aria-label={`Exercice ${i + 1} : ${displayName(ex.name)}${run ? ', superset' : ''}${done ? ', terminé' : ''}`}
                   aria-current={i === index ? 'step' : undefined}
                 />
               );

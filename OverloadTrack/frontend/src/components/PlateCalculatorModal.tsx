@@ -16,6 +16,7 @@ import {
   type MovementKind,
 } from '../lib/loadMath';
 import { Icon } from './Icons';
+import { displayName } from '../lib/exerciseNames';
 
 interface PlateCalculatorModalProps {
   isOpen: boolean;
@@ -205,7 +206,7 @@ export const PlateCalculatorModal: React.FC<PlateCalculatorModalProps> = ({
                 <div className="calc-suggestions">
                   {suggestions.map((ex) => (
                     <button type="button" key={ex.id} onClick={() => applyExercise(ex.name)}>
-                      <span>{ex.name}</span>
+                      <span>{displayName(ex.name)}</span>
                       <span className="calc-suggestion-cat">{ex.category}</span>
                     </button>
                   ))}

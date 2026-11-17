@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import api from '../api';
 import { Icon } from './Icons';
 import { GlossaryTerm } from './Glossary';
+import { ExerciseName } from './ExerciseName';
+import { MovementImage } from './MovementImage';
 
 interface ExerciseDetailModalProps {
   exerciseId: string | null;
@@ -41,13 +43,17 @@ export const ExerciseDetailModal: React.FC<ExerciseDetailModalProps> = ({
       <div className="glass-panel modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="flex-between" style={{ marginBottom: '1.5rem' }}>
           <div>
-            <h2>{stats?.exercise?.name || 'Exercice'}</h2>
+            <h2>
+              <ExerciseName name={stats?.exercise?.name} />
+            </h2>
             <span className="badge-category">{stats?.exercise?.category || 'Général'}</span>
           </div>
           <button className="btn-icon" onClick={onClose} aria-label="Fermer">
             <Icon name="close" size={20} />
           </button>
         </div>
+
+        <MovementImage name={stats?.exercise?.name} />
 
         {loading ? (
           <div className="flex-center" style={{ padding: '3rem' }}>

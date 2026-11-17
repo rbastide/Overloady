@@ -2,6 +2,7 @@ import React from 'react';
 import { EXPERIENCE_OPTIONS } from './AthleteProfileFields';
 import { GlossaryTerm } from './Glossary';
 import { Icon } from './Icons';
+import { displayName } from '../lib/exerciseNames';
 
 interface ExercisePlan {
   name: string;
@@ -212,7 +213,7 @@ export const TestWeekModal: React.FC<TestWeekModalProps> = ({
                             ★{' '}
                           </span>
                         )}
-                        <span>{ex.name}</span>
+                        <span>{displayName(ex.name)}</span>
                       </div>
                       <div className="test-ex-details">
                         {ex.sets} séries × {ex.reps} reps · départ {ex.defaultWeight} kg

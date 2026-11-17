@@ -5,7 +5,7 @@ import { importWgerExercises, syncLocalCatalog } from './exercise-sync';
 @Injectable()
 export class ExerciseService implements OnApplicationBootstrap {
   private readonly logger = new Logger(ExerciseService.name);
-  private wgerImport: Promise<{ fetched: number; imported: number }> | null = null;
+  private wgerImport: ReturnType<typeof importWgerExercises> | null = null;
 
   constructor(private prisma: PrismaService) {}
 
@@ -21,7 +21,9 @@ export class ExerciseService implements OnApplicationBootstrap {
     if (!this.wgerImport) {
       this.wgerImport = importWgerExercises(this.prisma)
         .then((result) => {
-          this.logger.log(`wger import: ${result.imported} new exercises (${result.fetched} fetched)`);
+          this.logger.log(
+            `wger import: ${result.imported} new, ${result.updated} updated (${result.fetched} fetched, ${result.withoutFrench} without a French name)`,
+          );
           return result;
         })
         .catch((err) => {

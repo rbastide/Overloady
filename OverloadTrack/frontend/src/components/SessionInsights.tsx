@@ -4,6 +4,7 @@ import { formatKg } from '../lib/loadMath';
 import { GlossaryTerm } from './Glossary';
 import type { ActiveExercise, ExerciseStats } from './ActiveExercise';
 import { isWorkSet } from '../lib/setTypes';
+import { displayName } from '../lib/exerciseNames';
 
 // Same Epley formula as the API's exercise stats, so both 1RM figures can be compared.
 const estimate1RM = (weight: number, reps: number) => Math.round(weight * (1 + reps / 30) * 10) / 10;
@@ -30,7 +31,7 @@ export function RecordCard({ exercise, stats }: { exercise: ActiveExercise; stat
     return (
       <section className="glass-panel record-card">
         {kicker('Record personnel')}
-        <div className="record-exercise">{exercise.name}</div>
+        <div className="record-exercise">{displayName(exercise.name)}</div>
         <p className="record-sub">Chargement de ton historique…</p>
       </section>
     );
@@ -45,7 +46,7 @@ export function RecordCard({ exercise, stats }: { exercise: ActiveExercise; stat
     return (
       <section className="glass-panel record-card is-new">
         {kicker(hasHistory ? 'Nouveau record personnel !' : 'Premier record établi')}
-        <div className="record-exercise">{exercise.name}</div>
+        <div className="record-exercise">{displayName(exercise.name)}</div>
         <div className="record-value">
           {formatKg(best.weight)} kg × {best.reps} reps
         </div>
@@ -74,7 +75,7 @@ export function RecordCard({ exercise, stats }: { exercise: ActiveExercise; stat
     return (
       <section className="glass-panel record-card">
         {kicker('Record personnel')}
-        <div className="record-exercise">{exercise.name}</div>
+        <div className="record-exercise">{displayName(exercise.name)}</div>
         <div className="record-value">À établir</div>
         <p className="record-sub">Ta première série validée deviendra ta référence sur cet exercice.</p>
       </section>
@@ -84,7 +85,7 @@ export function RecordCard({ exercise, stats }: { exercise: ActiveExercise; stat
   return (
     <section className="glass-panel record-card">
       {kicker('Record personnel')}
-      <div className="record-exercise">{exercise.name}</div>
+      <div className="record-exercise">{displayName(exercise.name)}</div>
       <div className="record-value">{formatKg(stats.maxWeight)} kg</div>
       <p className="record-sub">
         1RM estimé

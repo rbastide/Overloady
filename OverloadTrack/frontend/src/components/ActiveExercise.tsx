@@ -4,6 +4,9 @@ import { BAR_PLATES, DEFAULT_STEP, breakdownPlates, detectEquipment, formatKg, l
 import { beatsRecord, explainTarget, previousFor, resolveSetTarget, type PlanSource, type SetTarget } from '../lib/overload';
 import { useConfirmBulk } from '../lib/useConfirmBulk';
 import { SET_TYPE_LABELS, SET_TYPE_MARKS, SET_TYPE_SHORT, typeOf, type SetType } from '../lib/setTypes';
+import { ExerciseName } from './ExerciseName';
+import { MovementImage } from './MovementImage';
+import { displayName } from '../lib/exerciseNames';
 
 export interface ActiveSet {
   reps: number;
@@ -212,10 +215,13 @@ export function ActiveExerciseCard({
   const guide = loggingGuide(exercise.name);
 
   return (
-    <section className="exercise-focus" aria-label={`Exercice en cours : ${exercise.name}`}>
+    <section className="exercise-focus" aria-label={`Exercice en cours : ${displayName(exercise.name)}`}>
       <header className="exercise-focus-head">
         <div className="exercise-focus-body">
-          <h2 className="exercise-focus-title">{exercise.name}</h2>
+          <h2 className="exercise-focus-title">
+            <ExerciseName name={exercise.name} />
+          </h2>
+          <MovementImage name={exercise.name} onDemand />
           {superset && (
             <p className="exercise-superset">
               <Icon name="link" size={13} />

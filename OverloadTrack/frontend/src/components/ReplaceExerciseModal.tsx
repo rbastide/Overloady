@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { Icon } from './Icons';
 import { ExercisePicker } from './ExercisePicker';
 import type { ActiveExercise } from './ActiveExercise';
+import { displayName } from '../lib/exerciseNames';
 
 interface ReplaceExerciseModalProps {
   /** The exercise whose machine is taken; null when closed. */
@@ -55,7 +56,7 @@ export function ReplaceExerciseModal({ exercise, library, sessionIds, onPick, on
       >
         <div className="modal-head">
           <div>
-            <h2 id="replace-modal-title">Remplacer {exercise.name}</h2>
+            <h2 id="replace-modal-title">Remplacer {displayName(exercise.name)}</h2>
             <p id="replace-modal-desc">
               {plural(planned, 'série')} à faire, avec sa propre cible.
               {done > 0 && ` Tes ${plural(done, 'série')} ${done > 1 ? 'validées seront supprimées' : 'validée sera supprimée'}.`}

@@ -1,4 +1,4 @@
-import React, { Fragment, useState, useEffect, useRef } from 'react';
+import React, { Fragment, useState, useEffect, useMemo, useRef } from 'react';
 import api, { clearToken, hasValidToken, onUnauthorized, setToken, warmUpBackend } from './api';
 import './App.css';
 import './shell.css';
@@ -49,7 +49,9 @@ import {
   type OverloadSummary,
   type SetTarget,
 } from './lib/overload';
-import { createNameMatcher } from './lib/exerciseSearch';
+import { rankExercises } from './lib/exerciseSearch';
+import { displayName as exerciseLabel, frenchifyText, rememberCatalog } from './lib/exerciseNames';
+import { ExerciseName } from './components/ExerciseName';
 import { SET_TYPE_LABELS, drivesTarget, isWorkSet, markOf, typeOf, type SetType } from './lib/setTypes';
 import {
   clearSessionDraft,
@@ -357,6 +359,8 @@ function App() {
   const [exerciseSearch, setExerciseSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Tous');
   const [libraryLimit, setLibraryLimit] = useState(LIBRARY_PAGE_SIZE);
+  // The category whose variants the athlete asked to see; any other category stays tidy
+  const [variantsCategory, setVariantsCategory] = useState<string | null>(null);
 
   // Toasts
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -578,6 +582,7 @@ function App() {
       ]);
       setProfile(profileRes.data);
       setExercises(exercisesRes.data);
+      rememberCatalog(exercisesRes.data);
       setHistory(historyRes.data);
       setRoutines(routinesRes.data);
       setDashboardStats(statsRes.data);
@@ -1169,7 +1174,7 @@ function App() {
       return;
     }
     setFocusedExercise(index);
-    showToast(`${exercise.name} est déjà dans la séance`, 'info');
+    showToast(`${exerciseLabel(exercise.name)} est déjà dans la séance`, 'info');
   };
 
   const resetActiveSession = () => {
@@ -1438,7 +1443,7 @@ function App() {
         return `${s.weight}kg × ${s.reps}${kind}${s.completed ? ' ✓' : ''}`;
       }).join(', ');
       const label = labels[exIndex] ? `${labels[exIndex]} ` : '';
-      lines.push(`• ${label}${exLog.exercise?.name || 'Exercice'} : ${setsStr}`);
+      lines.push(`• ${label}${exerciseLabel(exLog.exercise?.name)} : ${setsStr}`);
     });
 
     lines.push(`\n📊 Volume Total Soulevé : ${totalVol.toLocaleString()} kg`);
@@ -1477,13 +1482,31 @@ function App() {
     return `${minutes < 10 ? '0' : ''}${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
   };
 
-  // Filter exercises
-  const matchesSearch = createNameMatcher(exerciseSearch);
-  const filteredExercises = exercises.filter((ex) => {
-    const matchSearch = !matchesSearch || matchesSearch(ex.name);
-    const matchCategory = selectedCategory === 'Tous' || ex.category === selectedCategory;
-    return matchSearch && matchCategory;
-  });
+  // The library as the athlete sees it: an exercise already logged is never a hidden variant
+  const catalog = useMemo(() => {
+    const loggedIds = new Set<string>(history.flatMap((s: any) => (s.exercises || []).map((e: any) => e.exerciseId)));
+    return exercises.map((ex) => (ex.isVariant && loggedIds.has(ex.id) ? { ...ex, isVariant: false } : ex));
+  }, [exercises, history]);
+  // Browsing order: by category, then by the French name the athlete reads, variants last
+  const browseOrder = useMemo(
+    () =>
+      [...catalog].sort(
+        (a, b) =>
+          Number(!!a.isVariant) - Number(!!b.isVariant) ||
+          (a.category || '').localeCompare(b.category || '', 'fr') ||
+          exerciseLabel(a.name).localeCompare(exerciseLabel(b.name), 'fr'),
+      ),
+    [catalog],
+  );
+
+  // Filter exercises: best answers first; variants wait behind "Voir plus de variantes" unless searched
+  const inCategory = (rankExercises(exerciseSearch, catalog) ?? browseOrder).filter(
+    (ex) => selectedCategory === 'Tous' || ex.category === selectedCategory,
+  );
+  const searching = exerciseSearch.trim() !== '';
+  const showVariants = variantsCategory === selectedCategory;
+  const filteredExercises = searching || showVariants ? inCategory : inCategory.filter((ex) => !ex.isVariant);
+  const hiddenVariants = inCategory.length - filteredExercises.length;
 
   // The first name when the athlete gave one; legacy accounts use their former email as identifier
   const firstName = (profile.firstName || '').trim();
@@ -1512,7 +1535,7 @@ function App() {
     activeRun && workoutLabels[activeExerciseIndex]
       ? {
           label: workoutLabels[activeExerciseIndex] as string,
-          partners: workout.slice(activeRun.start, activeRun.end + 1).filter((_, k) => activeRun.start + k !== activeExerciseIndex).map((ex) => ex.name),
+          partners: workout.slice(activeRun.start, activeRun.end + 1).filter((_, k) => activeRun.start + k !== activeExerciseIndex).map((ex) => exerciseLabel(ex.name)),
         }
       : undefined;
   // Linking goes forward: from an exercise on its own, or from the last one of a superset
@@ -1527,7 +1550,7 @@ function App() {
       return (
         <div key={ex.exerciseId + eIndex} className="queue-item is-current" aria-current="step">
           <span className="queue-index">{index}</span>
-          <span className="queue-name">{ex.name}</span>
+          <span className="queue-name">{exerciseLabel(ex.name)}</span>
           <span className="queue-detail">En cours</span>
         </div>
       );
@@ -1541,7 +1564,7 @@ function App() {
         title={isDone ? 'Revoir cet exercice' : 'Ouvrir cet exercice'}
       >
         <span className="queue-index">{index}</span>
-        <span className="queue-name">{ex.name}</span>
+        <span className="queue-name">{exerciseLabel(ex.name)}</span>
         <span className="queue-detail">
           {isDone ? (
             <>
@@ -2033,7 +2056,9 @@ function App() {
                             return (
                               <li key={idx} className="today-lift">
                                 <div className="today-lift-text">
-                                  <p className="today-lift-name">{ex.name}</p>
+                                  <p className="today-lift-name">
+                                    <ExerciseName name={ex.name} />
+                                  </p>
                                   <p className="today-lift-sets">
                                     {ex.sets?.length || 3} séries
                                     {target && target.weight === 0 ? ' · poids du corps' : ''}
@@ -2091,11 +2116,11 @@ function App() {
 
                           {showAiExercisesPreview && (
                             <div className="next-details-body">
-                              {nextRecommendation.rationale && <p className="next-rationale">{nextRecommendation.rationale}</p>}
+                              {nextRecommendation.rationale && <p className="next-rationale">{frenchifyText(nextRecommendation.rationale)}</p>}
                               {nextRecommendation.coachingTips?.length > 0 && (
                                 <ul className="next-tips">
                                   {nextRecommendation.coachingTips.map((tip: string, idx: number) => (
-                                    <li key={idx}>{tip}</li>
+                                    <li key={idx}>{frenchifyText(tip)}</li>
                                   ))}
                                 </ul>
                               )}
@@ -2105,9 +2130,11 @@ function App() {
                                     .filter((ex: any) => ex.reason || ex.targetAdvice)
                                     .map((ex: any, idx: number) => (
                                       <div key={idx}>
-                                        <dt>{ex.name}</dt>
-                                        {ex.targetAdvice && <dd className="next-advice">{ex.targetAdvice}</dd>}
-                                        {ex.reason && <dd>{ex.reason}</dd>}
+                                        <dt>
+                                          <ExerciseName name={ex.name} />
+                                        </dt>
+                                        {ex.targetAdvice && <dd className="next-advice">{frenchifyText(ex.targetAdvice)}</dd>}
+                                        {ex.reason && <dd>{frenchifyText(ex.reason)}</dd>}
                                       </div>
                                     ))}
                                 </dl>
@@ -2435,7 +2462,7 @@ function App() {
                         onReplace={() => setReplacingIndex(activeExerciseIndex)}
                         onRemove={() => removeExerciseFromSession(activeExerciseIndex)}
                         superset={activeSuperset}
-                        nextName={canLinkNext ? workout[activeExerciseIndex + 1].name : undefined}
+                        nextName={canLinkNext ? exerciseLabel(workout[activeExerciseIndex + 1].name) : undefined}
                         onLinkNext={canLinkNext ? () => linkWithNext(activeExerciseIndex) : undefined}
                         onUnlink={activeSuperset ? () => unlinkFromSuperset(activeExerciseIndex) : undefined}
                       />
@@ -2491,7 +2518,7 @@ function App() {
                             </div>
                           </div>
                           <ExercisePicker
-                            exercises={exercises}
+                            exercises={catalog}
                             selectedIds={workout.map((ex) => ex.exerciseId)}
                             onPick={pickSessionExercise}
                           />
@@ -2567,7 +2594,7 @@ function App() {
                         </div>
                         <ul>
                           {sessionTips.map((tip, idx) => (
-                            <li key={idx}>{tip}</li>
+                            <li key={idx}>{frenchifyText(tip)}</li>
                           ))}
                         </ul>
                       </section>
@@ -2643,7 +2670,9 @@ function App() {
                     <div className="routine-ex-list">
                       {(rt.exercises || []).map((ex: any) => (
                         <div key={ex.id} className="routine-ex-row">
-                          <span>{ex.name}</span>
+                          <span>
+                            <ExerciseName name={ex.name} />
+                          </span>
                           <span className="routine-ex-cat">{ex.category || 'Général'}</span>
                         </div>
                       ))}
@@ -2786,7 +2815,9 @@ function App() {
                           const block = items.map(({ item: exLog }) => (
                           <div key={exLog.id} className="history-exercise">
                             <div className="history-exercise-head">
-                              <strong>{exLog.exercise?.name || 'Exercice'}</strong>
+                              <strong>
+                                <ExerciseName name={exLog.exercise?.name} />
+                              </strong>
                               <span>{exLog.exercise?.category || 'Général'}</span>
                             </div>
 
@@ -2896,8 +2927,13 @@ function App() {
                   className="exercise-card"
                   onClick={() => setSelectedExerciseIdForModal(ex.id)}
                 >
-                  <span className="exercise-card-name">{ex.name}</span>
-                  <span className="exercise-card-cat">{ex.category || 'Général'}</span>
+                  <span className="exercise-card-name">
+                    <ExerciseName name={ex.name} />
+                  </span>
+                  <span className="exercise-card-cat">
+                    {ex.category || 'Général'}
+                    {ex.isVariant ? ' · variante' : ''}
+                  </span>
                   <Icon name="chevronRight" size={16} className="exercise-card-icon" />
                 </button>
               ))}
@@ -2907,6 +2943,14 @@ function App() {
               <div className="load-more">
                 <button className="btn-secondary" onClick={() => setLibraryLimit((l) => l + LIBRARY_PAGE_SIZE)}>
                   Afficher plus ({filteredExercises.length - libraryLimit} restants)
+                </button>
+              </div>
+            )}
+
+            {!searching && (hiddenVariants > 0 || showVariants) && filteredExercises.length <= libraryLimit && (
+              <div className="load-more">
+                <button className="btn-secondary" onClick={() => setVariantsCategory(showVariants ? null : selectedCategory)}>
+                  {showVariants ? 'Masquer les variantes' : `Voir plus de variantes (${hiddenVariants})`}
                 </button>
               </div>
             )}
@@ -3098,6 +3142,7 @@ function App() {
         onClose={() => setIsAddExerciseOpen(false)}
         onSuccess={(newEx) => {
           setExercises([...exercises, newEx]);
+          rememberCatalog([...exercises, newEx]);
           showToast(`Exercice « ${newEx.name} » créé`);
         }}
       />
@@ -3187,7 +3232,7 @@ function App() {
       <RoutineModal
         isOpen={isRoutineModalOpen}
         onClose={() => setIsRoutineModalOpen(false)}
-        exercises={exercises}
+        exercises={catalog}
         onSuccess={(newRoutine) => {
           setRoutines([...routines, newRoutine]);
           showToast(`Programme « ${newRoutine.name} » enregistré`);
@@ -3209,7 +3254,7 @@ function App() {
       {/* The picker steps aside while the loss of validated sets is confirmed, and comes back on cancel */}
       <ReplaceExerciseModal
         exercise={replacingIndex !== null && !pendingReplacement ? workout[replacingIndex] ?? null : null}
-        library={exercises}
+        library={catalog}
         sessionIds={workout.map((ex) => ex.exerciseId)}
         onPick={pickReplacement}
         onClose={() => setReplacingIndex(null)}
@@ -3223,8 +3268,8 @@ function App() {
             isOpen={!!pendingReplacement && !!original}
             tone="danger"
             icon="swap"
-            title={`Remplacer par ${pendingReplacement?.name ?? ''} ?`}
-            message={`${done} série${done > 1 ? 's' : ''} validée${done > 1 ? 's' : ''} sur ${original?.name ?? ''} ${done > 1 ? 'seront supprimées' : 'sera supprimée'}.`}
+            title={`Remplacer par ${pendingReplacement ? exerciseLabel(pendingReplacement.name) : ''} ?`}
+            message={`${done} série${done > 1 ? 's' : ''} validée${done > 1 ? 's' : ''} sur ${original ? exerciseLabel(original.name) : ''} ${done > 1 ? 'seront supprimées' : 'sera supprimée'}.`}
             confirmLabel="Remplacer"
             onConfirm={() => replaceExerciseInSession(replacingIndex!, pendingReplacement)}
             onCancel={() => setPendingReplacement(null)}

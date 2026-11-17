@@ -4,6 +4,8 @@ import { Icon } from './Icons';
 import { StepChart, StepMark, type StepPoint } from './StepChart';
 import { formatKg } from '../lib/loadMath';
 import { describeChange, formatShortDate } from '../lib/overload';
+import { ExerciseName } from './ExerciseName';
+import { displayName } from '../lib/exerciseNames';
 
 interface KeyLift {
   exerciseId: string;
@@ -191,14 +193,16 @@ export const AnalyticsView: React.FC = () => {
                 return (
                   <article key={lift.exerciseId} className="glass-panel lift-step-card">
                     <div className="lift-step-head">
-                      <h3>{lift.exerciseName}</h3>
+                      <h3>
+                        <ExerciseName name={lift.exerciseName} />
+                      </h3>
                       <span className={`lift-step-gain is-${gain.tone}`}>{gain.label}</span>
                     </div>
                     <StepChart
                       // A new period starts the reading on its last tread
                       key={`${lift.exerciseId}-${liftPeriod}-${last.date}-${lift.points.length}`}
                       points={lift.points}
-                      label={`${lift.exerciseName} : de ${formatKg(first.weight)} à ${formatKg(last.weight)} kg en ${lift.points.length} séances`}
+                      label={`${displayName(lift.exerciseName)} : de ${formatKg(first.weight)} à ${formatKg(last.weight)} kg en ${lift.points.length} séances`}
                     />
                     <div className="lift-step-foot">
                       <span>{formatShortDate(first.date)}</span>
@@ -308,7 +312,9 @@ export const AnalyticsView: React.FC = () => {
                   <span>{pr.date}</span>
                 </div>
 
-                <h3>{pr.exerciseName}</h3>
+                <h3>
+                  <ExerciseName name={pr.exerciseName} />
+                </h3>
 
                 <div className="pr-card-values">
                   <div>
