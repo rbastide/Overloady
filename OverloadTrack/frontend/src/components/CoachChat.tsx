@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import api from '../api';
 import { Icon } from './Icons';
+import { PainNotes } from './PainNotes';
 import { detectEquipment, formatKg } from '../lib/loadMath';
 
 export interface CoachExercise {
@@ -18,6 +19,9 @@ export interface CoachWorkout {
   durationMin: number | null;
   notes: string;
   exercises: CoachExercise[];
+  /** Movements left out for a sensitive area (absent from conversations saved before). */
+  avoided?: string[];
+  prevention?: string | null;
 }
 
 interface ChatMessage {
@@ -183,6 +187,7 @@ export const CoachChat: React.FC<CoachChatProps> = ({ onStartWorkout, onSaveRout
                     </span>
                   </div>
                   {w.notes && <p className="coach-workout-notes">{w.notes}</p>}
+                  <PainNotes avoided={w.avoided} prevention={w.prevention} />
                   <ol className="coach-exercises">
                     {w.exercises.map((ex, ei) => (
                       <li key={ei}>

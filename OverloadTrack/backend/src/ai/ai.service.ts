@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { athleteConstraints } from '../user/athlete-profile';
+import { PainArea, avoidListForPrompt } from '../workout/pain-guard';
 
 export type AthleteConstraints = ReturnType<typeof athleteConstraints>;
 
@@ -9,8 +10,10 @@ export interface AiWorkoutPromptContext {
   height?: number;
   /** Weight, experience and body fat in one line (see describeAthlete). */
   athlete?: string;
-  /** Age, equipment, session length and pains from the profile. Not read by the prompts yet (prompt C). */
+  /** Age, equipment, session length and pains from the profile. */
   constraints?: AthleteConstraints;
+  /** Sensitive areas of the profile and of the athlete's request (see pain-guard). */
+  sensitiveAreas?: PainArea[];
   age?: number;
   benchmarks?: Record<string, any> | null;
   lastSession?: {
@@ -43,6 +46,29 @@ export interface AiWorkoutPromptContext {
  */
 const LOAD_RULES = `Charges : pour les haltères, "weight" est le poids d'UN haltère, pas de la paire. Pour un exercice au poids du corps (tractions, dips, pompes), "weight" vaut 0 ; il ne vaut le lest ajouté que si l'athlète en utilise déjà un. D'une séance à l'autre, ne baisse jamais la charge d'un exercice réussi et ne la monte pas de plus de 10 %.`;
 
+/** How Atlas writes, for both prompts. */
+const STYLE_RULES = `Style : tu tutoies TOUJOURS l'athlète (« garde le dos droit », jamais « gardez » ni « vous »). Titres, groupes musculaires, notes et conseils en français, sans mot anglais (ischios, fessiers, adducteurs, poussée, tirage). Phrases courtes. Seuls les noms d'exercices restent recopiés tels quels depuis la liste.`;
+
+/**
+ * What the profile and the request say of the athlete's body and setting. The server checks the
+ * session afterwards (workout/pain-guard.ts): these lines keep Atlas's choices close to what stays.
+ */
+function constraintLines(constraints?: AthleteConstraints, areas: PainArea[] = []): string[] {
+  const lines: string[] = [];
+  if (constraints?.age) lines.push(`Âge : ${constraints.age} ans`);
+  if (constraints?.equipment) lines.push(`Matériel disponible : ${constraints.equipment}`);
+  if (constraints?.sessionMinutes) lines.push(`Durée habituelle d'une séance : ${constraints.sessionMinutes} min`);
+  if (areas.length > 0) {
+    lines.push(
+      `Zones sensibles, n'utilise AUCUN de ces mouvements (${avoidListForPrompt(areas)}). Les mouvements d'isolation qui sollicitent ces zones restent possibles, plus légers et contrôlés. L'application affiche elle-même ce qui a été écarté : ne liste pas ces mouvements dans ta réponse.`,
+    );
+  }
+  if (constraints?.painNote) {
+    lines.push(`Autre gêne signalée par l'athlète : « ${constraints.painNote.replace(/["«»]/g, "'")} ». Évite ce qui la sollicite.`);
+  }
+  return lines;
+}
+
 export interface AiGeneratedExercise {
   name: string;
   category: string;
@@ -73,8 +99,10 @@ export interface CoachChatContext {
   weight?: number;
   height?: number;
   athlete?: string;
-  /** Age, equipment, session length and pains from the profile. Not read by the prompts yet (prompt C). */
+  /** Age, equipment, session length and pains from the profile. */
   constraints?: AthleteConstraints;
+  /** Sensitive areas of the profile and of the conversation (see pain-guard). */
+  sensitiveAreas?: PainArea[];
   benchmarks?: Record<string, any> | null;
   recentSessions: Array<{ date: string; title: string; exercises: string[] }>;
   availableExercises: string[];
@@ -127,15 +155,16 @@ Par défaut, sélectionne 4 à 6 exercices pertinents. Si l'athlète demande un 
 "weight" est une charge réaliste en kg propre à CHAQUE exercice et au niveau de l'athlète (une élévation latérale est bien plus légère qu'un développé couché ; 0 pour un exercice au poids du corps). Ne recopie pas les valeurs de l'exemple.
 ${LOAD_RULES}
 Si l'athlète formule une demande, elle est prioritaire : respecte-la tant qu'elle reste sûre, et indique dans "rationale" ce que tu as changé.
+${STYLE_RULES}
 
-La réponse est limitée en longueur : sois TRÈS concis ("reason" : 6 mots max, "rationale" : 1 phrase, 2 conseils courts), une ligne par exercice. Tout le texte est en français.
+La réponse est limitée en longueur : sois TRÈS concis ("reason" : 6 mots max, "rationale" : 1 phrase, 2 conseils courts), une ligne par exercice.
 Tu dois répondre STRICTEMENT avec un objet JSON valide (aucun markdown, aucun outil) suivant ce schéma, les exercices en premier :
 {
   "exercises": [
     { "name": "Bench Press (Barbell)", "category": "Pectoraux", "sets": 4, "reps": 8, "weight": 50, "reason": "Base de force des pectoraux" },
     { "name": "Lateral Raise (Dumbbell)", "category": "Épaules", "sets": 3, "reps": 15, "weight": 6, "reason": "Isolation du deltoïde moyen" }
   ],
-  "title": "Titre clair (ex: Séance Hypertrophie — Push Pectoraux & Triceps)",
+  "title": "Titre clair en français (ex: Séance Hypertrophie — Pectoraux & Triceps)",
   "focusMuscle": "Groupes musculaires ciblés",
   "rationale": "Courte explication du coach",
   "coachingTips": ["Conseil court", "Conseil court"]
@@ -144,7 +173,10 @@ Tu dois répondre STRICTEMENT avec un objet JSON valide (aucun markdown, aucun o
     const userPrompt = `Profil athlète :
 - Objectif sélectionné : ${goal}
 - Gabarit et niveau : ${context.athlete || (context.weight ? `${context.weight} kg` : '75 kg')}
-- Dernière séance : ${
+${constraintLines(context.constraints, context.sensitiveAreas)
+  .map((line) => `- ${line}
+`)
+  .join('')}- Dernière séance : ${
       context.lastSession && context.lastSession.exercises.length > 0
         ? JSON.stringify(context.lastSession)
         : 'Aucune séance récente enregistrée'
@@ -204,6 +236,7 @@ L'athlète te décrit ce qu'il veut : une séance, un programme de plusieurs sé
 - Choisis les exercices UNIQUEMENT dans cette liste, en recopiant le nom exact : ${context.availableExercises.join(', ')}.
 - 4 à 7 exercices par séance selon la durée demandée. Charges en kg réalistes pour ce profil (0 pour le poids du corps), adaptées à l'objectif et aux records connus.
 ${LOAD_RULES}
+${STYLE_RULES}
 - Messages courts (3 phrases max), conseils de 1 phrase.
 
 Réponds STRICTEMENT avec un objet JSON valide (aucun markdown) suivant ce schéma :
@@ -211,7 +244,7 @@ Réponds STRICTEMENT avec un objet JSON valide (aucun markdown) suivant ce sché
   "message": "Ta réponse à l'athlète",
   "workouts": [
     {
-      "title": "Nom de la séance (ex: Push — Pectoraux, Épaules, Triceps)",
+      "title": "Nom de la séance en français (ex: Poussée — Pectoraux, Épaules, Triceps)",
       "focus": "Groupes musculaires ciblés",
       "durationMin": 60,
       "notes": "Échauffement ou consigne générale en 1 phrase",
@@ -222,7 +255,10 @@ Réponds STRICTEMENT avec un objet JSON valide (aucun markdown) suivant ce sché
   ]
 }`;
 
-    const profileNote = `[Profil athlète — objectif ${goal}, ${context.athlete || `${context.weight || 75} kg, ${context.height || 178} cm`}. Records connus : ${
+    const constraints = constraintLines(context.constraints, context.sensitiveAreas);
+    const profileNote = `[Profil athlète — objectif ${goal}, ${context.athlete || `${context.weight || 75} kg, ${context.height || 178} cm`}.${
+      constraints.length > 0 ? ` ${constraints.map((line) => line.replace(/\.$/, '')).join('. ')}.` : ''
+    } Records connus : ${
       context.benchmarks && Object.keys(context.benchmarks).length > 0 ? JSON.stringify(context.benchmarks) : 'aucun'
     }. Dernières séances : ${
       context.recentSessions.length > 0

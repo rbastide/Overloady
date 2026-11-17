@@ -7,6 +7,7 @@ import './motion.css';
 import { REST_TIDE_ID, RestTimer } from './components/RestTimer';
 import { PlateCalculatorModal } from './components/PlateCalculatorModal';
 import { ExerciseDetailModal } from './components/ExerciseDetailModal';
+import { PainNotes } from './components/PainNotes';
 import { AddExerciseModal } from './components/AddExerciseModal';
 import { RoutineModal } from './components/RoutineModal';
 import { ExercisePicker } from './components/ExercisePicker';
@@ -1900,6 +1901,9 @@ function App() {
                             .join(' · ')}
                         </p>
                       </div>
+
+                      {/* What was left out or lightened for a sensitive area, said before the lifts */}
+                      <PainNotes avoided={nextRecommendation.avoided} prevention={nextRecommendation.prevention} />
 
                       {nextRecommendation.exercises?.length > 0 && (
                         <ul className="today-lifts">

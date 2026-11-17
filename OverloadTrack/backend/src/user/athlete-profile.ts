@@ -130,10 +130,7 @@ export function describeAthlete(profile: AthleteProfile | null | undefined): str
     .join(', ');
 }
 
-/**
- * What the athlete told about their body and setting, sent to Atlas as data. The prompts
- * do not read it yet: respecting the pains is the next step (prompt C).
- */
+/** What the athlete told about their body and setting, read by Atlas's prompts. */
 export function athleteConstraints(profile: AthleteProfile | null | undefined) {
   const pains = painAreasOf(profile?.painAreas);
   return {

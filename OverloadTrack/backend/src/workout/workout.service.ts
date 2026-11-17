@@ -9,10 +9,25 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService, CoachChatMessage } from '../ai/ai.service';
-import { athleteConstraints, calibrationLoadFactor, describeAthlete, scaleCalibrationLoad } from '../user/athlete-profile';
+import {
+  athleteConstraints,
+  calibrationLoadFactor,
+  describeAthlete,
+  painAreasOf,
+  scaleCalibrationLoad,
+} from '../user/athlete-profile';
 import { orderRoutineExercises } from '../routine/routine.service';
 import { drivesTarget, isWorkSet, parseSetType } from './set-type';
 import { sanitizeSupersetIds } from './superset';
+import {
+  CAUTION_ADVICE,
+  PainReportBuilder,
+  cautionLoad,
+  checkMovement,
+  protocolMovement,
+  screenMovement,
+  sensitiveAreas,
+} from './pain-guard';
 import {
   KnownLift,
   Performance,
@@ -881,6 +896,15 @@ export class WorkoutService implements OnApplicationBootstrap {
     const pool = await this.getExercisePool();
     const equipment = (profile as any)?.equipment;
     const allExercises = pool.filter((e) => fitsEquipment(e.name, equipment));
+    // Sensitive areas of the profile and of the request: both Atlas and the local engine leave out
+    // what the pain table rules out, and lighten the single-joint work around the area
+    // A pain written at a regeneration still holds for the next one, which edits that session
+    const areas = sensitiveAreas(
+      [...painAreasOf((profile as any)?.painAreas), ...(proposedSession?.sensitiveAreas || [])],
+      athleteRequest,
+    );
+    const pain = new PainReportBuilder();
+    const appLibrary = allExercises.filter((e) => e.source !== 'wger');
 
     const goalMetadata: Record<
       string,
@@ -984,6 +1008,7 @@ export class WorkoutService implements OnApplicationBootstrap {
         height: (profile as any)?.height || 178,
         athlete: describeAthlete(profile as any),
         constraints: athleteConstraints(profile as any),
+        sensitiveAreas: areas,
         benchmarks: testedBenchmarks,
         lastSession: lastSessionContext,
         athleteRequest: athleteRequest || undefined,
@@ -1027,18 +1052,25 @@ export class WorkoutService implements OnApplicationBootstrap {
           );
           if (alternate) matchedDbEx = alternate;
         }
+        // Checked against the pain table after generation: swapped for a safe movement, without asking the AI again
+        const screened = matchedDbEx ? screenMovement(matchedDbEx, areas, appLibrary, usedIds, pain) : null;
+        // A stand-in does not inherit the advice written for the movement it replaces
+        const swapped = !!screened && screened.exercise !== matchedDbEx;
+        matchedDbEx = screened?.exercise;
 
         if (matchedDbEx) {
           usedIds.add(matchedDbEx.id);
           // Atlas's loads are bounded by the athlete's history: no jump, no drop on a target held
+          // A stand-in gets no load from Atlas: its own last load, or its starting load
           const aiSets = aiEx.sets?.length
-            ? aiEx.sets
+            ? aiEx.sets.map((s) => (swapped ? { ...s, weight: 0 } : s))
             : Array.from({ length: 3 }, (_, i) => ({ setNumber: i + 1, weight: 0, reps: 0 }));
           const guarded = this.guardAtlasSets(matchedDbEx, aiSets, goal, performances, loadFactor);
           const note = guarded.note;
+          const careful = screened!.careful;
           const sets = guarded.sets.map((s, idx) => ({
             setNumber: aiSets[idx].setNumber || idx + 1,
-            weight: s.weight,
+            weight: careful ? cautionLoad(s.weight, matchedDbEx.name) : s.weight,
             reps: s.reps,
             completed: false,
           }));
@@ -1047,14 +1079,19 @@ export class WorkoutService implements OnApplicationBootstrap {
             exerciseId: matchedDbEx.id,
             name: matchedDbEx.name,
             category: (matchedDbEx as any).category || aiEx.category || 'Général',
-            targetAdvice: aiEx.targetAdvice || currentMeta.repTarget,
-            reason: note || aiEx.reason || 'Recommandé pour ta progression',
+            targetAdvice: careful ? CAUTION_ADVICE : (!swapped && aiEx.targetAdvice) || currentMeta.repTarget,
+            reason: note || (swapped ? 'Remplace un mouvement écarté pour ta douleur' : aiEx.reason) || 'Recommandé pour ta progression',
             sets,
           });
         }
       }
 
       if (mappedExercises.length > 0) {
+        pain.noteRuledOut(
+          mappedExercises.map((ex) => ex.category),
+          appLibrary,
+          areas,
+        );
         const result = {
           aiGenerated: true,
           aiModel: 'Coach IA Musculation (Pollinations CSCS)',
@@ -1069,6 +1106,8 @@ export class WorkoutService implements OnApplicationBootstrap {
             'Respectez les temps de repos prescrits pour optimiser les performances.',
           ],
           exercises: mappedExercises,
+          sensitiveAreas: areas,
+          ...pain.build(),
         };
 
         this.recommendationCache.set(userId, { data: result, timestamp: Date.now() });
@@ -1101,9 +1140,30 @@ export class WorkoutService implements OnApplicationBootstrap {
       targetCategories = ['Pectoraux', 'Épaules', 'Bras'];
     }
 
-    const candidateExercises = allExercises.filter((ex) => targetCategories.includes((ex as any).category));
-    const selectedExercises = candidateExercises.slice(0, 4);
-    const finalExercises = selectedExercises.length > 0 ? selectedExercises : allExercises.slice(0, 3);
+    // The first movements of the focus the pain table allows, then what it ruled out for those groups.
+    // Atlas may have left notes in the report before failing: the local session starts afresh.
+    const localPain = new PainReportBuilder();
+    const pickAllowed = (candidates: typeof allExercises, count: number) => {
+      const picked: Array<{ exercise: (typeof allExercises)[number]; careful: boolean }> = [];
+      for (const exercise of candidates) {
+        if (picked.length >= count) break;
+        const check = checkMovement(exercise.name, areas);
+        if (check.status === 'avoid') continue;
+        if (check.status === 'caution') localPain.noteCaution(check.area);
+        picked.push({ exercise, careful: check.status === 'caution' });
+      }
+      return picked;
+    };
+    const selectedExercises = pickAllowed(
+      allExercises.filter((ex) => targetCategories.includes((ex as any).category)),
+      4,
+    );
+    const finalExercises = selectedExercises.length > 0 ? selectedExercises : pickAllowed(allExercises, 3);
+    localPain.noteRuledOut(
+      finalExercises.map(({ exercise }) => (exercise as any).category),
+      appLibrary,
+      areas,
+    );
 
     const fallbackExercises = [];
 
@@ -1117,18 +1177,18 @@ export class WorkoutService implements OnApplicationBootstrap {
         ? 'Garde 3 reps en réserve • Repos 60s • Jamais jusqu’à l’échec'
         : 'Tension continue • Repos 75-90s • Focus congestion';
 
-    for (const ex of finalExercises) {
+    for (const { exercise: ex, careful } of finalExercises) {
       // Double progression on the last performance, else a starting load scaled to the athlete
       const target = this.targetFor(ex, goal, performances, loadFactor);
       fallbackExercises.push({
         exerciseId: ex.id,
         name: ex.name,
         category: (ex as any).category || 'Général',
-        targetAdvice,
+        targetAdvice: careful ? CAUTION_ADVICE : targetAdvice,
         reason: target.note || 'Surcharge progressive calculée sur ton historique',
         sets: Array.from({ length: setsCount }, (_, i) => ({
           setNumber: i + 1,
-          weight: target.weight,
+          weight: careful ? cautionLoad(target.weight, ex.name) : target.weight,
           reps: target.reps,
           completed: false,
         })),
@@ -1151,6 +1211,8 @@ export class WorkoutService implements OnApplicationBootstrap {
         'Prenez des temps de repos suffisants pour maximiser la production de force.',
       ],
       exercises: fallbackExercises,
+      sensitiveAreas: areas,
+      ...localPain.build(),
     };
 
     this.recommendationCache.set(userId, { data: fallbackResult, timestamp: Date.now() });
@@ -1188,6 +1250,12 @@ export class WorkoutService implements OnApplicationBootstrap {
     const goal = (profile as any)?.goal || 'BODYBUILDING';
     const loadFactor = calibrationLoadFactor(profile as any);
     const pool = fullPool.filter((e) => fitsEquipment(e.name, (profile as any)?.equipment));
+    const appLibrary = pool.filter((e) => e.source !== 'wger');
+    // Pains of the profile and those the athlete wrote anywhere in the conversation
+    const areas = sensitiveAreas(
+      painAreasOf((profile as any)?.painAreas),
+      ...messages.filter((m) => m.role === 'user').map((m) => m.content),
+    );
 
     const reply = await this.aiService.coachChat({
       goal,
@@ -1195,13 +1263,14 @@ export class WorkoutService implements OnApplicationBootstrap {
       height: (profile as any)?.height,
       athlete: describeAthlete(profile as any),
       constraints: athleteConstraints(profile as any),
+      sensitiveAreas: areas,
       benchmarks,
       recentSessions: recent.map((s) => ({
         date: s.startedAt.toISOString().split('T')[0],
         title: ((s as any).title || 'Séance libre').slice(0, 80),
         exercises: s.exercises.map((e) => e.exercise.name),
       })),
-      availableExercises: pool.filter((e) => e.source !== 'wger').map((e) => e.name),
+      availableExercises: appLibrary.map((e) => e.name),
       messages,
     });
 
@@ -1209,30 +1278,60 @@ export class WorkoutService implements OnApplicationBootstrap {
       throw new ServiceUnavailableException('Atlas ne répond pas pour le moment. Réessaie dans quelques secondes.');
     }
 
-    return {
-      message: reply.message,
-      workouts: reply.workouts.map((w) => ({
-        title: w.title,
-        focus: w.focus,
-        durationMin: w.durationMin,
-        notes: w.notes,
-        exercises: w.exercises.map((ex) => {
-          const dbEx = this.findMatchingExercise(ex.name, '', pool);
+    const workouts = reply.workouts
+      .map((w) => {
+        // Each session is checked against the pain table, without asking the AI again
+        const pain = new PainReportBuilder();
+        const usedIds = new Set<string>();
+        const exercises = w.exercises.flatMap((ex) => {
+          const matched = this.findMatchingExercise(ex.name, '', pool);
+          const screened = matched ? screenMovement(matched, areas, appLibrary, usedIds, pain) : null;
+          if (!screened) return [];
+          const dbEx = screened.exercise;
+          usedIds.add(dbEx.id);
           // Same guard-rails as the dashboard session: no jump, no drop on a target held
-          const guarded = this.guardAtlasSets(dbEx, [{ weight: ex.weight, reps: ex.reps }], goal, performances, loadFactor);
+          // A stand-in gets no load from Atlas: its own last load, or its starting load
+          const asked = dbEx === matched ? ex.weight : 0;
+          const guarded = this.guardAtlasSets(dbEx, [{ weight: asked, reps: ex.reps }], goal, performances, loadFactor);
           const target = { ...guarded.sets[0], note: guarded.note };
-          return {
-            exerciseId: dbEx.id,
-            name: dbEx.name,
-            category: dbEx.category,
-            rest: ex.rest,
-            targetAdvice: [`${ex.sets}×${target.reps}`, ex.rest && `repos ${ex.rest}`, target.note || ex.tip]
-              .filter(Boolean)
-              .join(' · '),
-            sets: Array.from({ length: ex.sets }, (_, i) => ({ setNumber: i + 1, weight: target.weight, reps: target.reps })),
-          };
-        }),
-      })),
+          const weight = screened.careful ? cautionLoad(target.weight, dbEx.name) : target.weight;
+          // A stand-in keeps the sets and rest, not the tip written for the movement it replaces
+          const tip = screened.careful ? CAUTION_ADVICE : target.note || (dbEx === matched ? ex.tip : '');
+          return [
+            {
+              exerciseId: dbEx.id,
+              name: dbEx.name,
+              category: dbEx.category,
+              rest: ex.rest,
+              targetAdvice: [`${ex.sets}×${target.reps}`, ex.rest && `repos ${ex.rest}`, tip].filter(Boolean).join(' · '),
+              sets: Array.from({ length: ex.sets }, (_, i) => ({ setNumber: i + 1, weight, reps: target.reps })),
+            },
+          ];
+        });
+        pain.noteRuledOut(
+          exercises.map((ex) => ex.category),
+          appLibrary,
+          areas,
+        );
+        return {
+          title: w.title,
+          focus: w.focus,
+          durationMin: w.durationMin,
+          notes: w.notes,
+          exercises,
+          ...pain.build(),
+        };
+      });
+    const kept = workouts.filter((w) => w.exercises.length > 0);
+    const dropped = workouts.length - kept.length;
+    return {
+      message:
+        dropped > 0
+          ? `${reply.message}\n${
+              dropped > 1 ? `${dropped} séances proposées ne gardaient` : 'Une séance proposée ne gardait'
+            } que des mouvements à éviter pour ta douleur : je ${dropped > 1 ? 'les ai retirées' : "l'ai retirée"}.`
+          : reply.message,
+      workouts: kept,
     };
   }
 
@@ -1788,15 +1887,19 @@ export class WorkoutService implements OnApplicationBootstrap {
     const templates = this.getPersonalizedTestTemplates(goal, profile);
     const template = templates.find((t) => t.step === step) || templates[0];
 
+    // Sensitive areas of the profile: the protocol keeps its movements, lighter where they load the area
+    const areas = sensitiveAreas(painAreasOf(profile?.painAreas));
+    const pain = new PainReportBuilder();
     const mappedExercises: any[] = [];
     for (const exPlan of template.exercises) {
       const dbEx = this.findMatchingExercise(exPlan.name, '', allExercises);
       if (dbEx) {
+        const planned = protocolMovement(dbEx.name, exPlan.defaultWeight, areas, pain);
         const sets = [];
         for (let i = 0; i < exPlan.sets; i++) {
           sets.push({
             setNumber: i + 1,
-            weight: exPlan.defaultWeight,
+            weight: planned.weight,
             reps: exPlan.reps,
             completed: false,
           });
@@ -1805,7 +1908,7 @@ export class WorkoutService implements OnApplicationBootstrap {
           exerciseId: dbEx.id,
           name: dbEx.name,
           category: (dbEx as any).category || 'Général',
-          targetAdvice: exPlan.targetAdvice,
+          targetAdvice: planned.careful ? CAUTION_ADVICE : exPlan.targetAdvice,
           reason: exPlan.reason,
           isKeyBenchmark: exPlan.isKeyBenchmark,
           benchmarkMetric: exPlan.benchmarkMetric,
@@ -1827,6 +1930,7 @@ export class WorkoutService implements OnApplicationBootstrap {
       rationale: `🧪 Phase de Test & Calibration (Séance ${step}/3) : ${template.testingGoal} Effectuez cette séance d'évaluation en notant vos charges réelles avec technique propre pour calibrer votre profil neuromusculaire avant le lancement complet du Coach IA.`,
       coachingTips: template.instructions,
       exercises: mappedExercises,
+      ...pain.build(),
     };
 
     this.recommendationCache.set(userId, { data: result, timestamp: Date.now() });
