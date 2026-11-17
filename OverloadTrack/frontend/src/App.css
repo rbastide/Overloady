@@ -1254,6 +1254,42 @@ select optgroup {
   font-weight: 300;
 }
 
+/* First screen: what the app is in one sentence, then what it does */
+.auth-brand .auth-pitch {
+  max-width: 30ch;
+  margin: 0.5rem auto 0;
+  color: var(--text-main);
+  font-size: 1.0625rem;
+  font-weight: 400;
+  line-height: 1.4;
+  text-wrap: balance;
+}
+
+.auth-promises {
+  width: fit-content;
+  margin: 1rem auto 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+  list-style: none;
+  text-align: left;
+}
+
+.auth-promises li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.9375rem;
+  line-height: 1.35;
+}
+
+.auth-promises svg {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+  color: var(--accent);
+}
+
 .auth-card {
   width: 100%;
   display: flex;
@@ -1563,22 +1599,6 @@ select optgroup {
   text-underline-offset: 3px;
 }
 
-.auth-signature {
-  margin-top: 2rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-  color: #5b636c;
-  font-size: 0.75rem;
-}
-
-.auth-signature-dot {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: #2f353e;
-}
 
 @media (max-width: 480px) {
   .auth-main {
@@ -4690,6 +4710,22 @@ select optgroup {
   color: var(--accent-bright);
 }
 
+/* Definitions of the set type names, under the options */
+.set-type-terms {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+.set-type-terms > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
 /* Replace an exercise: the equivalents scroll inside the sheet, its head stays in view */
 .replace-modal {
   display: flex;
@@ -4976,7 +5012,7 @@ select optgroup {
 }
 
 .sets-table th {
-  padding-bottom: 0.6rem;
+  padding: 0 0.75rem 0.6rem 0;
   color: var(--text-dim);
   font-size: 0.75rem;
   font-weight: 500;

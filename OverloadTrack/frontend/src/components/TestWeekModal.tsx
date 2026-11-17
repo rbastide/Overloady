@@ -1,5 +1,6 @@
 import React from 'react';
 import { EXPERIENCE_OPTIONS } from './AthleteProfileFields';
+import { GlossaryTerm } from './Glossary';
 import { Icon } from './Icons';
 
 interface ExercisePlan {
@@ -33,7 +34,6 @@ interface TestWeekModalProps {
     testWeekProgress: number;
     currentStep: number;
     totalSteps: number;
-    goal: string;
     sessions: TestSession[];
     benchmarks: Record<string, { maxWeight: number; bestReps: number; estimated1RM: number; sessionDate: string }>;
     canUnlockAi: boolean;
@@ -109,13 +109,14 @@ export const TestWeekModal: React.FC<TestWeekModalProps> = ({
             <div className="test-modal-tags">
               <span className="badge-pill">
                 <Icon name="flask" size={13} />
-                PROTOCOLE DE CALIBRATION ATHLÈTE
+                Protocole de calibration
               </span>
-              <span className="badge-pill is-jade">OBJECTIF : {status.goal}</span>
             </div>
-            <h2 className="test-modal-title">Semaine Test d'Évaluation & Calibration</h2>
+            <h2 className="test-modal-title">Semaine test</h2>
             <p className="test-modal-intro">
-              3 séances stratégiques pour mesurer vos charges de référence, votre 1RM estimé et calibrer le moteur IA avant de lancer vos cycles de progression.
+              {status.totalSteps} séances pour mesurer tes vraies charges. Sur chaque mouvement, monte jusqu’à une série dure, à RPE 8-9{' '}
+              <GlossaryTerm term="rpe89" /> : il te reste 1 ou 2 reps en réserve <GlossaryTerm term="rir" />. Ensuite, Atlas
+              prépare tes séances à partir de ces charges.
             </p>
           </div>
           <button className="btn-close-modal" onClick={onClose} title="Fermer" aria-label="Fermer">
@@ -128,8 +129,8 @@ export const TestWeekModal: React.FC<TestWeekModalProps> = ({
           <div className="test-progress-head">
             <span>
               {status.testWeekCompleted
-                ? '✓ Calibration terminée (100%) — Le Coach IA est activé !'
-                : `Progression de la calibration : ${status.testWeekProgress} / ${status.totalSteps} séances validées (${progressPercent}%)`}
+                ? 'Calibration terminée : Atlas prépare tes séances.'
+                : `${status.testWeekProgress} séance${status.testWeekProgress > 1 ? 's' : ''} test sur ${status.totalSteps} faite${status.testWeekProgress > 1 ? 's' : ''}`}
             </span>
             <strong className={status.testWeekCompleted ? 'is-done' : ''}>{progressPercent}%</strong>
           </div>
@@ -148,7 +149,7 @@ export const TestWeekModal: React.FC<TestWeekModalProps> = ({
           <div className="test-benchmarks-summary">
             <div className="benchmarks-header">
               <Icon name="trophy" size={15} />
-              <span>Vos Records & Benchmarks Actuels Enregistrés</span>
+              <span>Tes charges mesurées</span>
             </div>
             <div className="benchmarks-cards-grid">
               {Object.entries(status.benchmarks).map(([name, data]) => (
@@ -156,10 +157,12 @@ export const TestWeekModal: React.FC<TestWeekModalProps> = ({
                   <div className="bench-name">{name}</div>
                   <div className="bench-1rm">
                     <strong>{data.estimated1RM} kg</strong>
-                    <span className="bench-sub">1RM estimé</span>
+                    <span className="bench-sub">
+                      1RM estimé <GlossaryTerm term="1rm" />
+                    </span>
                   </div>
                   <div className="bench-raw">
-                    Charge testée : {data.maxWeight} kg × {data.bestReps} reps
+                    Série test : {data.maxWeight} kg × {data.bestReps} reps
                   </div>
                 </div>
               ))}
@@ -189,11 +192,11 @@ export const TestWeekModal: React.FC<TestWeekModalProps> = ({
 
                 <div className="test-card-title-row">
                   <h3 className="test-session-title">{sess.name}</h3>
-                  <span className="test-focus-tag">Focus : {sess.focus}</span>
+                  <span className="test-focus-tag">{sess.focus}</span>
                 </div>
 
                 <p className="test-session-goal">
-                  <strong>Objectif de test :</strong> {sess.testingGoal}
+                  <strong>Le but :</strong> {sess.testingGoal}
                 </p>
 
                 {/* Exercises Preview */}
@@ -205,14 +208,14 @@ export const TestWeekModal: React.FC<TestWeekModalProps> = ({
                     >
                       <div className="test-ex-title">
                         {ex.isKeyBenchmark && (
-                          <span className="test-ex-star" title="Benchmark principal">
+                          <span className="test-ex-star" role="img" title="Mouvement de référence" aria-label="Mouvement de référence">
                             ★{' '}
                           </span>
                         )}
                         <span>{ex.name}</span>
                       </div>
                       <div className="test-ex-details">
-                        {ex.sets} séries × {ex.reps} reps • Base {ex.defaultWeight}kg
+                        {ex.sets} séries × {ex.reps} reps · départ {ex.defaultWeight} kg
                       </div>
                       {ex.isKeyBenchmark && (
                         <div className="test-metric-tag">{ex.benchmarkMetric}</div>
@@ -223,7 +226,7 @@ export const TestWeekModal: React.FC<TestWeekModalProps> = ({
 
                 {/* Instructions */}
                 <div className="test-instructions-box">
-                  <span className="inst-title">Consignes du protocole :</span>
+                  <span className="inst-title">Consignes</span>
                   <ul>
                     {sess.instructions.map((inst, i) => (
                       <li key={i}>{inst}</li>
@@ -235,7 +238,7 @@ export const TestWeekModal: React.FC<TestWeekModalProps> = ({
                 <div className="test-card-actions">
                   {isCompleted ? (
                     <div className="btn-test-completed">
-                      <span>✓ Séance test validée</span>
+                      <span>✓ Séance test faite</span>
                     </div>
                   ) : (
                     <button
@@ -246,10 +249,8 @@ export const TestWeekModal: React.FC<TestWeekModalProps> = ({
                     >
                       {isCurrent && !isStarting && <Icon name="play" size={16} filled strokeWidth={1.5} />}
                       {isStarting
-                        ? 'Lancement de la séance...'
-                        : isCurrent
-                        ? `Démarrer la Séance Test (Étape ${sess.step}/3)`
-                        : `Lancer le Test ${sess.dayName}`}
+                        ? 'Lancement de la séance…'
+                        : `Lancer la séance test ${sess.step} sur ${status.totalSteps}`}
                     </button>
                   )}
                 </div>
@@ -265,17 +266,17 @@ export const TestWeekModal: React.FC<TestWeekModalProps> = ({
               <button
                 className="btn-text-danger"
                 onClick={onSkipTestWeek}
-                title="Débloque directement le coach IA sans effectuer les tests"
+                title="Atlas prépare tes séances sans séance test"
               >
-                Passer la phase de test et débloquer l'IA directement
+                Passer la semaine test
               </button>
             ) : (
               <button
                 className="btn-text-warning"
                 onClick={onResetTestWeek}
-                title="Réinitialise la calibration pour relancer une semaine de tests"
+                title="Refaire les 3 séances test"
               >
-                Relancer une Semaine de Test (Recalibration)
+                Refaire la semaine test
               </button>
             )}
           </div>

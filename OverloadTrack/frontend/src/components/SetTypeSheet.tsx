@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { GlossaryTerm } from './Glossary';
 import { Icon } from './Icons';
 import { SET_TYPE_LABELS, SET_TYPE_MARKS, SET_TYPES, type SetType } from '../lib/setTypes';
 
@@ -78,6 +79,16 @@ export function SetTypeSheet({ setNumber, current, onPick, onClose }: SetTypeShe
             );
           })}
         </div>
+
+        {/* The two words a beginner may not know, defined on touch */}
+        <p className="set-type-terms">
+          <span>
+            Drop set <GlossaryTerm term="drop" />
+          </span>
+          <span>
+            Échec <GlossaryTerm term="failure" />
+          </span>
+        </p>
       </div>
     </div>
   );

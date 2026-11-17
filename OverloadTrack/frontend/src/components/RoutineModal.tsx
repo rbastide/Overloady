@@ -52,11 +52,11 @@ export const RoutineModal: React.FC<RoutineModalProps> = ({ isOpen, onClose, exe
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      setError('Veuillez donner un nom à votre programme.');
+      setError('Donne un nom à ton programme.');
       return;
     }
     if (selectedExerciseIds.length === 0) {
-      setError('Veuillez sélectionner au moins un exercice.');
+      setError('Choisis au moins un exercice.');
       return;
     }
 

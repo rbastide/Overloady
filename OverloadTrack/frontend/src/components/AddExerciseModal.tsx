@@ -29,7 +29,7 @@ export const AddExerciseModal: React.FC<AddExerciseModalProps> = ({ isOpen, onCl
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      setError('Veuillez renseigner un nom.');
+      setError('Donne un nom à l’exercice.');
       return;
     }
     setLoading(true);

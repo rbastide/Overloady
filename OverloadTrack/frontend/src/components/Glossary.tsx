@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { Icon } from './Icons';
 
 // Training words the app uses without assuming the athlete knows them
@@ -6,6 +6,22 @@ const TERMS = {
   rpe: {
     title: 'RPE, l’effort perçu',
     text: 'De 1 à 10, la difficulté ressentie. 10 : plus aucune rep possible. 8 : il t’en restait deux. Atlas s’en sert pour doser ta prochaine charge.',
+  },
+  rpe89: {
+    title: 'RPE 8-9, presque à fond',
+    text: 'Une série dure, mais il te reste encore 1 ou 2 reps. C’est la zone visée en séance test : lourd, sans aller jusqu’à l’échec.',
+  },
+  rir: {
+    title: 'Reps en réserve',
+    text: 'Les reps que tu pourrais encore faire en fin de série. « 2 reps en réserve » : tu t’arrêtes alors que tu en avais encore deux.',
+  },
+  drop: {
+    title: 'Drop set',
+    text: 'Juste après une série, tu baisses la charge et tu enchaînes sans repos. Ça ajoute du travail sans changer ta prochaine cible.',
+  },
+  failure: {
+    title: 'Échec',
+    text: 'Le moment où tu ne peux plus faire une seule rep propre. À viser rarement : l’app garde alors la même charge la fois suivante.',
   },
   '1rm': {
     title: '1RM, la charge maximale',
@@ -28,7 +44,7 @@ export function GlossaryTerm({ term }: { term: GlossaryTermId }) {
   const wrapRef = useRef<HTMLSpanElement>(null);
   const bubbleRef = useRef<HTMLSpanElement>(null);
   const { title, text } = TERMS[term];
-  const id = `glossary-${term}`;
+  const id = `glossary-${term}-${useId()}`;
 
   // Keep the bubble inside the screen on phones
   useLayoutEffect(() => {

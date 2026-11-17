@@ -71,6 +71,13 @@ import {
 
 type GoalId = 'FORCE' | 'BODYBUILDING' | 'ENDURANCE' | 'HEALTH';
 
+// First screen: what the app does, for someone who has never heard of it
+const AUTH_PROMISES = [
+  'Note tes séries en salle, d’une main',
+  'Monte tes charges sans rien calculer',
+  'Gratuit et en français, avec Atlas, ton coach IA',
+];
+
 const GOAL_OPTIONS: {
   id: GoalId;
   name: string;
@@ -85,7 +92,7 @@ const GOAL_OPTIONS: {
     icon: 'bolt',
     badge: '3-5 reps • 80-87% 1RM',
     rest: 'Repos 3-4 min',
-    desc: 'Charges maximales sur les mouvements polyarticulaires pour bâtir une force pure sans compromis.',
+    desc: 'Peu de reps, des charges lourdes, sur les grands mouvements : squat, développé, soulevé de terre.',
   },
   {
     id: 'BODYBUILDING',
@@ -93,7 +100,7 @@ const GOAL_OPTIONS: {
     icon: 'dumbbell',
     badge: '8-12 reps • 70-75% 1RM',
     rest: 'Repos 75-90s',
-    desc: 'Volume optimisé pour stimuler la croissance musculaire, le recrutement et la congestion.',
+    desc: 'Des séries de 8 à 12 reps pour prendre du muscle.',
   },
   {
     id: 'ENDURANCE',
@@ -101,7 +108,7 @@ const GOAL_OPTIONS: {
     icon: 'activity',
     badge: '15-20 reps • 50-60% 1RM',
     rest: 'Repos 30-45s',
-    desc: 'Séries longues et intensité métabolique pour développer votre résistance et votre tonicité.',
+    desc: 'Des séries longues et des repos courts pour tenir plus longtemps.',
   },
   {
     id: 'HEALTH',
@@ -188,6 +195,29 @@ const FINISH_TIMEOUT_MS = 20_000;
 // Session layout picked by the athlete, kept on the device: the set table, or one exercise per screen
 type SessionView = 'list' | 'gym';
 const SESSION_VIEW_KEY = 'overloady.sessionView';
+// A device that once signed in opens on "Connexion"; a new one on "Inscription"
+const SIGNED_IN_KEY = 'overloady.hasSignedIn';
+const hasSignedInHere = () => {
+  try {
+    return localStorage.getItem(SIGNED_IN_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+const rememberSignedInHere = () => {
+  try {
+    localStorage.setItem(SIGNED_IN_KEY, '1');
+  } catch {
+    // Private mode: the next visit opens on sign-up, nothing worse
+  }
+};
+
+/** What the sign-in and sign-up fields ask, said under the field instead of the browser bubble. */
+type AuthFieldErrors = Partial<Record<'username' | 'password' | 'confirm', string>>;
+// Same rules as the API (auth.service.ts), which lowercases the identifiant first
+const USERNAME_PATTERN = /^[a-zA-Z0-9_.-]{3,24}$/;
+const MIN_PASSWORD_LENGTH = 6;
+
 const readSessionView = (): SessionView => {
   try {
     return localStorage.getItem(SESSION_VIEW_KEY) === 'gym' ? 'gym' : 'list';
@@ -204,7 +234,8 @@ const HERO_PROGRAMS_MOBILE = 3;
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(hasValidToken);
-  const [isLoginMode, setIsLoginMode] = useState(true);
+  const [isLoginMode, setIsLoginMode] = useState(hasSignedInHere);
+  const [authFieldErrors, setAuthFieldErrors] = useState<AuthFieldErrors>({});
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -525,6 +556,7 @@ function App() {
 
   useEffect(() => {
     if (isAuthenticated) {
+      rememberSignedInHere();
       fetchData();
       checkSessionDraft();
     } else {
@@ -591,13 +623,34 @@ function App() {
     }
   };
 
+  /** The first fields to fix, each with what it needs; empty when the form can go. */
+  const checkAuthFields = (): AuthFieldErrors => {
+    const errors: AuthFieldErrors = {};
+    const name = username.trim();
+    if (!name) errors.username = 'Écris ton identifiant.';
+    else if (!isLoginMode && !USERNAME_PATTERN.test(name))
+      errors.username = 'De 3 à 24 caractères : lettres, chiffres, « . », « _ » ou « - ».';
+    if (!password) errors.password = 'Écris ton mot de passe.';
+    else if (!isLoginMode && password.length < MIN_PASSWORD_LENGTH)
+      errors.password = `Il faut au moins ${MIN_PASSWORD_LENGTH} caractères.`;
+    if (!isLoginMode && !errors.password && password !== confirmPassword)
+      errors.confirm = 'Les deux mots de passe sont différents.';
+    return errors;
+  };
+
   const handleAuthSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isLoginMode && signupStep === 1) {
-      if (password !== confirmPassword) {
-        setAuthError('Les deux mots de passe ne correspondent pas.');
+    if (isLoginMode || signupStep === 1) {
+      const errors = checkAuthFields();
+      setAuthFieldErrors(errors);
+      const first = (['username', 'password', 'confirm'] as const).find((field) => errors[field]);
+      if (first) {
+        const ids = { username: 'auth-username', password: 'auth-password', confirm: 'auth-password-confirm' };
+        document.getElementById(ids[first])?.focus();
         return;
       }
+    }
+    if (!isLoginMode && signupStep === 1) {
       setAuthError('');
       setSignupStep(2);
       return;
@@ -605,11 +658,16 @@ function App() {
     submitAuth(!isLoginMode);
   };
 
+  // Typing in a field clears what it was asked
+  const clearFieldError = (field: keyof AuthFieldErrors) =>
+    setAuthFieldErrors((errors) => (errors[field] ? { ...errors, [field]: undefined } : errors));
+
   const switchAuthMode = (loginMode: boolean) => {
     setIsLoginMode(loginMode);
     setSignupStep(1);
     setConfirmPassword('');
     setAuthError('');
+    setAuthFieldErrors({});
   };
 
   const handleLogout = () => {
@@ -628,6 +686,7 @@ function App() {
     navigator.serviceWorker?.controller?.postMessage({ type: 'clear-api-cache' });
     clearToken();
     setIsAuthenticated(false);
+    switchAuthMode(true);
     setActiveSessionId(null);
     setWorkout([]);
   };
@@ -844,7 +903,7 @@ function App() {
           exerciseId: exLog.exerciseId,
           name: exLog.exercise?.name || 'Exercice Test',
           category: exLog.exercise?.category,
-          progressiveTarget: 'Série test : note ta charge maximale propre (RPE 8-9)',
+          progressiveTarget: 'Série test : monte jusqu’à ce qu’il te reste 1 ou 2 reps en réserve',
           source: 'protocol' as const,
           sets: (exLog.sets || []).map(() => ({ ...emptySet(), target })),
         };
@@ -865,7 +924,7 @@ function App() {
   };
 
   const handleSkipTestWeek = async () => {
-    if (!window.confirm('Voulez-vous passer la semaine test et activer directement le Coach IA ?')) return;
+    if (!window.confirm('Passer la semaine test ? Atlas préparera tes séances à partir de ton profil.')) return;
     try {
       await api.post('/workout/test-week/skip');
       showToast('Semaine test passée : le coach IA prend le relais', 'success');
@@ -877,7 +936,7 @@ function App() {
   };
 
   const handleResetTestWeek = async () => {
-    if (!window.confirm('Voulez-vous réinitialiser votre semaine de test pour relancer une calibration ?')) return;
+    if (!window.confirm('Recommencer la semaine test ? Tes 3 séances test seront à refaire.')) return;
     try {
       await api.post('/workout/test-week/reset');
       showToast('Semaine test réinitialisée', 'info');
@@ -1154,7 +1213,7 @@ function App() {
     if (!activeSessionId || finishingRef.current) return;
 
     if (workout.length === 0) {
-      if (!window.confirm('Votre séance ne contient aucun exercice. Voulez-vous quand même la terminer ?')) {
+      if (!window.confirm('Ta séance ne contient aucun exercice. La terminer quand même ?')) {
         return;
       }
     }
@@ -1229,7 +1288,7 @@ function App() {
 
   // Delete Workout Session
   const handleDeleteSession = async (sessionId: string) => {
-    if (!window.confirm('Voulez-vous vraiment supprimer cette séance de votre historique ?')) {
+    if (!window.confirm('Supprimer cette séance de ton historique ? Tu ne pourras pas la récupérer.')) {
       return;
     }
     try {
@@ -1513,13 +1572,9 @@ function App() {
   // Render Authentication Screen
   if (!isAuthenticated) {
     const isSignupProfile = !isLoginMode && signupStep === 2;
-    const authSubtitle = isLoginMode
-      ? 'Chaque séance, un cran plus loin.'
-      : signupStep === 1
-      ? 'Définissez votre nouveau standard de progression.'
-      : signupCalibration
-      ? 'Ton profil athlète calibre tes charges de départ et le coach IA.'
-      : 'Ton profil athlète règle tes charges de départ et le coach IA.';
+    const authSubtitle = signupCalibration
+      ? 'Ton profil règle tes charges de départ et les séances test.'
+      : 'Ton profil règle tes charges de départ et les séances d’Atlas.';
     return (
       <div className="auth-shell">
         <ToastContainer toasts={toasts} onDismiss={dismissToast} />
@@ -1531,7 +1586,21 @@ function App() {
                 <Icon name="bolt" size={20} filled strokeWidth={1.4} />
               </span>
               <h1>Overloady</h1>
-              <p>{authSubtitle}</p>
+              {isSignupProfile ? (
+                <p>{authSubtitle}</p>
+              ) : (
+                <>
+                  <p className="auth-pitch">Ton carnet de musculation qui te dit quoi soulever à la prochaine séance.</p>
+                  <ul className="auth-promises">
+                    {AUTH_PROMISES.map((promise) => (
+                      <li key={promise}>
+                        <Icon name="check" size={16} strokeWidth={2.2} />
+                        <span>{promise}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </header>
 
             <section className="auth-card">
@@ -1563,7 +1632,7 @@ function App() {
                 </div>
               )}
 
-              <form onSubmit={handleAuthSubmit} className="auth-form">
+              <form onSubmit={handleAuthSubmit} className="auth-form" noValidate={!isSignupProfile}>
                 {isSignupProfile ? (
                   <>
                     <AthleteProfileFields value={signupAthlete} onChange={setSignupAthlete} idPrefix="signup" />
@@ -1593,17 +1662,30 @@ function App() {
                         id="auth-username"
                         className="auth-input"
                         type="text"
+                        name="username"
                         value={username}
-                        onChange={(e) => setUsername(e.target.value)}
+                        onChange={(e) => {
+                          setUsername(e.target.value);
+                          clearFieldError('username');
+                        }}
                         placeholder="alex_lifts"
                         autoComplete="username"
                         autoCapitalize="none"
                         autoCorrect="off"
                         spellCheck={false}
-                        required
+                        aria-invalid={!!authFieldErrors.username}
+                        aria-describedby={authFieldErrors.username || !isLoginMode ? 'auth-username-hint' : undefined}
                       />
-                      {!isLoginMode && (
-                        <span className="auth-hint">3 à 24 caractères : lettres, chiffres, « . », « _ » ou « - ».</span>
+                      {authFieldErrors.username ? (
+                        <span id="auth-username-hint" className="auth-hint auth-hint-error">
+                          {authFieldErrors.username}
+                        </span>
+                      ) : (
+                        !isLoginMode && (
+                          <span id="auth-username-hint" className="auth-hint">
+                            3 à 24 caractères : lettres, chiffres, « . », « _ » ou « - ».
+                          </span>
+                        )
                       )}
                     </div>
 
@@ -1614,12 +1696,16 @@ function App() {
                           id="auth-password"
                           className="auth-input"
                           type={showPassword ? 'text' : 'password'}
+                          name="password"
                           value={password}
-                          onChange={(e) => setPassword(e.target.value)}
+                          onChange={(e) => {
+                            setPassword(e.target.value);
+                            clearFieldError('password');
+                          }}
                           placeholder="••••••••••••"
                           autoComplete={isLoginMode ? 'current-password' : 'new-password'}
-                          minLength={isLoginMode ? undefined : 6}
-                          required
+                          aria-invalid={!!authFieldErrors.password}
+                          aria-describedby={authFieldErrors.password || !isLoginMode ? 'auth-password-hint' : undefined}
                         />
                         <button
                           type="button"
@@ -1630,7 +1716,17 @@ function App() {
                           <Icon name={showPassword ? 'eyeOff' : 'eye'} size={18} />
                         </button>
                       </div>
-                      {!isLoginMode && <span className="auth-hint">6 caractères minimum.</span>}
+                      {authFieldErrors.password ? (
+                        <span id="auth-password-hint" className="auth-hint auth-hint-error">
+                          {authFieldErrors.password}
+                        </span>
+                      ) : (
+                        !isLoginMode && (
+                          <span id="auth-password-hint" className="auth-hint">
+                            {MIN_PASSWORD_LENGTH} caractères minimum.
+                          </span>
+                        )
+                      )}
                     </div>
 
                     {!isLoginMode && (
@@ -1640,13 +1736,22 @@ function App() {
                           id="auth-password-confirm"
                           className="auth-input"
                           type={showPassword ? 'text' : 'password'}
+                          name="password-confirm"
                           value={confirmPassword}
-                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          onChange={(e) => {
+                            setConfirmPassword(e.target.value);
+                            clearFieldError('confirm');
+                          }}
                           placeholder="••••••••••••"
                           autoComplete="new-password"
-                          required
+                          aria-invalid={!!authFieldErrors.confirm}
+                          aria-describedby={authFieldErrors.confirm ? 'auth-confirm-hint' : undefined}
                         />
-                        {confirmPassword && (
+                        {authFieldErrors.confirm ? (
+                          <span id="auth-confirm-hint" className="auth-hint auth-hint-error">
+                            {authFieldErrors.confirm}
+                          </span>
+                        ) : confirmPassword && (
                           <span className={`auth-hint ${confirmPassword === password ? 'auth-hint-ok' : 'auth-hint-error'}`}>
                             {confirmPassword === password ? '✓ Les mots de passe correspondent' : 'Les mots de passe ne correspondent pas'}
                           </span>
@@ -1656,7 +1761,7 @@ function App() {
 
                     {!isLoginMode && (
                       <div className="auth-field">
-                        <label>Votre objectif</label>
+                        <label>Ton objectif</label>
                         <div className="auth-goal-grid">
                           {GOAL_OPTIONS.map((g) => (
                             <button
@@ -1703,8 +1808,8 @@ function App() {
                         </div>
                         <span className="auth-hint">
                           {signupCalibration
-                            ? '3 séances test pour mesurer tes charges réelles avant que le coach IA programme tes cycles.'
-                            : 'Pas de séance test : le coach IA programme tes séances tout de suite à partir de ton profil. Tu pourras toujours faire la calibration plus tard depuis ton Profil.'}
+                            ? '3 séances test pour mesurer tes vraies charges. Ensuite, Atlas prépare tes séances.'
+                            : 'Pas de séance test : Atlas prépare tes séances tout de suite, à partir de ton profil. Tu pourras faire la calibration plus tard, depuis ton profil.'}
                         </span>
                       </div>
                     )}
@@ -1752,11 +1857,6 @@ function App() {
               )}
             </section>
 
-            <div className="auth-signature">
-              <span>Surcharge progressive</span>
-              <span className="auth-signature-dot" aria-hidden="true" />
-              <span>Coach IA</span>
-            </div>
           </div>
 
         </main>
@@ -1818,8 +1918,8 @@ function App() {
                   </span>
                 </div>
                 <div>
-                  <h2 className="home-card-title">Phase d'évaluation initiale</h2>
-                  <p className="home-card-text">3 séances test pour mesurer tes charges de référence avant que le coach IA prenne le relais.</p>
+                  <h2 className="home-card-title">3 séances pour mesurer tes charges</h2>
+                  <p className="home-card-text">Tu fais les séances test une par une. Ensuite, Atlas prépare tes séances à partir de tes vraies charges.</p>
                 </div>
 
                 <div className="calib-steps">
@@ -1846,19 +1946,23 @@ function App() {
                   })}
                 </div>
 
+                {/* The test session starts from the "Aujourd'hui" card below: one button, not two. This one
+                    only shows when that card has no test session to offer */}
                 <div className="home-actions">
-                  <button
-                    className="btn-primary"
-                    onClick={() => handleStartTestWeekSession(testWeekStatus.currentStep)}
-                    disabled={isStartingTestStep || !!activeSessionId}
-                  >
-                    {!isStartingTestStep && !activeSessionId && <Icon name="play" size={16} filled strokeWidth={1.5} />}
-                    {isStartingTestStep
-                      ? 'Lancement…'
-                      : activeSessionId
-                      ? 'Séance déjà en cours'
-                      : `Lancer la séance test ${testWeekStatus.currentStep}`}
-                  </button>
+                  {!nextRecommendation?.isTestWeek && (
+                    <button
+                      className="btn-primary"
+                      onClick={() => handleStartTestWeekSession(testWeekStatus.currentStep)}
+                      disabled={isStartingTestStep || !!activeSessionId}
+                    >
+                      {!isStartingTestStep && !activeSessionId && <Icon name="play" size={16} filled strokeWidth={1.5} />}
+                      {isStartingTestStep
+                        ? 'Lancement…'
+                        : activeSessionId
+                        ? 'Séance déjà en cours'
+                        : `Lancer la séance test ${testWeekStatus.currentStep} sur ${testWeekStatus.totalSteps}`}
+                    </button>
+                  )}
                   <button className="btn-secondary" onClick={() => setIsTestWeekModalOpen(true)}>
                     <Icon name="clipboard" size={16} />
                     Protocole
@@ -2026,19 +2130,11 @@ function App() {
                             : activeSessionId
                             ? 'Séance déjà en cours'
                             : nextRecommendation.isTestWeek
-                            ? `Commencer le test (étape ${nextRecommendation.testStep}/${nextRecommendation.totalTestSteps})`
+                            ? `Lancer la séance test ${nextRecommendation.testStep} sur ${nextRecommendation.totalTestSteps}`
                             : 'Commencer la séance'}
                         </button>
-                        {nextRecommendation.isTestWeek ? (
-                          <button
-                            className="btn-secondary"
-                            onClick={() => setIsTestWeekModalOpen(true)}
-                            title="Consulter le protocole de la semaine de test"
-                          >
-                            <Icon name="clipboard" size={16} />
-                            Détail des tests
-                          </button>
-                        ) : (
+                        {/* During the test week, the protocol opens from the calibration card above */}
+                        {!nextRecommendation.isTestWeek && (
                           <button
                             className="btn-secondary"
                             onClick={() => setIsRegenerateOpen(true)}
@@ -2214,8 +2310,8 @@ function App() {
                   <div className="session-notice">
                     <Icon name="flask" size={16} />
                     <p>
-                      <strong>Séance test.</strong> Donne le maximum avec une technique propre : tes charges réelles
-                      calibrent tes prochains cycles.
+                      <strong>Séance test.</strong> Monte la charge jusqu’à ce qu’il te reste 1 ou 2 reps en réserve
+                      <GlossaryTerm term="rir" />, avec une technique propre. Tes charges règlent tes prochaines séances.
                     </p>
                     <button className="text-action" onClick={() => setIsTestWeekModalOpen(true)}>
                       Protocole

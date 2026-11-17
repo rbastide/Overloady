@@ -69,7 +69,7 @@ export const WarmupModal: React.FC<WarmupModalProps> = ({
       <div className="glass-panel modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <div>
-            <h2>Protocole d'Échauffement</h2>
+            <h2>Échauffement</h2>
             <p>{exerciseName}</p>
           </div>
           <button className="btn-icon" onClick={onClose} aria-label="Fermer">
@@ -104,7 +104,7 @@ export const WarmupModal: React.FC<WarmupModalProps> = ({
         </div>
 
         <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
-          Ce protocole active le système nerveux central et prépare les articulations sans générer de fatigue résiduelle avant vos séries effectives.
+          Quelques séries de plus en plus lourdes, avec peu de reps : tes articulations chauffent sans te fatiguer avant tes vraies séries.
         </p>
 
         {loading ? (
@@ -147,7 +147,7 @@ export const WarmupModal: React.FC<WarmupModalProps> = ({
           disabled={warmupSets.length === 0}
         >
           <Icon name="flame" size={18} />
-          Injecter l'échauffement dans la séance
+          Ajouter l’échauffement à la séance
         </button>
       </div>
     </div>

@@ -428,7 +428,7 @@ function readWorkout(parsed: any, goal: string): AiGeneratedWorkout | null {
     exercises: exercises.map((ex: any) => ({
       name: ex.name || ex.nom || 'Exercice',
       category: ex.category || ex.categorie || 'Général',
-      reason: ex.reason || ex.explication || 'Recommandé par votre coach IA',
+      reason: ex.reason || ex.explication || 'Choisi par Atlas, ton coach IA',
       targetAdvice: ex.targetAdvice || ex.consigne || ex.advice || '',
       sets: toSetList(ex),
     })),

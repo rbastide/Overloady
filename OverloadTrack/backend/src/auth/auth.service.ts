@@ -33,7 +33,7 @@ export class AuthService {
     const username = this.normalizeUsername(data?.username);
 
     if (!username || !data?.password) {
-      throw new BadRequestException('Veuillez renseigner un identifiant et un mot de passe.');
+      throw new BadRequestException('Choisis un identifiant et un mot de passe.');
     }
 
     if (!USERNAME_PATTERN.test(username)) {
