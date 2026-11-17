@@ -37,15 +37,15 @@ const BELT_PLATES = [20, 15, 10, 5, 2.5, 1.25];
  * The one place of the app where colour describes an object rather than a meaning.
  */
 const PLATES: Record<number, { color: string; ink: string; diameter: number; thickness: number }> = {
-  25: { color: '#c4473a', ink: '#fbe9e6', diameter: 450, thickness: 27 },
+  25: { color: '#c4473a', ink: '#ffffff', diameter: 450, thickness: 27 },
   20: { color: '#3567b0', ink: '#e6eefa', diameter: 450, thickness: 23 },
   15: { color: '#d9b13b', ink: '#1c1a12', diameter: 400, thickness: 20 },
-  10: { color: '#3e8e57', ink: '#e5f3e9', diameter: 325, thickness: 17 },
+  10: { color: '#3e8e57', ink: '#06100a', diameter: 325, thickness: 17 },
   5: { color: '#e0e2ea', ink: '#0f1216', diameter: 228, thickness: 14 },
-  2.5: { color: '#c4473a', ink: '#fbe9e6', diameter: 190, thickness: 11 },
+  2.5: { color: '#c4473a', ink: '#ffffff', diameter: 190, thickness: 11 },
   1.25: { color: '#9aa1a9', ink: '#0f1216', diameter: 160, thickness: 9 },
 };
-const plateSpec = (plate: number) => PLATES[plate] ?? { color: '#6b737c', ink: '#e0e2ea', diameter: 200, thickness: 12 };
+const plateSpec = (plate: number) => PLATES[plate] ?? { color: '#6b737c', ink: '#ffffff', diameter: 200, thickness: 12 };
 const BARS = [
   { weight: 20, label: '20 kg (olympique)' },
   { weight: 15, label: '15 kg' },

@@ -145,6 +145,23 @@ export const RestTimer: React.FC<RestTimerProps> = ({ initialSeconds, autoStart 
     if (permission === 'granted' && endsAt !== null) scheduleRestNotification(endsAt);
   };
 
+  // On phones the timer is a fixed drawer: publish its real height so the session can reserve that room
+  const [presetsOpen, setPresetsOpen] = useState(false);
+  const drawerRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const node = drawerRef.current;
+    if (!node || typeof ResizeObserver === 'undefined') return;
+    const root = document.documentElement;
+    const publish = () => root.style.setProperty('--rest-drawer-h', `${Math.ceil(node.getBoundingClientRect().height)}px`);
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(node);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty('--rest-drawer-h');
+    };
+  }, []);
+
   const isEnded = timeLeft === 0;
   const progressPercent = initialDuration > 0 ? Math.min(100, ((initialDuration - timeLeft) / initialDuration) * 100) : 0;
   const toggleLabel = isRunning ? 'Pause' : isEnded ? 'Relancer' : timeLeft === initialDuration ? 'Démarrer' : 'Reprendre';
@@ -153,7 +170,7 @@ export const RestTimer: React.FC<RestTimerProps> = ({ initialSeconds, autoStart 
   const showTide = isRunning || timeLeft !== initialDuration;
 
   return (
-    <section className={`rest-timer${isEnded ? ' is-ended' : ''}`} aria-label="Chronomètre de repos">
+    <section ref={drawerRef} className={`rest-timer${isEnded ? ' is-ended' : ''}`} aria-label="Chronomètre de repos">
       {tideRoot &&
         showTide &&
         createPortal(
@@ -165,9 +182,19 @@ export const RestTimer: React.FC<RestTimerProps> = ({ initialSeconds, autoStart 
         )}
       <div className="rest-readout">
         <span className="rest-label">{isEnded ? 'Repos terminé' : isRunning || timeLeft !== initialDuration ? 'Repos' : 'Repos prêt'}</span>
-        <span className="rest-time" role="timer" aria-live="off">
-          {formatTime(timeLeft)}
-        </span>
+        <button
+          type="button"
+          className="rest-time-btn"
+          onClick={() => setPresetsOpen((open) => !open)}
+          aria-expanded={presetsOpen}
+          aria-controls="rest-presets"
+          aria-label={`Temps restant ${formatTime(timeLeft)}, choisir la durée du repos`}
+        >
+          <span className="rest-time" role="timer" aria-live="off">
+            {formatTime(timeLeft)}
+          </span>
+          <Icon name="chevronDown" size={11} className="rest-time-chevron" />
+        </button>
       </div>
 
       <div className="rest-progress">
@@ -181,13 +208,16 @@ export const RestTimer: React.FC<RestTimerProps> = ({ initialSeconds, autoStart 
         >
           <div className="rest-fill" style={{ width: `${progressPercent}%` }} />
         </div>
-        <div className="rest-presets" role="group" aria-label="Durée du repos">
+        <div id="rest-presets" className={`rest-presets${presetsOpen ? ' is-open' : ''}`} role="group" aria-label="Durée du repos">
           {PRESETS.map((sec) => (
             <button
               key={sec}
               type="button"
               className={`rest-preset ${initialDuration === sec ? 'active' : ''}`}
-              onClick={() => startWith(sec)}
+              onClick={() => {
+                startWith(sec);
+                setPresetsOpen(false);
+              }}
               aria-pressed={initialDuration === sec}
             >
               {formatTime(sec)}

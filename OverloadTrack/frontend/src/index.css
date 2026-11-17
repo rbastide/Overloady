@@ -58,8 +58,8 @@
   /* Ink: off-white for values, zinc for labels and units */
   --text-main: #e0e2ea;
   --text-secondary: #c9ced6;
-  --text-muted: #9aa1a9;
-  --text-dim: #6b737c;
+  --text-muted: #a8afb7;
+  --text-dim: #8c949d;
 
   --shadow-card: none;
   --shadow-pop: 0 20px 40px rgba(0, 0, 0, 0.45);
@@ -179,7 +179,7 @@ input[type='radio'] {
 
 /* Focus: a quiet sage ring, no layout shift */
 :focus-visible {
-  outline: 2px solid rgba(124, 169, 154, 0.5);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 

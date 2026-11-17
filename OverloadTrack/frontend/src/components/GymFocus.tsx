@@ -174,7 +174,14 @@ export function GymFocus({
               </span>
               <span className="gym-prev">
                 {previous
-                  ? `Précédent ${formatKg(previous.weight)} kg × ${previous.reps}`
+                  ? (
+                    <>
+                      <span className="gym-prev-label">Précédent</span>
+                      <span className="gym-prev-value">
+                        {formatKg(previous.weight)} kg × {previous.reps}
+                      </span>
+                    </>
+                  )
                   : type === 'normal' || type === 'failure'
                   ? 'Pas de précédent'
                   : 'Hors progression'}

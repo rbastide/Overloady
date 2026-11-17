@@ -2344,14 +2344,6 @@ function App() {
                       <Icon name="plus" size={16} />
                       <span className="btn-label">Exercice</span>
                     </button>
-                    <button
-                      className="btn-icon is-danger"
-                      onClick={() => setIsAbandonOpen(true)}
-                      aria-label="Abandonner la séance"
-                      title="Abandonner la séance"
-                    >
-                      <Icon name="close" size={18} />
-                    </button>
                     <button className="btn-primary" onClick={finishWorkout}>
                       Terminer
                       <Icon name="check" size={16} strokeWidth={2.4} />
@@ -2426,6 +2418,7 @@ function App() {
                       />
                     ) : activeExercise ? (
                       <ActiveExerciseCard
+                        key={activeExercise.exerciseId}
                         exercise={activeExercise}
                         position={activeExerciseIndex + 1}
                         total={workout.length}

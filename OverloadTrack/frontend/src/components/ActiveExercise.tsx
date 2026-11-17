@@ -2,6 +2,7 @@ import React from 'react';
 import { Icon } from './Icons';
 import { BAR_PLATES, DEFAULT_STEP, breakdownPlates, detectEquipment, formatKg, loggingGuide } from '../lib/loadMath';
 import { beatsRecord, explainTarget, previousFor, resolveSetTarget, type PlanSource, type SetTarget } from '../lib/overload';
+import { useConfirmBulk } from '../lib/useConfirmBulk';
 import { SET_TYPE_LABELS, SET_TYPE_MARKS, SET_TYPE_SHORT, typeOf, type SetType } from '../lib/setTypes';
 
 export interface ActiveSet {
@@ -200,6 +201,8 @@ export function ActiveExerciseCard({
   // The first set not validated yet is the one being performed: it gets the steppers.
   const activeSetIndex = exercise.sets.findIndex((s) => !s.completed);
   const allDone = exercise.sets.length > 0 && activeSetIndex === -1;
+  const remainingSets = exercise.sets.filter((s) => !s.completed).length;
+  const completeAllGuard = useConfirmBulk(remainingSets, onCompleteAll);
   const targets = exercise.sets.map((_, i) => resolveSetTarget(exercise, i, stats, goal));
   const plateIndex = activeSetIndex !== -1 ? activeSetIndex : exercise.sets.length - 1;
   const plateSet = exercise.sets[plateIndex];
@@ -466,9 +469,14 @@ export function ActiveExerciseCard({
             Ajouter une série
           </button>
           {exercise.sets.length > 0 && !allDone && (
-            <button type="button" className="text-action" onClick={onCompleteAll}>
+            <button
+              type="button"
+              className={`text-action text-action--tall${completeAllGuard.armed ? ' is-armed' : ''}`}
+              onClick={completeAllGuard.press}
+              aria-live="polite"
+            >
               <Icon name="checkCircle" size={15} />
-              Tout valider
+              {completeAllGuard.armed ? `Valider les ${remainingSets} séries ?` : 'Tout valider'}
             </button>
           )}
           {onLinkNext && (
