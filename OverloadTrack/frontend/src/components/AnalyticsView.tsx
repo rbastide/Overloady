@@ -3,6 +3,7 @@ import api from '../api';
 import { Icon } from './Icons';
 import { StepChart, StepMark, type StepPoint } from './StepChart';
 import { formatKg } from '../lib/loadMath';
+import { describeChange, formatShortDate } from '../lib/overload';
 
 interface KeyLift {
   exerciseId: string;
@@ -11,12 +12,23 @@ interface KeyLift {
   points: StepPoint[];
 }
 
-// "12 sept."
-const formatShortDate = (iso: string) =>
-  new Date(`${iso}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 
-const describeGain = (gain: number) =>
-  gain > 0 ? `+${formatKg(gain)} kg` : gain < 0 ? `−${formatKg(-gain)} kg` : 'Même charge';
+/** Period of the staircases, chosen once for every card. */
+type LiftPeriod = '4w' | '3m' | 'all';
+const LIFT_PERIODS: Array<{ id: LiftPeriod; label: string; days: number | null }> = [
+  { id: '4w', label: '4 semaines', days: 28 },
+  { id: '3m', label: '3 mois', days: 91 },
+  { id: 'all', label: 'Tout', days: null },
+];
+
+const KEY_LIFTS_SHOWN = 4;
+
+/** The treads of a lift within the period (dates are UTC days, as the API sends them). */
+const pointsWithin = (points: StepPoint[], days: number | null) => {
+  if (days === null) return points;
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  return points.filter((p) => p.date >= since);
+};
 
 const formatVolume = (volume: number) =>
   volume >= 1000 ? `${(volume / 1000).toFixed(1).replace('.', ',')} t` : `${volume} kg`;
@@ -31,6 +43,7 @@ export const AnalyticsView: React.FC = () => {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeSubTab, setActiveSubTab] = useState<'overview' | 'prs' | 'badges'>('overview');
+  const [liftPeriod, setLiftPeriod] = useState<LiftPeriod>('3m');
 
   useEffect(() => {
     fetchAnalytics();
@@ -62,6 +75,13 @@ export const AnalyticsView: React.FC = () => {
 
   const { totalVolume, totalSessions, muscleDistribution, personalRecords, weeklyTrends, achievements } = data;
   const keyLifts: KeyLift[] = Array.isArray(data.keyLifts) ? data.keyLifts : [];
+  const periodDays = LIFT_PERIODS.find((p) => p.id === liftPeriod)?.days ?? null;
+  // The four movements trained most within the period; a staircase needs two sessions in it
+  const liftsInPeriod = keyLifts
+    .map((lift) => ({ ...lift, points: pointsWithin(lift.points, periodDays) }))
+    .filter((lift) => lift.points.length >= 2)
+    .sort((a, b) => b.points.length - a.points.length)
+    .slice(0, KEY_LIFTS_SHOWN);
 
   // Find max volume in weekly trends for scaling SVG bars
   const maxWeeklyVol = weeklyTrends.length > 0
@@ -144,23 +164,39 @@ export const AnalyticsView: React.FC = () => {
         <section className="lift-steps" aria-labelledby="lift-steps-title">
           <div className="lift-steps-head">
             <h2 id="lift-steps-title">Charge par mouvement</h2>
-            <span>Meilleure série de chaque séance</span>
+            <span>Meilleure série de chaque séance. Touche une marche pour la lire.</span>
           </div>
-          {keyLifts.length > 0 ? (
+          {keyLifts.length > 0 && (
+            <div className="period-switch" role="group" aria-label="Période">
+              {LIFT_PERIODS.map((period) => (
+                <button
+                  key={period.id}
+                  type="button"
+                  aria-pressed={liftPeriod === period.id}
+                  className={`period-option${liftPeriod === period.id ? ' is-active' : ''}`}
+                  onClick={() => setLiftPeriod(period.id)}
+                >
+                  {period.label}
+                </button>
+              ))}
+            </div>
+          )}
+          {liftsInPeriod.length > 0 ? (
             <div className="lift-steps-grid">
-              {keyLifts.map((lift) => {
+              {liftsInPeriod.map((lift) => {
                 const first = lift.points[0];
                 const last = lift.points[lift.points.length - 1];
-                const gain = Math.round((last.weight - first.weight) * 100) / 100;
+                // Change over the period, signed: the load first, the reps when the load held
+                const gain = describeChange(first, last);
                 return (
                   <article key={lift.exerciseId} className="glass-panel lift-step-card">
                     <div className="lift-step-head">
                       <h3>{lift.exerciseName}</h3>
-                      <span className={`lift-step-gain${gain > 0 ? ' is-up' : gain < 0 ? ' is-down' : ''}`}>
-                        {describeGain(gain)}
-                      </span>
+                      <span className={`lift-step-gain is-${gain.tone}`}>{gain.label}</span>
                     </div>
                     <StepChart
+                      // A new period starts the reading on its last tread
+                      key={`${lift.exerciseId}-${liftPeriod}-${last.date}-${lift.points.length}`}
                       points={lift.points}
                       label={`${lift.exerciseName} : de ${formatKg(first.weight)} à ${formatKg(last.weight)} kg en ${lift.points.length} séances`}
                     />
@@ -176,7 +212,11 @@ export const AnalyticsView: React.FC = () => {
           ) : (
             <div className="glass-panel lift-steps-empty">
               <StepMark />
-              <p>Deux séances sur un même mouvement et ton escalier apparaît : une marche à chaque charge gagnée.</p>
+              <p>
+                {keyLifts.length > 0
+                  ? 'Pas deux séances sur un même mouvement dans cette période : choisis une période plus longue.'
+                  : 'Deux séances sur un même mouvement et ton escalier apparaît : une marche à chaque charge gagnée.'}
+              </p>
             </div>
           )}
         </section>

@@ -39,7 +39,16 @@ import {
 } from './components/AthleteProfileFields';
 import { detectEquipment, formatKg } from './lib/loadMath';
 import { HAPTICS, useWakeLock, vibrate } from './lib/device';
-import { describeGap, fillFromTarget, resolveSetTarget, toTarget, topSet, type SetTarget } from './lib/overload';
+import {
+  describeGap,
+  describeOverload,
+  fillFromTarget,
+  resolveSetTarget,
+  toTarget,
+  topSet,
+  type OverloadSummary,
+  type SetTarget,
+} from './lib/overload';
 import { createNameMatcher } from './lib/exerciseSearch';
 import { SET_TYPE_LABELS, drivesTarget, isWorkSet, markOf, typeOf, type SetType } from './lib/setTypes';
 import {
@@ -1489,10 +1498,12 @@ function App() {
       </button>
     );
   };
-  // Dashboard: validated volume of the last 7 days against the 7 days before
+  // Dashboard: the movements whose best set moves up over four weeks. A short week is no drop:
+  // only a real drop of load reads warm
+  const overloadSummary: OverloadSummary | null = dashboardStats.overload ?? null;
+  const overload = describeOverload(overloadSummary);
+  const overloadTrend = overload?.trend ?? null;
   const weekVolume = Number(dashboardStats.weekVolume) || 0;
-  const volumeDelta: number | null = typeof dashboardStats.weekVolumeDelta === 'number' ? dashboardStats.weekVolumeDelta : null;
-  const overloadTrend = volumeDelta === null ? null : volumeDelta > 2 ? 'up' : volumeDelta < -2 ? 'down' : 'flat';
 
   const goalName = (GOAL_OPTIONS.find((g) => g.id === (profile.goal || 'BODYBUILDING')) || GOAL_OPTIONS[1]).name.replace(/ \(.*\)/, '');
   const sessionKicker = activeTestStep
@@ -2101,7 +2112,7 @@ function App() {
               </div>
 
               <div className="home-col">
-                {/* Progressive overload: this week's validated volume against the week before */}
+                {/* Progressive overload: the movements that move up over four weeks, not the weekly tonnage */}
                 <section className="home-card overload-card">
                   <div className="home-card-head">
                     <span className="home-card-label">
@@ -2116,28 +2127,14 @@ function App() {
                     )}
                   </div>
                   <div className="overload-value">
-                    {volumeDelta !== null ? (
-                      <>
-                        <strong>
-                          {volumeDelta > 0 ? '+' : ''}
-                          {volumeDelta.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %
-                        </strong>
-                        <span>vs semaine dernière</span>
-                      </>
-                    ) : (
-                      <>
-                        <strong>{weekVolume > 0 ? weekVolume.toLocaleString('fr-FR') : '—'}</strong>
-                        <span>{weekVolume > 0 ? 'kg cette semaine' : 'à mesurer'}</span>
-                      </>
-                    )}
+                    <strong>{overload ? overload.value : '—'}</strong>
+                    <span>{overload ? overload.caption : 'à mesurer'}</span>
                   </div>
                   <p className="home-card-text">
-                    {volumeDelta !== null
-                      ? `${weekVolume.toLocaleString('fr-FR')} kg validés sur les 7 derniers jours, contre ${Number(
-                          dashboardStats.previousWeekVolume || 0,
-                        ).toLocaleString('fr-FR')} kg la semaine précédente.`
-                      : weekVolume > 0
-                      ? 'Pas encore de semaine précédente à comparer : la tendance apparaîtra la semaine prochaine.'
+                    {overload
+                      ? overload.text
+                      : Number(dashboardStats.totalWorkouts) > 0
+                      ? 'Refais un mouvement au moins deux fois en 4 semaines : sa progression apparaîtra ici.'
                       : 'Termine une séance pour commencer à mesurer ta progression.'}
                   </p>
                 </section>

@@ -154,17 +154,69 @@ export type GapTone = 'up' | 'down' | 'same' | 'new';
 const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? 's' : ''}`;
 const kg = (n: number) => `${String(Math.round(n * 100) / 100).replace('.', ',')} kg`;
 
+// "12 sept."
+export const formatShortDate = (iso: string) =>
+  new Date(`${iso}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+
+/**
+ * From one set to the next, always signed: "+2,5 kg", "−2 kg", "+1 rep", "Même charge". Fewer reps
+ * at the same load is no step back: the warm tone stays for a real drop of load.
+ */
+export function describeChange(from: SetTarget, to: SetTarget): { label: string; tone: 'up' | 'down' | 'same' } {
+  const weightGap = Math.round((to.weight - from.weight) * 100) / 100;
+  if (weightGap > 0) return { label: `+${kg(weightGap)}`, tone: 'up' };
+  if (weightGap < 0) return { label: `−${kg(-weightGap)}`, tone: 'down' };
+  const repGap = to.reps - from.reps;
+  if (repGap > 0) return { label: `+${plural(repGap, 'rep')}`, tone: 'up' };
+  return { label: 'Même charge', tone: 'same' };
+}
+
 /** What the target asks compared with last time: "+2,5 kg", "+1 rep", "Même charge"... */
 export function describeGap(target: SetTarget | null, previous: SetTarget | null): { label: string; tone: GapTone } | null {
   if (!target) return null;
   if (!previous) return { label: 'Première fois', tone: 'new' };
-  const weightGap = Math.round((target.weight - previous.weight) * 100) / 100;
-  if (weightGap > 0) return { label: `+${kg(weightGap)}`, tone: 'up' };
-  if (weightGap < 0) return { label: `−${kg(-weightGap)}`, tone: 'down' };
-  const repGap = target.reps - previous.reps;
-  if (repGap > 0) return { label: `+${plural(repGap, 'rep')}`, tone: 'up' };
-  if (repGap < 0) return { label: `−${plural(-repGap, 'rep')}`, tone: 'down' };
-  return { label: 'Même charge', tone: 'same' };
+  return describeChange(previous, target);
+}
+
+/** Movements whose best set moves up over four weeks (backend workout/overload-summary.ts). */
+export interface OverloadSummary {
+  windowDays: number;
+  tracked: number;
+  progressing: string[];
+  declining: Array<{ name: string; delta: number }>;
+  trend: 'up' | 'down' | 'flat' | null;
+}
+
+/** "Squat et Bench", "Squat, Bench et 3 autres". */
+const listNames = (names: string[]) =>
+  names.length <= 2 ? names.join(' et ') : `${names[0]}, ${names[1]} et ${plural(names.length - 2, 'autre')}`;
+
+/**
+ * The overload card in words: "5 sur 7" movements up, which ones, and the real load drops named.
+ * Null until a movement has been trained twice in the window.
+ */
+export function describeOverload(summary: OverloadSummary | null | undefined) {
+  if (!summary?.trend) return null;
+  const moving = summary.progressing.length;
+  const weeks = Math.round(summary.windowDays / 7);
+  const up =
+    moving === 0
+      ? 'Aucun mouvement n’a encore progressé.'
+      : `${listNames(summary.progressing)} ${moving > 1 ? 'montent' : 'monte'}.`;
+  const drops = summary.declining;
+  const down =
+    drops.length === 0
+      ? 'Aucune charge en baisse.'
+      : `Charge en baisse : ${drops
+          .slice(0, 2)
+          .map((d) => `${d.name} (−${kg(-d.delta)})`)
+          .join(', ')}${drops.length > 2 ? ` et ${plural(drops.length - 2, 'autre')}` : ''}.`;
+  return {
+    trend: summary.trend,
+    value: `${moving} sur ${summary.tracked}`,
+    caption: `${summary.tracked > 1 ? 'mouvements' : 'mouvement'} en progression sur ${weeks} semaines`,
+    text: `${up} ${down}`,
+  };
 }
 
 /** Who planned the session: Atlas (AI coach), the local engine, the calibration protocol. */
@@ -238,7 +290,8 @@ export function explainTarget(
         : rule === 'load'
         ? `${previous.reps} reps la dernière fois, le haut de ta fourchette : la charge monte.`
         : `${previous.reps} reps la dernière fois : une de plus avant de monter la charge (objectif ${top}).`;
-  } else if (pause < 1 && gap?.tone === 'down') {
+  } else if (pause < 1 && (target.weight < previous.weight || target.reps < previous.reps)) {
+    // Lower load, or the same load for fewer reps (bodyweight work): the break says why
     why = pauseWhy;
   } else if (stats.lastRpe) {
     why = `${rpeContext(stats.lastRpe)}.`;

@@ -145,11 +145,125 @@
   color: var(--pr-text);
 }
 
+.period-switch {
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  align-self: flex-start;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  background: var(--bg-inset);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.period-option {
+  min-height: 40px;
+  padding: 0 0.875rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s var(--ease-out), color 0.15s var(--ease-out);
+}
+
+.period-option:hover {
+  color: var(--text-secondary);
+}
+
+.period-option.is-active {
+  background: var(--bg-raised);
+  color: var(--text-main);
+}
+
+.period-option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.step-chart-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* The tread being read: date, load × reps, and the signed change from the tread before */
+.step-chart-readout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.step-chart-date {
+  color: var(--text-muted);
+}
+
+.step-chart-load {
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+.step-chart-gap {
+  color: var(--text-muted);
+}
+
+.step-chart-gap.is-up {
+  color: var(--accent-bright);
+}
+
+.step-chart-gap.is-down {
+  color: var(--pr-text);
+}
+
 .step-chart {
   display: block;
   width: 100%;
   height: auto;
   overflow: visible;
+  cursor: crosshair;
+  touch-action: pan-y;
+  border-radius: var(--radius-sm);
+}
+
+.step-chart:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+.step-chart-tick line {
+  stroke: var(--line);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.step-chart-tick text {
+  fill: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.step-chart-guide {
+  stroke: var(--line-strong);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.step-chart-focus {
+  fill: var(--accent-bright);
+  stroke: var(--bg-card);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
 }
 
 .step-chart-area {
@@ -174,14 +288,6 @@
 .step-chart-best.is-record {
   stroke: var(--pr);
   fill: var(--pr);
-}
-
-.step-chart-value {
-  fill: var(--text-main);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
 }
 
 .lift-step-foot {

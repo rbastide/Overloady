@@ -19,6 +19,7 @@ import {
 import { orderRoutineExercises } from '../routine/routine.service';
 import { drivesTarget, isWorkSet, parseSetType } from './set-type';
 import { sanitizeSupersetIds } from './superset';
+import { summarizeOverload } from './overload-summary';
 import {
   CAUTION_ADVICE,
   PainReportBuilder,
@@ -43,6 +44,8 @@ import {
 const COACH_MAX_MESSAGES = 12;
 const COACH_MAX_MESSAGE_LENGTH = 2000;
 const REGENERATE_MAX_INSTRUCTIONS = 500;
+/** Treads sent per movement for the progression staircases: about two years of weekly sessions. */
+const KEY_LIFT_MAX_POINTS = 120;
 
 interface FinishSetDto {
   reps: number;
@@ -484,7 +487,7 @@ export class WorkoutService implements OnApplicationBootstrap {
       },
       include: {
         exercises: {
-          include: { sets: true },
+          include: { sets: true, exercise: { select: { name: true } } },
         },
       },
       orderBy: { startedAt: 'desc' },
@@ -498,12 +501,7 @@ export class WorkoutService implements OnApplicationBootstrap {
       (s) => new Date(s.startedAt) >= oneWeekAgo,
     );
 
-    const twoWeeksAgo = new Date();
-    twoWeeksAgo.setDate(now.getDate() - 14);
-
     let weekVolume = 0;
-    // Volume of the 7 days before: the dashboard compares both weeks as its progressive overload signal
-    let previousWeekVolume = 0;
     let totalVolumeAllTime = 0;
 
     for (const session of allSessions) {
@@ -517,25 +515,27 @@ export class WorkoutService implements OnApplicationBootstrap {
       }
       totalVolumeAllTime += sessionVolume;
       const startedAt = new Date(session.startedAt);
-      if (startedAt >= oneWeekAgo) {
-        weekVolume += sessionVolume;
-      } else if (startedAt >= twoWeeksAgo) {
-        previousWeekVolume += sessionVolume;
-      }
+      if (startedAt >= oneWeekAgo) weekVolume += sessionVolume;
     }
 
     return {
       totalWorkouts: allSessions.length,
       workoutsThisWeek: weekSessions.length,
       weekVolume: Math.round(weekVolume),
-      previousWeekVolume: Math.round(previousWeekVolume),
-      // Percentage, one decimal; null when there is no previous week to compare with
-      weekVolumeDelta:
-        previousWeekVolume > 0
-          ? Math.round(((weekVolume - previousWeekVolume) / previousWeekVolume) * 1000) / 10
-          : null,
       totalVolumeAllTime: Math.round(totalVolumeAllTime),
       recentSessionsCount: allSessions.length,
+      // The overload signal: movements whose best set moves up over four weeks, whatever the session count
+      overload: summarizeOverload(
+        allSessions.flatMap((session) =>
+          session.exercises.map((ex) => ({
+            date: session.startedAt,
+            exerciseId: ex.exerciseId,
+            name: ex.exercise.name,
+            sets: ex.sets,
+          })),
+        ),
+        now,
+      ),
     };
   }
 
@@ -680,12 +680,12 @@ export class WorkoutService implements OnApplicationBootstrap {
       }
     }
 
-    // Key lifts: the movements trained most often (two sessions at least), the last 12 sessions each
+    // Key lifts: every movement trained twice, with its history (the last 120 sessions). The client
+    // picks the period (4 weeks, 3 months, all) and the movements trained most within it
     const keyLifts = Object.values(liftMap)
       .filter((lift) => lift.points.length >= 2)
       .sort((a, b) => b.points.length - a.points.length || b.points[b.points.length - 1].weight - a.points[a.points.length - 1].weight)
-      .slice(0, 4)
-      .map((lift) => ({ ...lift, points: lift.points.slice(-12) }));
+      .map((lift) => ({ ...lift, points: lift.points.slice(-KEY_LIFT_MAX_POINTS) }));
 
     const muscleDistribution = Object.keys(muscleMap).map((cat) => ({
       category: cat,
